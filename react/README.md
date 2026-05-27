@@ -3,6 +3,7 @@
 사용자가 장소를 검색하고, 지도에서 공간을 확인하고, 해당 공간에 흔적을 남기거나 조회하는 화면을 담당합니다.
 
 ---
+```text
 ## 프로젝트 구조
 react
 ├─ node_modules
@@ -24,7 +25,7 @@ react
 ├─ package.json
 ├─ README.md
 └─ vite.config.js
-
+```
 ---
 ## 폴더 역할
 ### node_modules
