@@ -18,6 +18,7 @@ react
 │  ├─ App.jsx
 │  ├─ index.css
 │  └─ main.jsx
+├─ .env
 ├─ .gitignore
 ├─ eslint.config.js
 ├─ index.html
