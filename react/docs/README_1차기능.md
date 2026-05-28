@@ -157,6 +157,53 @@ React는 보통 div id="root" 영역 안에 화면을 그립니다.
 직접 수정하지 않습니다.
 
 ---
+## 현재 설치된 패키지(공유용)
+아래 내용은 `react/package.json` 기준입니다.
+
+### dependencies
+- framer-motion: ^12.40.0
+- react: ^19.2.6
+- react-dom: ^19.2.6
+- react-icons: ^5.6.0
+- react-router-dom: ^7.15.1
+
+### devDependencies
+- @eslint/js: ^10.0.1
+- @types/react: ^19.2.14
+- @types/react-dom: ^19.2.3
+- @vitejs/plugin-react: ^6.0.1
+- eslint: ^10.3.0
+- eslint-plugin-react-hooks: ^7.1.1
+- eslint-plugin-react-refresh: ^0.5.2
+- globals: ^17.6.0
+- vite: ^8.0.12
+
+---
+## 팀원 충돌 방지 가이드
+의존성 충돌을 줄이기 위해 아래 순서를 지켜주세요.
+
+1. `react/package-lock.json`을 기준으로 설치 (`npm install` 또는 `npm ci`)
+2. 새 패키지 설치 시 팀 채널에 패키지명/버전/목적 공유
+3. 설치 후 `package.json`, `package-lock.json` 함께 커밋
+
+### 설치 환경 초기화가 필요할 때(충돌 발생 시)
+`react` 폴더에서:
+
+```bash
+rm -rf node_modules
+rm -f package-lock.json
+npm install
+```
+
+Windows PowerShell:
+
+```powershell
+Remove-Item -Recurse -Force node_modules
+Remove-Item -Force package-lock.json
+npm install
+```
+
+---
 ### .gitignore
 GitHub에 올리지 않을 파일이나 폴더를 설정하는 파일입니다.
 예시:
