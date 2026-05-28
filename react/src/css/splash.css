@@ -1,0 +1,47 @@
+.splash-page {
+  display: grid;
+  place-items: center;
+}
+
+.splash-copy {
+  position: absolute;
+  top: 39.8%;
+  left: 50%;
+  width: 100%;
+  translate: -50% -50%;
+  padding-inline: 36px;
+  text-align: center;
+}
+
+.splash-copy h1 {
+  margin: 0 0 24px;
+  color: #241a12;
+  font-family: 'KyoboHandwriting2020A', 'Cafe24Ssurround', 'Pretendard', sans-serif;
+  font-size: 58px;
+  font-weight: 400;
+  line-height: 1.02;
+  letter-spacing: 0;
+  text-shadow:
+    0.35px 0 currentColor,
+    0 0.35px currentColor;
+}
+
+.splash-copy p {
+  margin: 0;
+  color: #33271f;
+  font-family: 'Pretendard', sans-serif;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.72;
+  letter-spacing: 0;
+}
+
+@media (max-width: 360px) {
+  .splash-copy h1 {
+    font-size: 50px;
+  }
+
+  .splash-copy p {
+    font-size: 17px;
+  }
+}

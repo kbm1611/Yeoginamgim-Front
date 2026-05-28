@@ -1,4 +1,4 @@
-# YEOGINAMGIM-FRONT
+﻿# YEOGINAMGIM-FRONT
 `YEOGINAMGIM-FRONT`는 **여기남김** 프로젝트의 React 프론트엔드입니다.  
 사용자가 장소를 검색하고, 지도에서 공간을 확인하고, 해당 공간에 흔적을 남기거나 조회하는 화면을 담당합니다.
 

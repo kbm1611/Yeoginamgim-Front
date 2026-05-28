@@ -1,0 +1,38 @@
+.onboarding-page {
+  background: #fbefe4;
+}
+
+.reference-next-hit-area,
+.reference-start-hit-area,
+.reference-skip-hit-area {
+  position: absolute;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.reference-next-hit-area {
+  right: 28px;
+  bottom: 32px;
+  width: 86px;
+  height: 86px;
+  border-radius: 999px;
+}
+
+.reference-start-hit-area {
+  left: 46px;
+  right: 46px;
+  bottom: 84px;
+  height: 88px;
+  border-radius: 999px;
+}
+
+.reference-skip-hit-area {
+  left: 24px;
+  bottom: 42px;
+  width: 112px;
+  height: 52px;
+  border-radius: 18px;
+}
