@@ -18,7 +18,7 @@ function OnboardingPage() {
 
   const handleNext = () => {
     if (isLast) {
-      navigate('/main')
+      navigate('/login')
       return
     }
 
@@ -49,12 +49,12 @@ function OnboardingPage() {
           transition={transition}
         />
       </AnimatePresence>
-      {isIntro || isLast ? (
+      {isIntro ? (
         <button
           type="button"
           className="reference-start-hit-area"
           onClick={handleNext}
-          aria-label={isLast ? 'start' : 'next'}
+          aria-label="next"
         />
       ) : (
         <>

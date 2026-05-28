@@ -1,0 +1,52 @@
+.login-page {
+  background: #fbefe4;
+}
+
+.login-hit-area {
+  position: absolute;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.login-hit-area.google {
+  left: 45px;
+  right: 45px;
+  bottom: 276px;
+  height: 58px;
+  border-radius: 18px;
+}
+
+.login-hit-area.kakao {
+  left: 45px;
+  right: 45px;
+  bottom: 202px;
+  height: 58px;
+  border-radius: 18px;
+}
+
+.login-hit-area.email {
+  left: 45px;
+  right: 45px;
+  bottom: 128px;
+  height: 58px;
+  border-radius: 18px;
+}
+
+.login-hit-area.login {
+  left: 45px;
+  bottom: 44px;
+  width: 148px;
+  height: 54px;
+  border-radius: 18px;
+}
+
+.login-hit-area.signup {
+  right: 45px;
+  bottom: 44px;
+  width: 148px;
+  height: 54px;
+  border-radius: 18px;
+}
