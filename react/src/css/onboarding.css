@@ -1,38 +1,31 @@
-.onboarding-page {
+﻿.onboarding-page {
+  position: relative;
+  overflow: hidden;
   background: #fbefe4;
-}
-
-.reference-next-hit-area,
-.reference-start-hit-area,
-.reference-skip-hit-area {
-  position: absolute;
-  padding: 0;
-  border: 0;
-  background: transparent;
   cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
+  touch-action: pan-y;
 }
 
-.reference-next-hit-area {
-  right: 28px;
-  bottom: 32px;
-  width: 86px;
-  height: 86px;
+.onboarding-indicator {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  z-index: 2;
+}
+
+.onboarding-dot {
+  width: 6px;
+  height: 6px;
   border-radius: 999px;
+  background: rgba(202, 188, 170, 0.82);
+  transition: all 0.24s ease;
 }
 
-.reference-start-hit-area {
-  left: 46px;
-  right: 46px;
-  bottom: 84px;
-  height: 88px;
-  border-radius: 999px;
-}
-
-.reference-skip-hit-area {
-  left: 24px;
-  bottom: 42px;
-  width: 112px;
-  height: 52px;
-  border-radius: 18px;
+.onboarding-dot.is-active {
+  width: 16px;
+  background: #8f5f34;
 }
