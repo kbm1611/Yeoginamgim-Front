@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import onboarding3 from '../assets/onbording3.png'
+import onboarding3 from '../assets/onboarding/onbording3.png'
 
 function MainPage() {
   return (
