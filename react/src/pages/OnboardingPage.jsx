@@ -1,10 +1,10 @@
 ﻿import { useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
-import onboarding1 from '../assets/1.png.png'
-import onboarding2 from '../assets/2.png.png'
-import onboarding3 from '../assets/3.png.png'
-import onboarding4 from '../assets/4.png.png'
+import onboarding1 from '../assets/onboarding/1.png.png'
+import onboarding2 from '../assets/onboarding/2.png.png'
+import onboarding3 from '../assets/onboarding/3.png.png'
+import onboarding4 from '../assets/onboarding/4.png.png'
 import '../css/onboarding.css'
 
 const slides = [onboarding1, onboarding2, onboarding3, onboarding4]
