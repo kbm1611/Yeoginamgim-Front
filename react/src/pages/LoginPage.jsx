@@ -1,4 +1,5 @@
 ﻿import { motion } from 'framer-motion'
+import { useNavigate } from 'react-router-dom'
 import loginBgImage from '../assets/auth/login-bg.png'
 import '../css/login.css'
 
@@ -38,6 +39,12 @@ const providers = [
 ]
 
 function LoginPage() {
+  const navigate = useNavigate()
+
+  const handleLogin = () => {
+    navigate('/home')
+  }
+
   return (
     <motion.main
       className="app-device login-page"
@@ -66,6 +73,7 @@ function LoginPage() {
                 className={`login-method ${provider.key}`}
                 whileTap={{ scale: 0.988 }}
                 transition={{ duration: 0.12 }}
+                onClick={handleLogin}
               >
                 <span className="method-icon" aria-hidden="true">
                   <Icon />
