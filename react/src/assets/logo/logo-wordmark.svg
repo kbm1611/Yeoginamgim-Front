@@ -1,0 +1,5 @@
+<svg width="180" height="72" viewBox="0 0 180 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M90 0C82.8 0 77 5.8 77 13C77 23.5 90 35 90 35C90 35 103 23.5 103 13C103 5.8 97.2 0 90 0Z" fill="#4A321F"/>
+  <circle cx="90" cy="12.5" r="4.6" fill="#FBF8F3"/>
+  <text x="90" y="62" text-anchor="middle" font-family="Pretendard, Noto Sans KR, sans-serif" font-size="35" font-weight="800" letter-spacing="-2.2" fill="#4A321F">여기남김</text>
+</svg>
