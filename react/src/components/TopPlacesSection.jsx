@@ -1,4 +1,4 @@
-﻿import { ChevronRight } from 'lucide-react'
+﻿import { ChevronRight, UserRound } from 'lucide-react'
 
 const topPlaces = [
   {
@@ -47,12 +47,12 @@ function TopPlacesSection() {
   return (
     <section className="pt-4">
       <div className="mb-2 flex items-center justify-between px-5">
-        <h2 className="font-body-sans text-[30px] font-bold tracking-[-0.015em] text-[#2F2118]">성수동 인기 공간 TOP 5</h2>
+        <h2 className="text-[30px] font-bold tracking-[-0.015em] text-[#2B1810]">성수동 인기 공간 TOP 5</h2>
         <button type="button" className="flex items-center text-[13px] font-medium text-[#7D6E62]">
           더보기<ChevronRight size={15} />
         </button>
       </div>
-      <p className="mb-3 px-5 text-[14px] text-[#8E8177]">사람들이 오래 기억한 공간들이에요.</p>
+      <p className="mb-3 px-5 text-[14px] font-normal text-[#8E8177]">사람들이 오래 기억한 공간들이에요.</p>
 
       <div className="scrollbar-hide flex gap-2.5 overflow-x-scroll px-5 pb-3">
         {topPlaces.map((place) => (
@@ -68,12 +68,15 @@ function TopPlacesSection() {
             </div>
 
             <div className="bg-white px-2.5 pb-2.5 pt-2">
-              <h3 className="truncate text-[13px] font-semibold leading-tight text-[#2F2118]">{place.name}</h3>
+              <h3 className="truncate text-[13px] font-medium leading-tight text-[#2F2118]">{place.name}</h3>
               <span className="mt-1 inline-block rounded-[8px] bg-[#F3EEE7] px-1.5 py-0.5 text-[10px] text-[#7E6E62]">
                 {place.category}
               </span>
-              <p className="mt-1.5 line-clamp-2 text-[11px] leading-[1.35] text-[#66564A]">"{place.quote}"</p>
-              <p className="mt-1.5 text-[11px] text-[#8A7A6D]">{place.traces}개의 흔적</p>
+              <p className="mt-1.5 line-clamp-2 text-[11px] font-normal leading-[1.35] text-[#66564A]">"{place.quote}"</p>
+              <p className="mt-1.5 flex items-center gap-0.5 text-[11px] font-normal text-[#8A7A6D]">
+                <UserRound size={11} strokeWidth={1.7} />
+                <span>{place.traces}개의 흔적</span>
+              </p>
             </div>
           </article>
         ))}
@@ -83,3 +86,4 @@ function TopPlacesSection() {
 }
 
 export default TopPlacesSection
+

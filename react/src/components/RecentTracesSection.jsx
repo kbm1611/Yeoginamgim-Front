@@ -39,12 +39,12 @@ function RecentTracesSection() {
   return (
     <section className="pb-5 pt-4">
       <div className="mb-2 flex items-center justify-between px-5">
-        <h2 className="font-body-sans text-[28px] font-bold tracking-[-0.015em] text-[#2F2118]">최근 남겨진 흔적</h2>
+        <h2 className="text-[28px] font-bold tracking-[-0.015em] text-[#2B1810]">최근 남겨진 흔적</h2>
         <button type="button" className="flex items-center text-[13px] font-medium text-[#7D6E62]">
           더보기<ChevronRight size={15} />
         </button>
       </div>
-      <p className="mb-3 px-5 text-[14px] text-[#8E8177]">방금 이 공간에 새로운 흔적이 남겨졌어요.</p>
+      <p className="mb-3 px-5 text-[14px] font-normal text-[#8E8177]">방금 이 공간에 새로운 흔적이 남겨졌어요.</p>
 
       <div className="mx-4 rounded-[16px] bg-white shadow-[0_4px_12px_rgba(0,0,0,0.05)]">
         {traces.map((trace, index) => (
@@ -55,20 +55,20 @@ function RecentTracesSection() {
             <img src={trace.image} alt={trace.place} className="h-14 w-14 rounded-[10px] object-cover" />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                <p className="truncate text-[16px] font-semibold text-[#2F2118]">{trace.place}</p>
+                <p className="truncate text-[16px] font-medium text-[#2F2118]">{trace.place}</p>
                 <span className="rounded-[8px] bg-[#F3EEE7] px-1.5 py-0.5 text-[10px] text-[#7E6E62]">{trace.category}</span>
               </div>
-              <p className="mt-1 truncate text-[14px] text-[#5E5146]">"{trace.text}"</p>
+              <p className="mt-1 truncate text-[14px] font-normal text-[#5E5146]">"{trace.text}"</p>
             </div>
-            <p className="shrink-0 text-[12px] text-[#8E8177]">{trace.time}</p>
+            <p className="shrink-0 text-[12px] font-normal text-[#8E8177]">{trace.time}</p>
           </article>
         ))}
       </div>
 
       <div className="mx-4 mt-3 flex items-center justify-between gap-3 rounded-[16px] bg-[#EFE8DE] px-4 py-4">
         <div>
-          <p className="text-[18px] font-semibold text-[#2F2118]">아직 남긴 장소가 없어요</p>
-          <p className="text-[14px] leading-snug text-[#75695F]">좋아하는 장소를 남기고, 나만의 지도를 만들어보세요.</p>
+          <p className="text-[18px] font-bold text-[#2B1810]">아직 남긴 장소가 없어요</p>
+          <p className="text-[14px] font-normal leading-snug text-[#75695F]">좋아하는 장소를 남기고, 나만의 지도를 만들어보세요.</p>
         </div>
         <button
           type="button"
@@ -83,3 +83,4 @@ function RecentTracesSection() {
 }
 
 export default RecentTracesSection
+

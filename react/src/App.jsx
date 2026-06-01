@@ -6,9 +6,9 @@ import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import Map from './pages/Map'
 import OnboardingPage from './pages/OnboardingPage'
-import LoginPage from './pages/LoginPage'
-import MainPage from './pages/MainPage'
-import HomePage from './pages/HomePage'
+import PlaceDetail from './pages/PlaceDetail'
+import PostItEditor from './pages/PostItEditor'
+import SplashPage from './pages/SplashPage'
 
 function AnimatedRoutes() {
   const location = useLocation()
@@ -20,8 +20,18 @@ function AnimatedRoutes() {
         <Route path="/splash" element={<SplashPage />} />
         <Route path="/onboarding" element={<OnboardingPage />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/main" element={<MainPage />} />
-        <Route path="/home" element={<HomePage />} />
+
+        <Route element={<MainLayout />}>
+          <Route path="/home" element={<HomePage />} />
+          <Route path="/map" element={<Map />} />
+        </Route>
+
+        <Route path="/place/:id" element={<PlaceDetail />} />
+        <Route path="/board/:id">
+          <Route index element={<BoardDetail />} />
+          <Route path="postit" element={<PostItEditor />} />
+        </Route>
+
         <Route path="*" element={<Navigate to="/splash" replace />} />
       </Routes>
     </AnimatePresence>
