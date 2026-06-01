@@ -1,9 +1,8 @@
 ﻿import { motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Bookmark, Ellipsis } from 'lucide-react'
+import { ArrowLeft, Bookmark, Ellipsis, Filter, Plus } from 'lucide-react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import BoardCanvas from '../components/board/BoardCanvas'
-import FloatingAddButton from '../components/board/FloatingAddButton'
 
 const fontFamilyMap = {
   hand: "'Nanum Pen Script', 'Gaegu', cursive",
@@ -27,18 +26,42 @@ function formatDate(input) {
 }
 
 function mapSavedPostIt(item) {
+  const style = item.style ?? {}
+  const position = item.position ?? {}
   return {
     id: item.id ?? `postit-${Date.now()}`,
     type: 'postit',
-    text: item.text ?? '',
-    color: item.paperColor ?? 'yellow',
-    textColor: item.textColor ?? 'rgba(59,42,31,0.93)',
-    fontFamily: item.fontFamily ?? fontFamilyMap[item.font] ?? fontFamilyMap.hand,
-    fontSize: item.fontSize ?? 22,
+    text: item.content ?? item.text ?? '',
+    color: style.paperColor ?? item.paperColor ?? 'yellow',
+    textColor: style.color ?? item.textColor ?? 'rgba(59,42,31,0.93)',
+    fontFamily: style.fontFamily ?? item.fontFamily ?? fontFamilyMap[style.font ?? item.font] ?? fontFamilyMap.hand,
+    fontSize: style.fontSize ?? item.fontSize ?? 22,
     date: formatDate(item.createdAt) || formatDate(new Date().toISOString()),
-    x: item.x ?? randomRange(10, 62),
-    y: item.y ?? randomRange(12, 70),
+    x: position.x ?? item.x ?? randomRange(10, 62),
+    y: position.y ?? item.y ?? randomRange(12, 70),
     rotation: item.rotation ?? randomRange(-3, 3),
+    zIndex: item.zIndex ?? Math.floor(randomRange(4, 10)),
+    createdAt: item.createdAt,
+  }
+}
+
+function mapSavedPolaroid(item) {
+  const style = item.style ?? {}
+  const position = item.position ?? {}
+  const media = item.media ?? {}
+  return {
+    id: item.id ?? `polaroid-${Date.now()}`,
+    type: 'polaroid',
+    text: item.content ?? item.text ?? '오늘의 기록',
+    image: media.image ?? item.image ?? 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=900&q=80',
+    dateLabel: media.dateLabel ?? formatDate(item.createdAt),
+    textColor: style.color ?? '#3E2A1E',
+    fontFamily: style.fontFamily ?? fontFamilyMap[style.font ?? item.font] ?? fontFamilyMap.hand,
+    x: position.x ?? item.x ?? randomRange(10, 62),
+    y: position.y ?? item.y ?? randomRange(12, 70),
+    rotation: item.rotation ?? randomRange(-4, 4),
+    zIndex: item.zIndex ?? Math.floor(randomRange(5, 11)),
+    createdAt: item.createdAt,
   }
 }
 
@@ -48,22 +71,24 @@ function BoardDetail() {
   const { id } = useParams()
   const boardId = id ?? 'default'
 
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [postIts, setPostIts] = useState([])
   const [polaroids, setPolaroids] = useState([])
   const [selectedItemId, setSelectedItemId] = useState(null)
   const [justCreatedId, setJustCreatedId] = useState(null)
   const [placementDraft, setPlacementDraft] = useState(null)
+  const [sortMode, setSortMode] = useState('popular')
 
   useEffect(() => {
     try {
-      const storageKey = `yeoginamgim:board:${boardId}:postits`
-      const saved = JSON.parse(localStorage.getItem(storageKey) ?? '[]')
-      if (Array.isArray(saved)) {
-        setPostIts(saved.map(mapSavedPostIt))
-      }
+      const postitKey = `yeoginamgim:board:${boardId}:postits`
+      const polaroidKey = `yeoginamgim:board:${boardId}:polaroids`
+      const savedPostIts = JSON.parse(localStorage.getItem(postitKey) ?? '[]')
+      const savedPolaroids = JSON.parse(localStorage.getItem(polaroidKey) ?? '[]')
+
+      if (Array.isArray(savedPostIts)) setPostIts(savedPostIts.map(mapSavedPostIt))
+      if (Array.isArray(savedPolaroids)) setPolaroids(savedPolaroids.map(mapSavedPolaroid))
     } catch (error) {
-      console.error('포스트잇 불러오기 실패:', error)
+      console.error('보드 데이터 불러오기 실패:', error)
     }
   }, [boardId])
 
@@ -71,72 +96,109 @@ function BoardDetail() {
     const draft = location.state?.placementDraft
     if (!draft) return
 
-    setPlacementDraft(mapSavedPostIt(draft))
+    const mapped = draft.type === 'polaroid' ? mapSavedPolaroid(draft) : mapSavedPostIt(draft)
+    setPlacementDraft(mapped)
     navigate(location.pathname, { replace: true, state: null })
   }, [location.pathname, location.state, navigate])
 
   const allItemsCount = postIts.length + polaroids.length
 
-  const handleToggleMenu = () => {
-    setIsMenuOpen((prev) => !prev)
+  const sortedPostIts = useMemo(() => {
+    if (sortMode === 'latest') {
+      return [...postIts].sort((a, b) => new Date(b.createdAt ?? 0) - new Date(a.createdAt ?? 0))
+    }
+    return [...postIts].sort((a, b) => (b.zIndex ?? 0) - (a.zIndex ?? 0))
+  }, [postIts, sortMode])
+
+  const sortedPolaroids = useMemo(() => {
+    if (sortMode === 'latest') {
+      return [...polaroids].sort((a, b) => new Date(b.createdAt ?? 0) - new Date(a.createdAt ?? 0))
+    }
+    return [...polaroids].sort((a, b) => (b.zIndex ?? 0) - (a.zIndex ?? 0))
+  }, [polaroids, sortMode])
+
+  const handleDraftPositionChange = ({ x, y }) => {
+    setPlacementDraft((prev) => (prev ? { ...prev, x, y } : prev))
   }
 
-  const handleCreatePostIt = () => {
-    setIsMenuOpen(false)
-    navigate(`/board/${boardId}/postit`)
+  const handleCancelPlacement = () => {
+    setPlacementDraft(null)
   }
 
-  const handleCreatePolaroid = () => {
-    const newId = `polaroid-${Date.now()}`
-    setPolaroids((prev) => [
-      ...prev,
-      {
-        id: newId,
-        type: 'polaroid',
-        text: '여기서의 순간 📷',
-        image: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=500&q=80',
-        x: randomRange(12, 62),
-        y: randomRange(18, 72),
-        rotation: randomRange(-4, 4),
-      },
-    ])
-    setSelectedItemId(newId)
-    setIsMenuOpen(false)
-  }
-
-  const handlePlaceDraft = ({ x, y }) => {
+  const handleConfirmPlacement = () => {
     if (!placementDraft) return
 
-    const finalized = {
-      ...placementDraft,
-      x,
-      y,
+    if (placementDraft.type === 'polaroid') {
+      const finalizedPolaroid = {
+        id: placementDraft.id,
+        type: 'polaroid',
+        content: placementDraft.text,
+        style: {
+          color: placementDraft.textColor,
+          fontFamily: placementDraft.fontFamily,
+        },
+        media: {
+          image: placementDraft.image,
+          dateLabel: placementDraft.dateLabel,
+        },
+        position: { x: placementDraft.x, y: placementDraft.y },
+        rotation: randomRange(-4, 4),
+        zIndex: Math.floor(randomRange(6, 12)),
+        createdAt: new Date().toISOString(),
+      }
+
+      const mapped = mapSavedPolaroid(finalizedPolaroid)
+      setPolaroids((prev) => [...prev, mapped])
+      setPlacementDraft(null)
+      setSelectedItemId(mapped.id)
+      setJustCreatedId(mapped.id)
+
+      try {
+        const key = `yeoginamgim:board:${boardId}:polaroids`
+        const prev = JSON.parse(localStorage.getItem(key) ?? '[]')
+        const next = Array.isArray(prev) ? [...prev, finalizedPolaroid] : [finalizedPolaroid]
+        localStorage.setItem(key, JSON.stringify(next))
+      } catch (error) {
+        console.error('폴라로이드 저장 실패:', error)
+      }
+
+      setTimeout(() => setJustCreatedId(null), 700)
+      return
+    }
+
+    const finalizedPostIt = {
+      id: placementDraft.id,
+      type: 'postit',
+      content: placementDraft.text,
+      style: {
+        fontSize: placementDraft.fontSize,
+        fontFamily: placementDraft.fontFamily,
+        color: placementDraft.textColor,
+        paperColor: placementDraft.color,
+      },
+      position: { x: placementDraft.x, y: placementDraft.y },
       rotation: randomRange(-3, 3),
+      zIndex: Math.floor(randomRange(5, 11)),
       createdAt: new Date().toISOString(),
     }
 
-    const mapped = mapSavedPostIt(finalized)
+    const mapped = mapSavedPostIt(finalizedPostIt)
     setPostIts((prev) => [...prev, mapped])
     setPlacementDraft(null)
     setSelectedItemId(mapped.id)
     setJustCreatedId(mapped.id)
 
     try {
-      const storageKey = `yeoginamgim:board:${boardId}:postits`
-      const prev = JSON.parse(localStorage.getItem(storageKey) ?? '[]')
-      const next = Array.isArray(prev) ? [...prev, finalized] : [finalized]
-      localStorage.setItem(storageKey, JSON.stringify(next))
+      const key = `yeoginamgim:board:${boardId}:postits`
+      const prev = JSON.parse(localStorage.getItem(key) ?? '[]')
+      const next = Array.isArray(prev) ? [...prev, finalizedPostIt] : [finalizedPostIt]
+      localStorage.setItem(key, JSON.stringify(next))
     } catch (error) {
       console.error('포스트잇 저장 실패:', error)
     }
 
     setTimeout(() => setJustCreatedId(null), 700)
   }
-
-  const boardSubtitle = useMemo(
-    () => (placementDraft ? '위치를 드래그해서 놓아주세요' : allItemsCount === 0 ? '빈 보드' : `${allItemsCount}개의 흔적`),
-    [allItemsCount, placementDraft],
-  )
 
   return (
     <motion.main
@@ -147,46 +209,103 @@ function BoardDetail() {
       transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
     >
       <div className="relative mx-auto flex h-screen w-full max-w-[430px] flex-col overflow-hidden bg-[#F7F3EE]">
-        <header className="flex items-center justify-between px-4 pb-3 pt-4 text-[#3E2A1E]">
-          <button type="button" onClick={() => navigate(-1)} className="inline-flex h-10 w-10 items-center justify-center rounded-full">
-            <ArrowLeft size={28} />
-          </button>
+        <header className="px-4 pb-3 pt-4 text-[#3E2A1E]">
+          <div className="flex items-center justify-between">
+            <button type="button" onClick={() => navigate(-1)} className="inline-flex h-10 w-10 items-center justify-center rounded-full">
+              <ArrowLeft size={22} />
+            </button>
 
-          <div className="text-center">
-            <h1 className="text-[22px] font-semibold tracking-[-0.01em]">성수에서 혼자 보내는 오후 ☕</h1>
-            <p className="mt-0.5 text-[12px] text-[#866E59]">{boardSubtitle}</p>
+            <div className="text-center">
+              <h1 className="text-[22px] font-semibold tracking-[-0.01em]">성수에서 혼자 보내는 오후 ☕</h1>
+              <p className="mt-0.5 text-[12px] text-[#866E59]">{placementDraft ? '배치 모드' : `${allItemsCount}개 흔적`}</p>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <button type="button" className="inline-flex h-10 w-10 items-center justify-center rounded-full">
+                <Bookmark size={20} />
+              </button>
+              <button type="button" className="inline-flex h-10 w-10 items-center justify-center rounded-full">
+                <Ellipsis size={20} />
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center gap-1">
-            <button type="button" className="inline-flex h-10 w-10 items-center justify-center rounded-full">
-              <Bookmark size={24} />
-            </button>
-            <button type="button" className="inline-flex h-10 w-10 items-center justify-center rounded-full">
-              <Ellipsis size={24} />
+          <div className="mt-3 flex items-center justify-between">
+            <div className="rounded-full border border-[#E5DBCE] bg-[#FBF8F3] p-1">
+              <div className="flex items-center gap-1 text-sm">
+                <button
+                  type="button"
+                  onClick={() => setSortMode('popular')}
+                  className={`rounded-full px-4 py-1.5 font-medium ${sortMode === 'popular' ? 'bg-[#4A3124] text-white' : 'text-[#6b5647]'}`}
+                >
+                  인기순
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSortMode('latest')}
+                  className={`rounded-full px-4 py-1.5 font-medium ${sortMode === 'latest' ? 'bg-[#4A3124] text-white' : 'text-[#6b5647]'}`}
+                >
+                  최신순
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 rounded-full border border-[#E5DBCE] bg-[#FBF8F3] px-4 py-2 text-sm font-medium text-[#4A3124]"
+            >
+              <Filter size={15} />
+              필터
             </button>
           </div>
         </header>
 
         <section className="relative flex-1 px-4 pb-4">
           <BoardCanvas
-            postIts={postIts}
-            polaroids={polaroids}
+            postIts={sortedPostIts}
+            polaroids={sortedPolaroids}
             selectedItemId={selectedItemId}
             onSelectItem={setSelectedItemId}
             justCreatedId={justCreatedId}
             placementDraft={placementDraft}
-            onPlaceDraft={handlePlaceDraft}
+            onDraftPositionChange={handleDraftPositionChange}
           />
         </section>
-      </div>
 
-      <FloatingAddButton
-        className="absolute bottom-10 right-10 z-[9999]"
-        isMenuOpen={isMenuOpen}
-        onToggle={handleToggleMenu}
-        onCreatePostIt={handleCreatePostIt}
-        onCreatePolaroid={handleCreatePolaroid}
-      />
+        {placementDraft ? (
+          <div className="absolute bottom-4 left-4 right-4 z-40 rounded-2xl border border-[#E8DED2] bg-white p-3 shadow-[0_14px_28px_rgba(41,25,16,0.12)]">
+            <p className="mb-1 text-center text-[11px] font-semibold text-[#7A4218]">배치 모드</p>
+            <p className="mb-2 text-center text-xs text-[#765e4f]">이 위치에 남길까요?</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleCancelPlacement}
+                className="flex-1 rounded-xl border border-[#e5d8cb] bg-white py-2 text-sm font-medium text-[#5c4638]"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmPlacement}
+                className="flex-1 rounded-xl bg-[#4A3124] py-2 text-sm font-semibold text-white"
+              >
+                남기기
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {!placementDraft ? (
+          <button
+            type="button"
+            onClick={() => navigate(`/board/${boardId}/postit`)}
+            className="absolute bottom-7 right-6 z-50 inline-flex rounded-full bg-[#4A3124] p-4 text-white shadow-[0_10px_22px_rgba(66,38,20,0.28)]"
+            aria-label="흔적 남기기"
+          >
+            <Plus size={28} />
+          </button>
+        ) : null}
+      </div>
     </motion.main>
   )
 }

@@ -1,15 +1,9 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react'
-import boardBg from '../../assets/board-bg.png'
+import { motion } from 'framer-motion'
+import { useEffect, useRef, useState } from 'react'
+import { TransformComponent, TransformWrapper } from 'react-zoom-pan-pinch'
+import yellowPaper from '../../assets/postit/yellow.png'
 import Polaroid from './Polaroid'
 import PostIt from './PostIt'
-
-const clamp = (value, min, max) => Math.max(min, Math.min(max, value))
-
-function distance(a, b) {
-  const dx = a.clientX - b.clientX
-  const dy = a.clientY - b.clientY
-  return Math.hypot(dx, dy)
-}
 
 function BoardCanvas({
   postIts,
@@ -18,127 +12,32 @@ function BoardCanvas({
   selectedItemId,
   justCreatedId,
   placementDraft,
-  onPlaceDraft,
+  onDraftPositionChange,
 }) {
   const containerRef = useRef(null)
-  const [scale, setScale] = useState(1)
-  const [offset, setOffset] = useState({ x: 0, y: 0 })
   const [draftPosition, setDraftPosition] = useState({ x: 42, y: 40 })
-
-  const dragRef = useRef({ dragging: false, startX: 0, startY: 0, startOffsetX: 0, startOffsetY: 0 })
-  const pinchRef = useRef({ pinching: false, startDist: 0, startScale: 1 })
+  const [isDraftArrived, setIsDraftArrived] = useState(false)
   const draftDragRef = useRef({ dragging: false, pointerId: null, offsetX: 0, offsetY: 0 })
 
   useEffect(() => {
     if (placementDraft) {
-      setDraftPosition({ x: 42, y: 40 })
+      const next = { x: placementDraft.x ?? 42, y: placementDraft.y ?? 40 }
+      setDraftPosition(next)
+      setIsDraftArrived(false)
     }
   }, [placementDraft])
 
-  const limitOffset = (targetScale, targetOffset) => {
-    const container = containerRef.current
-    if (!container) return targetOffset
-    const { width, height } = container.getBoundingClientRect()
-    const maxX = ((targetScale - 1) * width) / 2
-    const maxY = ((targetScale - 1) * height) / 2
-
-    return {
-      x: clamp(targetOffset.x, -maxX, maxX),
-      y: clamp(targetOffset.y, -maxY, maxY),
-    }
-  }
-
-  const onPointerDown = (event) => {
-    if (placementDraft) return
-    if (event.pointerType !== 'mouse' && event.pointerType !== 'pen') return
-    dragRef.current = {
-      dragging: true,
-      startX: event.clientX,
-      startY: event.clientY,
-      startOffsetX: offset.x,
-      startOffsetY: offset.y,
-    }
-  }
-
-  const onPointerMove = (event) => {
-    if (placementDraft) return
-    if (!dragRef.current.dragging) return
-    const dx = event.clientX - dragRef.current.startX
-    const dy = event.clientY - dragRef.current.startY
-    const next = limitOffset(scale, {
-      x: dragRef.current.startOffsetX + dx,
-      y: dragRef.current.startOffsetY + dy,
-    })
-    setOffset(next)
-  }
-
-  const endPointerDrag = () => {
-    dragRef.current.dragging = false
-  }
-
-  const onTouchStart = (event) => {
-    if (placementDraft) return
-    if (event.touches.length === 2) {
-      pinchRef.current = {
-        pinching: true,
-        startDist: distance(event.touches[0], event.touches[1]),
-        startScale: scale,
-      }
-      dragRef.current.dragging = false
-      return
-    }
-
-    if (event.touches.length === 1) {
-      const touch = event.touches[0]
-      dragRef.current = {
-        dragging: true,
-        startX: touch.clientX,
-        startY: touch.clientY,
-        startOffsetX: offset.x,
-        startOffsetY: offset.y,
-      }
-    }
-  }
-
-  const onTouchMove = (event) => {
-    if (placementDraft) return
-    if (pinchRef.current.pinching && event.touches.length === 2) {
-      event.preventDefault()
-      const nextScale = clamp(
-        (distance(event.touches[0], event.touches[1]) / pinchRef.current.startDist) * pinchRef.current.startScale,
-        0.8,
-        2.5,
-      )
-      setScale(nextScale)
-      setOffset((prev) => limitOffset(nextScale, prev))
-      return
-    }
-
-    if (dragRef.current.dragging && event.touches.length === 1) {
-      event.preventDefault()
-      const touch = event.touches[0]
-      const dx = touch.clientX - dragRef.current.startX
-      const dy = touch.clientY - dragRef.current.startY
-      const next = limitOffset(scale, {
-        x: dragRef.current.startOffsetX + dx,
-        y: dragRef.current.startOffsetY + dy,
-      })
-      setOffset(next)
-    }
-  }
-
-  const onTouchEnd = (event) => {
-    if (event.touches.length < 2) pinchRef.current.pinching = false
-    if (event.touches.length === 0) dragRef.current.dragging = false
-  }
+  useEffect(() => {
+    if (!placementDraft) return
+    const timer = setTimeout(() => setIsDraftArrived(true), 430)
+    return () => clearTimeout(timer)
+  }, [placementDraft])
 
   useEffect(() => {
     const onWindowUp = () => {
-      dragRef.current.dragging = false
-      pinchRef.current.pinching = false
-      if (draftDragRef.current.dragging && placementDraft) {
+      if (draftDragRef.current.dragging) {
         draftDragRef.current.dragging = false
-        onPlaceDraft?.(draftPosition)
+        onDraftPositionChange?.(draftPosition)
       }
     }
     window.addEventListener('mouseup', onWindowUp)
@@ -147,15 +46,10 @@ function BoardCanvas({
       window.removeEventListener('mouseup', onWindowUp)
       window.removeEventListener('touchcancel', onWindowUp)
     }
-  }, [draftPosition, onPlaceDraft, placementDraft])
-
-  const transformStyle = useMemo(
-    () => ({ transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`, transformOrigin: 'center center' }),
-    [offset.x, offset.y, scale],
-  )
+  }, [draftPosition, onDraftPositionChange])
 
   const startDraftDrag = (event) => {
-    if (!placementDraft) return
+    if (!isDraftArrived || !placementDraft) return
     const container = containerRef.current
     if (!container) return
 
@@ -169,12 +63,11 @@ function BoardCanvas({
       offsetX: event.clientX - px,
       offsetY: event.clientY - py,
     }
-
     event.currentTarget.setPointerCapture(event.pointerId)
   }
 
   const moveDraftDrag = (event) => {
-    if (!draftDragRef.current.dragging || !placementDraft) return
+    if (!isDraftArrived || !draftDragRef.current.dragging || !placementDraft) return
     const container = containerRef.current
     if (!container) return
 
@@ -182,75 +75,98 @@ function BoardCanvas({
     const nextX = event.clientX - rect.left - draftDragRef.current.offsetX
     const nextY = event.clientY - rect.top - draftDragRef.current.offsetY
 
-    setDraftPosition({
-      x: clamp((nextX / rect.width) * 100, 10, 90),
-      y: clamp((nextY / rect.height) * 100, 10, 90),
-    })
+    const next = {
+      x: Math.max(10, Math.min(90, (nextX / rect.width) * 100)),
+      y: Math.max(10, Math.min(90, (nextY / rect.height) * 100)),
+    }
+    setDraftPosition(next)
+    onDraftPositionChange?.(next)
   }
 
   const endDraftDrag = (event) => {
-    if (!draftDragRef.current.dragging || !placementDraft) return
+    if (!isDraftArrived || !draftDragRef.current.dragging || !placementDraft) return
     draftDragRef.current.dragging = false
     event.currentTarget.releasePointerCapture(draftDragRef.current.pointerId)
-    onPlaceDraft?.(draftPosition)
+    onDraftPositionChange?.(draftPosition)
   }
 
   return (
     <div
       ref={containerRef}
-      className="relative h-full w-full overflow-hidden rounded-3xl shadow-[0_10px_26px_rgba(72,47,30,0.2)]"
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={endPointerDrag}
-      onPointerLeave={endPointerDrag}
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEnd}
+      className="relative h-full w-full overflow-hidden rounded-[28px]"
+      style={{ backgroundColor: '#EDE0D0' }}
     >
-      <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${boardBg})` }} />
-
-      <div className="absolute inset-0 touch-none" style={transformStyle}>
-        {postIts.map((item) => (
-          <PostIt
-            key={item.id}
-            item={item}
-            onClick={onSelectItem}
-            selected={selectedItemId === item.id}
-            justCreated={justCreatedId === item.id}
-          />
-        ))}
-        {polaroids.map((item) => (
-          <Polaroid key={item.id} item={item} onClick={onSelectItem} selected={selectedItemId === item.id} />
-        ))}
-      </div>
+      <TransformWrapper disabled={!!placementDraft} minScale={0.85} maxScale={2.4}>
+        <TransformComponent
+          wrapperStyle={{ width: '100%', height: '100%' }}
+          contentStyle={{ width: '100%', height: '100%', position: 'relative' }}
+        >
+          {postIts.map((item) => (
+            <PostIt
+              key={item.id}
+              item={item}
+              onClick={onSelectItem}
+              selected={selectedItemId === item.id}
+              justCreated={justCreatedId === item.id}
+            />
+          ))}
+          {polaroids.map((item) => (
+            <Polaroid key={item.id} item={item} onClick={onSelectItem} selected={selectedItemId === item.id} />
+          ))}
+        </TransformComponent>
+      </TransformWrapper>
 
       {placementDraft ? (
-        <button
-          type="button"
-          onPointerDown={startDraftDrag}
-          onPointerMove={moveDraftDrag}
-          onPointerUp={endDraftDrag}
-          className="absolute z-30 min-h-[120px] w-[132px] rounded-[3px] bg-[#F6E9B8] p-3 text-left shadow-[0_8px_18px_rgba(50,33,20,0.16)] ring-2 ring-[#6e4a2e]/25"
-          style={{
-            left: `${draftPosition.x}%`,
-            top: `${draftPosition.y}%`,
-            transform: `translate(-50%, -50%) rotate(${placementDraft.rotation ?? 0}deg)`,
-          }}
-        >
-          <span className="absolute left-1/2 top-0 h-5 w-5 -translate-x-1/2 -translate-y-1 rounded-full bg-gradient-to-b from-[#D8B98E] to-[#9D6B3E] shadow" />
-          <p
-            className="whitespace-pre-line"
+        placementDraft.type === 'polaroid' ? (
+          <motion.button
+            type="button"
+            onPointerDown={startDraftDrag}
+            onPointerMove={moveDraftDrag}
+            onPointerUp={endDraftDrag}
+            className="absolute z-30 w-[156px] rounded-xl bg-[#FFFCF8] p-2 text-left shadow-[0_14px_30px_rgba(34,20,12,0.18)] ring-2 ring-[#6e4a2e]/25"
+            initial={{ left: '50%', top: '86%', x: '-50%', y: '-50%', rotate: 0, scale: 0.92, opacity: 0.88 }}
+            animate={{ left: `${draftPosition.x}%`, top: `${draftPosition.y}%`, x: '-50%', y: '-50%', rotate: 0, scale: 1, opacity: 1 }}
+            transition={{ duration: 0.42, ease: [0.2, 0.8, 0.2, 1] }}
+            style={{ pointerEvents: isDraftArrived ? 'auto' : 'none' }}
+          >
+            <span className="absolute left-1/2 top-0 h-2.5 w-16 -translate-x-1/2 -translate-y-1 rotate-2 bg-[#F2E5D8]/90" />
+            <img src={placementDraft.image} alt="" className="h-[104px] w-full rounded-lg object-cover" />
+            <p className="mt-2 whitespace-pre-line text-[12px] leading-5" style={{ color: placementDraft.textColor, fontFamily: placementDraft.fontFamily }}>
+              {placementDraft.text}
+            </p>
+            <p className="mt-1 text-center text-[11px] text-[#8A705F]">{placementDraft.dateLabel}</p>
+          </motion.button>
+        ) : (
+          <motion.button
+            type="button"
+            onPointerDown={startDraftDrag}
+            onPointerMove={moveDraftDrag}
+            onPointerUp={endDraftDrag}
+            className="absolute z-30 min-h-[124px] w-[138px] overflow-hidden rounded-md text-left ring-2 ring-[#6e4a2e]/25"
+            initial={{ left: '50%', top: '86%', x: '-50%', y: '-50%', rotate: 0, scale: 0.9, opacity: 0.88 }}
+            animate={{ left: `${draftPosition.x}%`, top: `${draftPosition.y}%`, x: '-50%', y: '-50%', rotate: 0, scale: 1, opacity: 1 }}
+            transition={{ duration: 0.42, ease: [0.2, 0.8, 0.2, 1] }}
             style={{
-              color: placementDraft.textColor,
-              fontFamily: placementDraft.fontFamily,
-              fontSize: `${placementDraft.fontSize}px`,
-              lineHeight: 1.45,
+              pointerEvents: isDraftArrived ? 'auto' : 'none',
+              backgroundImage: `url(${yellowPaper})`,
+              backgroundSize: 'cover',
+              boxShadow: '3px 5px 12px rgba(0,0,0,0.15)',
+              padding: '18px',
             }}
           >
-            {placementDraft.text}
-          </p>
-          <p className="mt-2 text-[11px] text-[#7F6552]">드래그해서 위치 선택</p>
-        </button>
+            <p
+              className="relative whitespace-pre-line text-left"
+              style={{
+                color: placementDraft.textColor,
+                fontFamily: "'Nanum Pen Script', cursive",
+                fontSize: '18px',
+                lineHeight: 1.8,
+              }}
+            >
+              {placementDraft.text}
+            </p>
+          </motion.button>
+        )
       ) : null}
     </div>
   )
