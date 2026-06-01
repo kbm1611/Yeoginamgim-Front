@@ -1,8 +1,8 @@
 .home-page {
   --home-bg: #fbf8f3;
   --home-card: #ffffff;
-  --home-brown: #4a321f;
-  --home-brown-2: #6b3f1f;
+  --home-brown: #3d2415;
+  --home-brown-2: #3d2415;
   --home-text: #2f1f14;
   --home-muted: #8f7b6e;
   --home-border: #eee3d8;
@@ -37,15 +37,28 @@
 }
 
 .brand-lockup {
-  height: 72px;
-  display: grid;
-  place-items: center;
+  height: 46px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  color: #3d2415;
 }
 
-.brand-logo-image {
-  display: block;
-  width: clamp(136px, 38vw, 154px);
-  height: auto;
+.brand-pin-icon {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+}
+
+.brand-wordmark {
+  font-family: 'Pretendard', 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif;
+  font-size: 37px;
+  line-height: 0.9;
+  font-weight: 600;
+  letter-spacing: -1px;
+  color: #3d2415;
 }
 
 .home-filters {

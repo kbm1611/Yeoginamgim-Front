@@ -101,7 +101,7 @@
 .count {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 2px;
   margin: 7px 0 0;
   color: #4a321f;
   font-size: 11.5px;
@@ -111,8 +111,8 @@
 }
 
 .count svg {
-  width: 15px;
-  height: 15px;
+  width: 13px;
+  height: 13px;
   flex: 0 0 auto;
 }
 
