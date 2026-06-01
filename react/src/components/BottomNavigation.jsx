@@ -9,6 +9,8 @@ const navItems = [
   { key: 'my', label: '마이', icon: User },
 ]
 
+const APP_BG = '#F7F2EA'
+
 function BottomNavigation({ className = '' }) {
   const navigate = useNavigate()
   const location = useLocation()
@@ -25,7 +27,7 @@ function BottomNavigation({ className = '' }) {
   }
 
   return (
-    <nav className={`rounded-t-[30px] border-t border-[#efe7dc] bg-[#F7F2EA] px-5 pb-6 pt-3 ${className}`}>
+    <nav className={`rounded-t-[30px] border-t border-[#efe7dc] px-5 pb-6 pt-3 ${className}`} style={{ backgroundColor: APP_BG }}>
       <ul className="grid grid-cols-5 items-end">
         {navItems.map((item) => {
           const Icon = item.icon

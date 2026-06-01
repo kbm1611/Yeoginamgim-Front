@@ -1,23 +1,24 @@
-﻿import { MapPin } from 'lucide-react'
-import { Outlet, useLocation } from 'react-router-dom'
+﻿import { Outlet, useLocation } from 'react-router-dom'
+import mainLogo from '../assets/logo/image_12-removebg-preview.png'
 import BottomNavigation from '../components/BottomNavigation'
+
+const APP_BG = '#F7F2EA'
 
 function MainLayout() {
   const location = useLocation()
   const isMap = location.pathname === '/map'
 
   return (
-    <main className="app-device relative flex flex-col bg-[#F7F2EA]">
+    <main className="app-device relative flex flex-col" style={{ backgroundColor: APP_BG }}>
       {!isMap && (
-        <header className="flex items-center justify-center pb-1 pt-2 text-[#3D2415]">
-          <div className="flex h-[40px] w-[90px] flex-col items-center justify-center gap-0.5">
-            <MapPin size={8} strokeWidth={1.9} />
-            <span className="text-[32px] font-medium leading-none tracking-[-0.04em]">여기남김</span>
+        <header className="flex items-center justify-center pb-1 pt-2" style={{ backgroundColor: APP_BG }}>
+          <div className="flex h-[45px] w-[120px] items-center justify-center" aria-label="main-logo-placeholder">
+            <img src={mainLogo} alt="여기남김" className="block max-h-full max-w-full object-contain mix-blend-multiply" />
           </div>
         </header>
       )}
 
-      <section className="relative flex-1 overflow-hidden">
+      <section className="relative flex-1 overflow-hidden" style={{ backgroundColor: APP_BG }}>
         <Outlet />
       </section>
 
@@ -31,3 +32,4 @@ function MainLayout() {
 }
 
 export default MainLayout
+

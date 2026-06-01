@@ -27,8 +27,10 @@ function AnimatedRoutes() {
         </Route>
 
         <Route path="/place/:id" element={<PlaceDetail />} />
-        <Route path="/board/:id" element={<BoardDetail />} />
-        <Route path="/board/:id/postit" element={<PostItEditor />} />
+        <Route path="/board/:id">
+          <Route index element={<BoardDetail />} />
+          <Route path="postit" element={<PostItEditor />} />
+        </Route>
 
         <Route path="*" element={<Navigate to="/splash" replace />} />
       </Routes>
