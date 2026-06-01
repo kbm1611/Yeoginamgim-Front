@@ -1,8 +1,9 @@
-﻿import { motion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Bookmark, Ellipsis, Filter, Plus } from 'lucide-react'
+import { ArrowLeft, Bookmark, Ellipsis, Filter } from 'lucide-react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import BoardCanvas from '../components/board/BoardCanvas'
+import FloatingAddButton from '../components/board/FloatingAddButton'
 
 const fontFamilyMap = {
   hand: "'Nanum Pen Script', 'Gaegu', cursive",
@@ -77,6 +78,16 @@ function BoardDetail() {
   const [justCreatedId, setJustCreatedId] = useState(null)
   const [placementDraft, setPlacementDraft] = useState(null)
   const [sortMode, setSortMode] = useState('popular')
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [boardTitle, setBoardTitle] = useState('여기남긴 기록')
+
+  useEffect(() => {
+    try {
+      const titleKey = `yeoginamgim:board:${boardId}:title`
+      const stored = localStorage.getItem(titleKey)
+      if (stored) setBoardTitle(stored)
+    } catch {}
+  }, [boardId])
 
   useEffect(() => {
     try {
@@ -107,14 +118,14 @@ function BoardDetail() {
     if (sortMode === 'latest') {
       return [...postIts].sort((a, b) => new Date(b.createdAt ?? 0) - new Date(a.createdAt ?? 0))
     }
-    return [...postIts].sort((a, b) => (b.zIndex ?? 0) - (a.zIndex ?? 0))
+    return [...postIts].sort((a, b) => new Date(b.createdAt ?? 0) - new Date(a.createdAt ?? 0))
   }, [postIts, sortMode])
 
   const sortedPolaroids = useMemo(() => {
     if (sortMode === 'latest') {
       return [...polaroids].sort((a, b) => new Date(b.createdAt ?? 0) - new Date(a.createdAt ?? 0))
     }
-    return [...polaroids].sort((a, b) => (b.zIndex ?? 0) - (a.zIndex ?? 0))
+    return [...polaroids].sort((a, b) => new Date(b.createdAt ?? 0) - new Date(a.createdAt ?? 0))
   }, [polaroids, sortMode])
 
   const handleDraftPositionChange = ({ x, y }) => {
@@ -200,6 +211,16 @@ function BoardDetail() {
     setTimeout(() => setJustCreatedId(null), 700)
   }
 
+  const handleCreatePostIt = () => {
+    setIsMenuOpen(false)
+    navigate(`/board/${boardId}/postit`)
+  }
+
+  const handleCreatePolaroid = () => {
+    setIsMenuOpen(false)
+    navigate(`/board/${boardId}/postit`, { state: { initialTab: 'polaroid' } })
+  }
+
   return (
     <motion.main
       className="app-device relative h-full w-full overflow-hidden bg-[#F7F3EE]"
@@ -216,7 +237,7 @@ function BoardDetail() {
             </button>
 
             <div className="text-center">
-              <h1 className="text-[22px] font-semibold tracking-[-0.01em]">성수에서 혼자 보내는 오후 ☕</h1>
+              <h1 className="text-[22px] font-semibold tracking-[-0.01em]">{boardTitle}</h1>
               <p className="mt-0.5 text-[12px] text-[#866E59]">{placementDraft ? '배치 모드' : `${allItemsCount}개 흔적`}</p>
             </div>
 
@@ -296,14 +317,13 @@ function BoardDetail() {
         ) : null}
 
         {!placementDraft ? (
-          <button
-            type="button"
-            onClick={() => navigate(`/board/${boardId}/postit`)}
-            className="absolute bottom-7 right-6 z-50 inline-flex rounded-full bg-[#4A3124] p-4 text-white shadow-[0_10px_22px_rgba(66,38,20,0.28)]"
-            aria-label="흔적 남기기"
-          >
-            <Plus size={28} />
-          </button>
+          <FloatingAddButton
+            isMenuOpen={isMenuOpen}
+            onToggle={() => setIsMenuOpen((prev) => !prev)}
+            onCreatePostIt={handleCreatePostIt}
+            onCreatePolaroid={handleCreatePolaroid}
+            className="absolute bottom-7 right-6 z-50"
+          />
         ) : null}
       </div>
     </motion.main>

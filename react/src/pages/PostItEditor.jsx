@@ -1,4 +1,4 @@
-﻿import { motion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { Image, Palette, PenLine, Smile, Type, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
@@ -6,7 +6,6 @@ import yellowPaper from '../assets/postit/yellow.png'
 
 const BG = '#F7F1EB'
 const MAIN_BROWN = '#4A3124'
-const ACCENT_BROWN = '#7A4218'
 
 const TABS = [
   { key: 'polaroid', label: '폴라로이드', disabled: false },
@@ -29,6 +28,8 @@ const colorChips = [
   { key: 'beige', hex: '#DFD0B4', filter: 'hue-rotate(28deg) saturate(0.78) brightness(0.98)' },
   { key: 'gray', hex: '#ECEAE5', filter: 'saturate(0.45) brightness(1.08)' },
 ]
+
+const textColorPalette = [MAIN_BROWN, '#7A4218', '#405b7a', '#222222']
 
 const polaroidPhotos = [
   'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=900&q=80',
@@ -142,17 +143,17 @@ function PostItEditor() {
           postit: { ...prev.postit, paperColor: colorChips[(idx + 1) % colorChips.length].key },
         }
       }
-
-      const palette = [MAIN_BROWN, ACCENT_BROWN, '#405b7a', '#222222']
-      const idx = palette.indexOf(prev.polaroid.textColor)
+      const idx = textColorPalette.indexOf(prev.polaroid.textColor)
       return {
         ...prev,
-        polaroid: { ...prev.polaroid, textColor: palette[(idx + 1) % palette.length] },
+        polaroid: { ...prev.polaroid, textColor: textColorPalette[(idx + 1) % textColorPalette.length] },
       }
     })
   }
 
   const handleComplete = () => {
+    if (activeTab === 'postit' && !draftRecord.postit.text.trim()) return
+
     const baseId = Date.now()
 
     if (activeTab === 'polaroid') {
@@ -181,7 +182,7 @@ function PostItEditor() {
     const cardData = {
       id: `postit-${baseId}`,
       type: 'postit',
-      content: draftRecord.postit.text.trim() || '',
+      content: draftRecord.postit.text.trim(),
       style: {
         fontSize: adaptivePostFontSize,
         font: draftRecord.postit.font,
@@ -211,7 +212,15 @@ function PostItEditor() {
             <X size={24} />
           </button>
           <h1 className="text-lg font-semibold">기록 남기기</h1>
-          <button type="button" onClick={handleComplete} className="px-1 text-base font-semibold">완료</button>
+          <button
+            type="button"
+            onClick={handleComplete}
+            className={`px-1 text-base font-semibold transition-opacity ${
+              activeTab === 'postit' && !draftRecord.postit.text.trim() ? 'opacity-35' : ''
+            }`}
+          >
+            완료
+          </button>
         </header>
 
         <div className="mt-4 grid grid-cols-3 rounded-full bg-[#EFE8DF] p-1">
@@ -271,7 +280,11 @@ function PostItEditor() {
 
         <section className="mt-4">
           <div className="grid grid-cols-5 gap-2 text-center text-[12px] text-[#5B4638]">
-            <button type="button" onClick={onClickToolPhoto} className={`flex flex-col items-center gap-1 rounded-xl py-2 ${activeTab !== 'polaroid' ? 'opacity-40' : ''}`}>
+            <button
+              type="button"
+              onClick={onClickToolPhoto}
+              className={`flex flex-col items-center gap-1 rounded-xl py-2 ${activeTab !== 'polaroid' ? 'opacity-40' : ''}`}
+            >
               <Image size={18} />
               <span>사진</span>
             </button>
@@ -298,18 +311,15 @@ function PostItEditor() {
               <button
                 key={chip.key}
                 type="button"
+                disabled={activeTab !== 'postit'}
                 onClick={() =>
-                  setDraftRecord((prev) =>
-                    prev.tab === 'postit'
-                      ? { ...prev, postit: { ...prev.postit, paperColor: chip.key } }
-                      : { ...prev, polaroid: { ...prev.polaroid, textColor: chip.hex } },
-                  )
+                  setDraftRecord((prev) => ({ ...prev, postit: { ...prev.postit, paperColor: chip.key } }))
                 }
-                className={`h-8 w-8 rounded-full border-2 ${
-                  (activeTab === 'postit' ? draftRecord.postit.paperColor === chip.key : draftRecord.polaroid.textColor === chip.hex)
+                className={`h-8 w-8 rounded-full border-2 transition-opacity ${
+                  activeTab === 'postit' && draftRecord.postit.paperColor === chip.key
                     ? 'border-[#7A4218]'
                     : 'border-[#E1D7CC]'
-                }`}
+                } ${activeTab !== 'postit' ? 'opacity-40' : ''}`}
                 style={{ backgroundColor: chip.hex }}
               />
             ))}
@@ -327,7 +337,7 @@ function PostItEditor() {
                 } ${activeTab !== 'postit' ? 'opacity-40' : ''}`}
               >
                 <span style={{ fontSize: `${14 + idx * 4}px` }}>A</span>
-              </button>
+            </button>
             ))}
           </div>
         </section>

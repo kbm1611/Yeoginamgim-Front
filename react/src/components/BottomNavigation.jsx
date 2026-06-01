@@ -25,7 +25,7 @@ function BottomNavigation({ className = '' }) {
   }
 
   return (
-    <nav className={`rounded-t-[30px] border-t border-[#efe7dc] bg-[#FCF8F3] px-5 pb-6 pt-3 ${className}`}>
+    <nav className={`rounded-t-[30px] border-t border-[#efe7dc] bg-[#F7F2EA] px-5 pb-6 pt-3 ${className}`}>
       <ul className="grid grid-cols-5 items-end">
         {navItems.map((item) => {
           const Icon = item.icon
@@ -63,3 +63,4 @@ function BottomNavigation({ className = '' }) {
 }
 
 export default BottomNavigation
+

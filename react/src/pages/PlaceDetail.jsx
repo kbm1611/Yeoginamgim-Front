@@ -1,4 +1,4 @@
-﻿import { motion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import {
   Bookmark,
   ChevronLeft,
@@ -7,7 +7,6 @@ import {
   Heart,
   MapPin,
   Share2,
-  Soup,
   Store,
   UserRound,
 } from 'lucide-react'
@@ -73,8 +72,6 @@ const traceCards = [
   { id: 4, type: 'photo', image: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=500&q=80', text: '햇살 가득한 오후\n너무 좋았던 곳.', date: '' },
   { id: 5, type: 'photo', image: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=500&q=80', text: '혼자 책 읽기\n좋은 공간 📖', date: '' },
   { id: 6, type: 'note', color: 'bg-[#DDEAF4]', text: '분위기가 정말\n차분하고 편안해요.\n마음이 정리되는 느낌 ☁️', date: '24.05.09' },
-  { id: 7, type: 'photo', image: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=500&q=80', text: '오늘의 행복 ☕', date: '' },
-  { id: 8, type: 'note', color: 'bg-[#F6E9B7]', text: '친구랑 오래\n수다 떨기 좋은 곳!\n시간 가는 줄 몰랐어요 ☆', date: '24.05.08' },
 ]
 
 function TraceCard({ card }) {
@@ -82,20 +79,32 @@ function TraceCard({ card }) {
     return (
       <article className="relative rounded-[4px] bg-white p-2 shadow-[0_6px_16px_rgba(50,33,20,0.14)]">
         <span className="absolute left-1/2 top-0 h-2 w-14 -translate-x-1/2 -translate-y-1 rotate-6 bg-[#EFE2D4]/85" />
-        <img src={card.image} alt="" className="h-[122px] w-full object-cover" />
-        <p className="mt-2 whitespace-pre-line text-[13px] leading-5 text-[#3E2A1E]">{card.text}</p>
+        <img src={card.image} alt="" className="h-[130px] w-full rounded-[2px] object-cover" />
+        <p
+          className="mt-2 whitespace-pre-line text-[13px] leading-5 text-[#3E2A1E]"
+          style={{ fontFamily: "'Nanum Pen Script', cursive" }}
+        >
+          {card.text}
+        </p>
         <div className="mt-1 flex items-center justify-end text-[#B0927A]">
-          <Heart size={15} />
+          <Heart size={13} />
         </div>
       </article>
     )
   }
 
   return (
-    <article className={`relative min-h-[190px] rounded-[2px] p-4 shadow-[0_8px_18px_rgba(50,33,20,0.12)] ${card.color}`}>
-      <span className="absolute left-1/2 top-0 h-6 w-6 -translate-x-1/2 -translate-y-1 rounded-full bg-gradient-to-b from-[#D8B98E] to-[#A8784A] shadow" />
-      <p className="whitespace-pre-line text-[15px] leading-8 text-[#3E2A1E]">{card.text}</p>
-      <p className="mt-3 text-right text-[13px] text-[#6E5A4C]">- {card.date}</p>
+    <article className={`relative min-h-[160px] rounded-[3px] p-4 shadow-[0_6px_16px_rgba(50,33,20,0.10)] ${card.color}`}>
+      <span className="absolute left-1/2 top-0 h-5 w-5 -translate-x-1/2 -translate-y-1 rounded-full bg-gradient-to-b from-[#D8B98E] to-[#A8784A] shadow" />
+      <p
+        className="whitespace-pre-line text-[14px] leading-7 text-[#3E2A1E]"
+        style={{ fontFamily: "'Nanum Pen Script', cursive" }}
+      >
+        {card.text}
+      </p>
+      {card.date ? (
+        <p className="mt-2 text-right text-[12px] text-[#6E5A4C]">- {card.date}</p>
+      ) : null}
     </article>
   )
 }
@@ -113,75 +122,76 @@ function PlaceDetail() {
       exit={{ y: '100%' }}
       transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
     >
-      <div className="relative h-full overflow-y-auto bg-[#FBF9F6] pb-44">
+      <div className="relative h-full overflow-y-auto bg-[#FBF9F6] pb-36">
         <section className="relative">
-          <img src={place.image} alt={place.name} className="h-[300px] w-full object-cover" />
+          <img src={place.image} alt={place.name} className="h-[280px] w-full object-cover" />
 
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="absolute left-4 top-6 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/95 text-[#3E2A1E] shadow"
+            className="absolute left-4 top-6 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-[#3E2A1E] shadow"
             aria-label="뒤로가기"
           >
-            <ChevronLeft size={24} />
+            <ChevronLeft size={22} />
           </button>
 
           <div className="absolute right-4 top-6 flex gap-2">
-            <button type="button" className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/95 text-[#3E2A1E] shadow" aria-label="북마크">
-              <Bookmark size={20} />
+            <button type="button" className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-[#3E2A1E] shadow" aria-label="북마크">
+              <Bookmark size={18} />
             </button>
-            <button type="button" className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/95 text-[#3E2A1E] shadow" aria-label="공유">
-              <Share2 size={20} />
+            <button type="button" className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-[#3E2A1E] shadow" aria-label="공유">
+              <Share2 size={18} />
             </button>
           </div>
-
-          <span className="absolute bottom-4 right-4 rounded-full bg-black/35 px-3 py-1 text-[16px] text-white">1 / 8</span>
         </section>
 
-        <section className="-mt-5 rounded-t-[26px] bg-white px-5 pb-6 pt-4">
+        <section className="-mt-5 rounded-t-[26px] bg-white px-5 pb-6 pt-5">
           <span className="inline-block rounded-full bg-[#EFE7DB] px-3 py-1 text-[12px] text-[#6F5D4F]">{place.category}</span>
-          <h1 className="mt-3 font-brand-serif text-[52px] leading-tight text-[#2F2118]">{place.name}</h1>
+          <h1 className="mt-2 font-brand-serif text-[34px] leading-tight tracking-[-0.01em] text-[#2F2118]">{place.name}</h1>
 
-          <div className="mt-3 space-y-2 text-[#5A4739]">
-            <div className="flex items-center gap-3 text-[18px]">
-              <MapPin size={16} className="text-[#B0957C]" />
+          <div className="mt-3 space-y-1.5 text-[#5A4739]">
+            <div className="flex items-center gap-2 text-[14px]">
+              <MapPin size={14} className="shrink-0 text-[#B0957C]" />
               <span>{place.address}</span>
               <span className="text-[#D8CCBF]">|</span>
-              <span className="inline-flex items-center gap-1"><UserRound size={14} className="text-[#B0957C]" />여기서 {place.distance}</span>
+              <span className="inline-flex items-center gap-1 text-[#7A6558]">
+                <UserRound size={13} className="text-[#B0957C]" />
+                {place.distance}
+              </span>
             </div>
-            <div className="flex items-center gap-3 text-[18px]">
-              <Clock3 size={16} className="text-[#B0957C]" />
+            <div className="flex items-center gap-2 text-[14px]">
+              <Clock3 size={14} className="shrink-0 text-[#B0957C]" />
               <span>{place.hours}</span>
               <span className="text-[#D8CCBF]">|</span>
-              <span className="rounded-full bg-[#F1E9DF] px-3 py-1 text-[17px] text-[#6A5748]">{place.tag}</span>
+              <span className="rounded-full bg-[#F1E9DF] px-2.5 py-0.5 text-[12px] text-[#6A5748]">{place.tag}</span>
             </div>
           </div>
 
-          <p className="mt-4 whitespace-pre-line text-[18px] leading-8 text-[#4A392C]">{place.intro}</p>
+          <p className="mt-3 whitespace-pre-line text-[14px] leading-7 text-[#4A392C]">{place.intro}</p>
 
-          <hr className="my-6 border-[#EFE8DE]" />
+          <hr className="my-5 border-[#EFE8DE]" />
 
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-[37px] font-bold text-[#3A2A1F]">최근 남겨진 흔적</h2>
-            <button type="button" className="inline-flex items-center text-[18px] font-medium text-[#5E4A3C]">더보기 <ChevronRight size={16} /></button>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-[17px] font-bold text-[#3A2A1F]">최근 남겨진 흔적</h2>
+            <button type="button" className="inline-flex items-center text-[13px] font-medium text-[#5E4A3C]">
+              더보기 <ChevronRight size={14} />
+            </button>
           </div>
 
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             {traceCards.map((card) => (
-              <div key={card.id} className={card.id === 4 || card.id === 8 ? 'mt-4' : card.id === 5 ? 'mt-2' : ''}>
-                <TraceCard card={card} />
-              </div>
+              <TraceCard key={card.id} card={card} />
             ))}
           </div>
 
           <div className="mt-5 rounded-2xl bg-[#F6F1EA] px-4 py-4">
             <div className="flex items-center gap-3">
-              <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-[#E9D7C2] text-[#6A4B33]">
-                <Store size={24} />
+              <div className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#E9D7C2] text-[#6A4B33]">
+                <Store size={22} />
               </div>
               <div>
-                <p className="text-[17px] font-semibold text-[#3A2A1F]">아직 남긴 흔적이 없나요?</p>
-                <p className="text-[15px] text-[#6F5D4F]">이 장소의 첫 번째 흔적을 남겨보세요.</p>
+                <p className="text-[15px] font-semibold text-[#3A2A1F]">아직 남긴 흔적이 없나요?</p>
+                <p className="text-[13px] text-[#6F5D4F]">이 장소의 첫 번째 흔적을 남겨보세요.</p>
               </div>
             </div>
           </div>
@@ -190,13 +200,13 @@ function PlaceDetail() {
 
       <footer className="absolute inset-x-0 bottom-0 bg-white px-5 pb-6 pt-3 shadow-[0_-8px_24px_rgba(35,24,16,0.08)]">
         <div className="grid grid-cols-2 gap-3">
-          <button type="button" className="h-16 rounded-2xl border border-[#EADFD1] bg-[#F4EEE5] text-[17px] font-semibold text-[#3E2A1E]">
+          <button type="button" className="h-14 rounded-2xl border border-[#EADFD1] bg-[#F4EEE5] text-[15px] font-semibold text-[#3E2A1E]">
             📝 흔적 남기기
           </button>
           <button
             type="button"
             onClick={() => navigate(`/board/${id ?? 'onion'}`)}
-            className="h-16 rounded-2xl bg-[#3E2A1E] text-[17px] font-semibold text-white"
+            className="h-14 rounded-2xl bg-[#3E2A1E] text-[15px] font-semibold text-white"
           >
             📖 보드 구경하기
           </button>

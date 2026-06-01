@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@500;600;700&display=swap');
+﻿@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&display=swap');
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
 @import "tailwindcss";
@@ -25,7 +25,7 @@ body {
   place-items: center;
   font-family: var(--font-body-sans);
   color: #2f2218;
-  background: #faf6f0;
+  background: #f7f2ea;
 }
 
 .font-brand-serif {
@@ -44,7 +44,7 @@ body {
   margin: 16px auto;
   overflow: hidden;
   border-radius: 36px;
-  background: #faf6f0;
+  background: #f7f2ea;
   box-shadow:
     0 24px 60px rgba(62, 42, 30, 0.2),
     0 8px 20px rgba(62, 42, 30, 0.1);
@@ -126,3 +126,4 @@ body {
 .postit-tack {
   animation: postitTack 180ms ease-out 1;
 }
+

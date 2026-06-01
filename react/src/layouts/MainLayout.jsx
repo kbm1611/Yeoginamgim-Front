@@ -6,10 +6,12 @@ function MainLayout() {
   const isMap = location.pathname === '/map'
 
   return (
-    <main className="app-device relative flex flex-col bg-[#FAF6F0]">
+    <main className="app-device relative flex flex-col bg-[#F7F2EA]">
       {!isMap && (
-        <header className="logo-area flex items-center justify-center py-4">
-          <h1 className="font-brand-serif text-[52px] leading-none tracking-[-0.02em] text-[#4A2E1A]">여기남김</h1>
+        <header className="flex items-center justify-center pb-1 pt-2">
+          <div className="flex h-[40px] w-[90px] items-center justify-center text-[34px] font-semibold leading-none tracking-[-0.02em] text-[#2F2118]">
+            여기남김
+          </div>
         </header>
       )}
 
