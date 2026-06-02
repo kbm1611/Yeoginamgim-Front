@@ -1,54 +1,107 @@
-﻿import { motion } from 'framer-motion'
-import { useMemo } from 'react'
-import Polaroid from './Polaroid'
-import PostIt from './PostIt'
+﻿import { useMemo } from 'react'
+import { TransformComponent, TransformWrapper } from 'react-zoom-pan-pinch'
 
-function BoardCanvas({
-  postIts,
-  polaroids,
-  onSelectItem,
-  selectedItemId,
-  justCreatedId,
-  placementDraft,
-  onDraftPositionChange,
-}) {
-  const mixedItems = useMemo(() => {
-    const all = [...postIts, ...polaroids]
-    return all.map((item, idx) => ({ ...item, layoutOrder: idx }))
-  }, [postIts, polaroids])
+const CANVAS_WIDTH = 3000
+const CANVAS_HEIGHT = 4000
+
+function seededRand(seed) {
+  const x = Math.sin(seed) * 10000
+  return x - Math.floor(x)
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value))
+}
+
+function matrixToPixel(post, columns = 2, rowHeight = 560, colWidth = 760, offsetX = 360, offsetY = 260) {
+  const row = Number(post.row ?? 0)
+  const col = Number(post.col ?? 0)
+
+  const baseX = offsetX + col * colWidth
+  const baseY = offsetY + row * rowHeight
+
+  const sx = seededRand(post.id * 1.13 + 7.3)
+  const sy = seededRand(post.id * 1.77 + 3.1)
+  const sr = seededRand(post.id * 2.17 + 9.7)
+
+  const jitterX = (sx * 30) - 15
+  const jitterY = (sy * 30) - 15
+  const rotate = (sr * 4) - 2
+
+  const x = clamp(baseX + jitterX, 40, CANVAS_WIDTH - 420)
+  const y = clamp(baseY + jitterY, 40, CANVAS_HEIGHT - 460)
+
+  return { x, y, rotate, columns }
+}
+
+function PolaroidCard({ post, x, y, rotate }) {
+  return (
+    <article
+      className="absolute w-[340px] rounded-[10px] bg-white p-3 shadow-[0_10px_28px_rgba(42,28,20,0.22)]"
+      style={{ left: x, top: y, transform: `rotate(${rotate}deg)` }}
+    >
+      <img src={post.image} alt="" className="h-[290px] w-full rounded-[4px] object-cover" />
+      <p className="pt-3 text-center text-[46px] leading-[1.1] text-[#1E1712]" style={{ fontFamily: "'Nanum Pen Script', 'Gaegu', cursive" }}>
+        {post.text}
+      </p>
+      <p className="pb-1 pt-2 text-center text-[26px] text-[#4A3B30]">- {post.date} -</p>
+    </article>
+  )
+}
+
+function PostItCard({ post, x, y, rotate }) {
+  return (
+    <article
+      className="absolute w-[320px] rounded-[8px] p-5 shadow-[0_10px_24px_rgba(42,28,20,0.2)]"
+      style={{ left: x, top: y, transform: `rotate(${rotate}deg)`, backgroundColor: post.color || '#F6E07F' }}
+    >
+      <p className="whitespace-pre-line text-[50px] leading-[1.1] text-[#2A211A]" style={{ fontFamily: "'Nanum Pen Script', 'Gaegu', cursive" }}>
+        {post.text}
+      </p>
+      <p className="mt-2 text-[24px] text-[#4A3B30]">{post.date}</p>
+    </article>
+  )
+}
+
+function BoardCanvas({ posts, backgroundImage }) {
+  const positionedPosts = useMemo(() => posts.map((post) => ({ ...post, ...matrixToPixel(post) })), [posts])
 
   return (
-    <div
-      className="relative h-full w-full overflow-y-auto px-4 pb-28 pt-2"
-      style={{
-        backgroundColor: '#EFE5D6',
-        backgroundImage:
-          'radial-gradient(circle at 1px 1px, rgba(137,113,86,0.11) 1px, transparent 0), linear-gradient(135deg, rgba(255,255,255,0.2), rgba(255,255,255,0.05))',
-        backgroundSize: '16px 16px, auto',
-      }}
+    <TransformWrapper
+      minScale={0.5}
+      maxScale={2}
+      initialScale={0.58}
+      initialPositionX={-190}
+      initialPositionY={-120}
+      limitToBounds
+      wheel={{ step: 0.08, smoothStep: 0.004 }}
+      pinch={{ step: 6 }}
+      panning={{ velocityDisabled: true }}
+      doubleClick={{ disabled: true }}
     >
-      <div className="grid grid-cols-3 gap-x-3 gap-y-4">
-        {mixedItems.map((item, index) => {
-          const mtClass = index % 3 === 0 ? 'mt-3' : index % 3 === 1 ? 'mt-0' : 'mt-5'
-
-          return (
-            <div key={item.id} className={mtClass}>
-              {item.type === 'polaroid' ? (
-                <Polaroid item={item} onClick={onSelectItem} selected={selectedItemId === item.id} />
-              ) : (
-                <PostIt item={item} onClick={onSelectItem} selected={selectedItemId === item.id} justCreated={justCreatedId === item.id} />
-              )}
-            </div>
-          )
-        })}
-      </div>
-
-      {placementDraft ? (
-        <motion.div className="pointer-events-none fixed inset-x-0 bottom-24 z-30 mx-auto w-[180px] rounded-2xl bg-white/90 px-4 py-2 text-center text-[12px] text-[#5c4638] shadow">
-          아래 카드 위치를 확인한 뒤 [남기기]를 눌러주세요
-        </motion.div>
-      ) : null}
-    </div>
+      <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }} contentStyle={{ width: '100%', height: '100%' }}>
+        <div
+          className="relative"
+          style={{
+            width: `${CANVAS_WIDTH}px`,
+            height: `${CANVAS_HEIGHT}px`,
+            backgroundColor: '#F7F1E7',
+            backgroundImage: `url(${backgroundImage})`,
+            backgroundSize: '100% 100%',
+            backgroundPosition: 'center center',
+            backgroundRepeat: 'no-repeat',
+          }}
+        >
+          {positionedPosts.map((post) =>
+            post.type === 'polaroid' ? (
+              <PolaroidCard key={post.id} post={post} x={post.x} y={post.y} rotate={post.rotate} />
+            ) : (
+              <PostItCard key={post.id} post={post} x={post.x} y={post.y} rotate={post.rotate} />
+            ),
+          )}
+        </div>
+      </TransformComponent>
+    </TransformWrapper>
   )
 }
 
