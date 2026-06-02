@@ -1,5 +1,5 @@
 ﻿import { motion } from 'framer-motion'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import loginBgImage from '../assets/auth/login-bg.png'
 import '../css/login.css'
 
@@ -88,6 +88,13 @@ function LoginPage() {
           로그인하면 서비스 이용약관 및 개인정보처리방침에
           <br />
           동의한 것으로 간주됩니다.
+        </p>
+
+        <p className="signup-prompt">
+          아직 계정이 없나요?{' '}
+          <Link className="signup-link" to="/signup">
+            회원가입
+          </Link>
         </p>
       </motion.section>
     </motion.main>

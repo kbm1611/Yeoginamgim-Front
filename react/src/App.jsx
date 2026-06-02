@@ -8,6 +8,7 @@ import Map from './pages/Map'
 import OnboardingPage from './pages/OnboardingPage'
 import PlaceDetail from './pages/PlaceDetail'
 import PostItEditor from './pages/PostItEditor'
+import SignupPage from './pages/SignupPage'
 import SplashPage from './pages/SplashPage'
 
 function AnimatedRoutes() {
@@ -20,6 +21,7 @@ function AnimatedRoutes() {
         <Route path="/splash" element={<SplashPage />} />
         <Route path="/onboarding" element={<OnboardingPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
 
         <Route element={<MainLayout />}>
           <Route path="/home" element={<HomePage />} />
