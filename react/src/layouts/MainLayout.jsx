@@ -12,9 +12,7 @@ function MainLayout() {
     <main className="app-device relative flex flex-col" style={{ backgroundColor: APP_BG }}>
       {!isMap && (
         <header className="flex items-center justify-center pb-1 pt-2" style={{ backgroundColor: APP_BG }}>
-          <div className="flex h-[45px] w-[120px] items-center justify-center" aria-label="main-logo-placeholder">
-            <img src={mainLogo} alt="여기남김" className="block max-h-full max-w-full object-contain mix-blend-multiply" />
-          </div>
+          <img src={mainLogo} alt="여기남김" className="h-[38px] object-contain mix-blend-multiply" />
         </header>
       )}
 
