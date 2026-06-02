@@ -1,47 +1,100 @@
-﻿import { Plus, ScanSearch } from 'lucide-react'
-import { motion } from 'framer-motion'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Filter, Plus, ScanSearch } from 'lucide-react'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import BoardCanvas from '../components/board/BoardCanvas'
-import boardBackground from '../assets/image.png'
+import boardBg from '../assets/image.png'
 
-const posts = [
-  { id: 1, type: 'polaroid', row: 0, col: 0, text: '오늘 분위기 굿! ❤️', date: '2024.06.10', image: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=900&q=80' },
-  { id: 2, type: 'postit', row: 0, col: 1, text: '커피 최고!\n역시 메가커피\n가성비도 맛도 최고', date: '2024.06.10', color: '#F6E07F' },
-  { id: 3, type: 'polaroid', row: 1, col: 1, text: '친구랑 찰칵', date: '2024.06.10', image: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80' },
-  { id: 4, type: 'postit', row: 1, col: 0, text: '친구들이랑\n수다타임\n즐거워~', date: '2024.06.09', color: '#CDECE5' },
-  { id: 5, type: 'polaroid', row: 2, col: 0, text: '오늘도 행복한 하루', date: '2024.06.09', image: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=900&q=80' },
-  { id: 6, type: 'postit', row: 2, col: 1, text: '또 오고 싶은\n우리의 아지트!', date: '2024.06.08', color: '#CFC2F3' },
-  { id: 7, type: 'polaroid', row: 3, col: 1, text: '라떼 한 잔', date: '2024.06.08', image: 'https://images.unsplash.com/photo-1445116572660-236099ec97a0?auto=format&fit=crop&w=900&q=80' },
-]
+const storageKey = (id) => `board_posts_${id}`
 
 function BoardDetail() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const { id } = useParams()
+  const boardId = id ?? 'default'
+
+  const [sort, setSort] = useState('latest')
+  const [posts, setPosts] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(storageKey(boardId))) ?? []
+    } catch {
+      return []
+    }
+  })
+
+  useEffect(() => {
+    const draft = location.state?.placementDraft
+    if (!draft) return
+    const post = { ...draft }
+    setPosts((prev) => {
+      const next = [post, ...prev]
+      localStorage.setItem(storageKey(boardId), JSON.stringify(next))
+      return next
+    })
+    navigate(location.pathname, { replace: true, state: {} })
+  }, [location.state?.placementDraft])
+
+  const sortedPosts =
+    sort === 'latest'
+      ? [...posts].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      : [...posts].sort((a, b) => (b.likes ?? 0) - (a.likes ?? 0))
+
+  const handleAdd = () => navigate(`/board/${boardId}/postit`)
 
   return (
-    <main className="app-device h-full w-full overflow-hidden bg-[#E9E5DF] p-2">
-      <motion.section
-        className="relative mx-auto h-full w-full max-w-[430px] overflow-hidden rounded-[34px] border border-[#E2DBD1]"
-        initial={{ opacity: 0.92, scale: 0.98 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.2 }}
+    <main className="app-device relative overflow-hidden">
+      {/* 항상 꽉 차는 보드 배경 — 줌과 무관하게 고정 */}
+      <img
+        src={boardBg}
+        alt=""
+        className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+      />
+
+      {/* 플로팅 헤더 */}
+      <div className="absolute left-4 right-4 top-4 z-20 flex items-center justify-between">
+        <div className="flex gap-1 rounded-full bg-white/85 p-1 shadow-md backdrop-blur-sm">
+          {[
+            { key: 'popular', label: '랭기순' },
+            { key: 'latest', label: '최신순' },
+          ].map(({ key, label }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setSort(key)}
+              className={`rounded-full px-4 py-1.5 text-[13px] font-semibold transition-all ${
+                sort === key ? 'bg-[#3D2B1F] text-white shadow-sm' : 'text-[#6B5344]'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-white/85 shadow-md backdrop-blur-sm text-[#3D2B1F]"
+        >
+          <Filter size={17} />
+        </button>
+      </div>
+
+      {/* 보드 캔버스 */}
+      <div className="absolute inset-0">
+        <BoardCanvas posts={sortedPosts} onAdd={handleAdd} />
+      </div>
+
+      {/* 플로팅 버튼 */}
+      <button
+        type="button"
+        className="absolute bottom-7 left-6 z-20 inline-flex h-14 w-14 items-center justify-center rounded-full bg-white text-[#3D2B1F] shadow-[0_8px_20px_rgba(57,39,25,0.18)]"
       >
-        <BoardCanvas posts={posts} backgroundImage={boardBackground} />
-
-        <button
-          type="button"
-          className="absolute bottom-7 left-6 z-20 inline-flex h-14 w-14 items-center justify-center rounded-full bg-white text-[#2D2218] shadow-[0_8px_16px_rgba(57,39,25,0.2)]"
-        >
-          <ScanSearch size={24} />
-        </button>
-
-        <button
-          type="button"
-          onClick={() => navigate('/board/mildo/postit')}
-          className="absolute bottom-7 right-6 z-20 inline-flex h-14 w-14 items-center justify-center rounded-full bg-white text-[#2D2218] shadow-[0_8px_16px_rgba(57,39,25,0.2)]"
-        >
-          <Plus size={30} />
-        </button>
-      </motion.section>
+        <ScanSearch size={22} />
+      </button>
+      <button
+        type="button"
+        onClick={handleAdd}
+        className="absolute bottom-7 right-6 z-20 inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#3D2B1F] text-white shadow-[0_8px_20px_rgba(57,39,25,0.3)]"
+      >
+        <Plus size={26} />
+      </button>
     </main>
   )
 }
