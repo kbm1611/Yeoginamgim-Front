@@ -86,12 +86,28 @@
   box-shadow: 0 0 0 3px rgba(122, 66, 24, 0.1);
 }
 
+.signup-field input:disabled {
+  opacity: 0.72;
+}
+
+.signup-status {
+  min-height: 20px;
+}
+
 .signup-error {
   margin: 0;
   color: #9a3d24;
   font-size: 13px;
   line-height: 20px;
   font-weight: 600;
+}
+
+.signup-success {
+  margin: 0;
+  color: #3d6b42;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 700;
 }
 
 .signup-submit {
