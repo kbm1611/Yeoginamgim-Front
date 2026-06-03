@@ -7,6 +7,7 @@ import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import Map from './pages/Map'
 import MyPage from './pages/MyPage'
+import OAuthCallbackPage from './pages/OAuthCallbackPage'
 import OnboardingPage from './pages/OnboardingPage'
 import PlaceDetail from './pages/PlaceDetail'
 import PostItEditor from './pages/PostItEditor'
@@ -34,6 +35,7 @@ function AnimatedRoutes() {
         <Route path="/onboarding" element={<OnboardingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
 
         <Route
           element={
