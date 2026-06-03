@@ -6,6 +6,7 @@ import BoardDetail from './pages/BoardDetail'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import Map from './pages/Map'
+import MyPage from './pages/MyPage'
 import OnboardingPage from './pages/OnboardingPage'
 import PlaceDetail from './pages/PlaceDetail'
 import PostItEditor from './pages/PostItEditor'
@@ -43,6 +44,7 @@ function AnimatedRoutes() {
         >
           <Route path="/home" element={<HomePage />} />
           <Route path="/map" element={<Map />} />
+          <Route path="/my" element={<MyPage />} />
         </Route>
 
         <Route path="/place/:id" element={<PlaceDetail />} />
