@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { Filter, Home, Plus, ScanSearch, UserRound } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { API_BASE_URL } from '../api/client'
-import { fetchBoardTraces } from '../api/traces'
+import { createTraceReport } from '../api/reports'
+import { addTraceLike, fetchBoardTraces, removeTraceLike } from '../api/traces'
 import BoardCanvas from '../components/board/BoardCanvas'
 import boardBg from '../assets/image.png'
 
@@ -84,6 +85,7 @@ function traceToPost(trace) {
     },
     createdAt: trace.createdAt,
     likes: trace.likeCount ?? 0,
+    liked: trace.liked === true,
     nickname: trace.nickname,
   }
 }
@@ -149,12 +151,40 @@ function BoardDetail() {
       )
     }
 
-    return <BoardCanvas posts={posts} onAdd={handleAdd} />
+    return (
+      <BoardCanvas
+        posts={posts}
+        onAdd={handleAdd}
+        onToggleLike={handleToggleLike}
+        onReport={handleCreateReport}
+      />
+    )
   }
 
   const handleAdd = () => navigate(`/board/${boardId}/postit`)
   const handleGoHome = () => navigate('/home')
   const handleGoMyPage = () => navigate('/my')
+  const handleToggleLike = async (post) => {
+    const result = post.liked ? await removeTraceLike(post.id) : await addTraceLike(post.id)
+
+    setPosts((prev) =>
+      prev.map((item) =>
+        item.id === post.id
+          ? {
+              ...item,
+              liked: result.liked === true,
+              likes: result.likeCount ?? item.likes,
+            }
+          : item,
+      ),
+    )
+
+    return result
+  }
+
+  const handleCreateReport = (post, reportKind) => {
+    return createTraceReport(post.id, { reportKind })
+  }
 
   return (
     <main className="app-device relative overflow-hidden">

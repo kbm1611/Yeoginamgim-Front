@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Flag, Heart } from 'lucide-react'
 import { TransformComponent, TransformWrapper } from 'react-zoom-pan-pinch'
 import postitYellow from '../../assets/images/postits/yellow.png'
 import postitPink from '../../assets/images/postits/pink-torn.png'
@@ -35,6 +36,14 @@ const TAPE_COLORS = [
   'rgba(212,200,240,0.80)',
   'rgba(238,183,198,0.80)',
   'rgba(210,212,162,0.80)',
+]
+
+const REPORT_REASONS = [
+  { value: 'ABUSE', label: '욕설/비방' },
+  { value: 'INAPPROPRIATE_IMAGE', label: '부적절한 사진' },
+  { value: 'SPAM', label: '광고/도배' },
+  { value: 'PRIVACY', label: '개인정보 노출' },
+  { value: 'ETC', label: '기타' },
 ]
 
 // 시드 기반 난수 (0~1)
@@ -82,7 +91,138 @@ function Tape({ color, rotate }) {
   )
 }
 
-function PolaroidCard({ post }) {
+function getActionErrorMessage(error) {
+  if (error?.status === 401) return '로그인이 필요합니다.'
+  if (error?.status === 409) return '이미 신고한 흔적입니다.'
+
+  return error?.message ?? '처리하지 못했습니다.'
+}
+
+function TraceActions({ post, onToggleLike, onReport }) {
+  const [isLikePending, setIsLikePending] = useState(false)
+  const [isReportOpen, setIsReportOpen] = useState(false)
+  const [reportKind, setReportKind] = useState(REPORT_REASONS[0].value)
+  const [isReportPending, setIsReportPending] = useState(false)
+  const [message, setMessage] = useState('')
+
+  const stopBoardGesture = (event) => {
+    event.stopPropagation()
+  }
+
+  const handleLikeClick = async (event) => {
+    event.stopPropagation()
+    if (!onToggleLike || isLikePending) return
+
+    setIsLikePending(true)
+    setMessage('')
+
+    try {
+      await onToggleLike(post)
+    } catch (error) {
+      setMessage(getActionErrorMessage(error))
+    } finally {
+      setIsLikePending(false)
+    }
+  }
+
+  const handleReportSubmit = async (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!onReport || isReportPending) return
+
+    setIsReportPending(true)
+    setMessage('')
+
+    try {
+      await onReport(post, reportKind)
+      setMessage('신고가 접수되었습니다.')
+      setIsReportOpen(false)
+    } catch (error) {
+      setMessage(getActionErrorMessage(error))
+    } finally {
+      setIsReportPending(false)
+    }
+  }
+
+  return (
+    <div
+      className="absolute -bottom-10 right-0 z-30"
+      onPointerDown={stopBoardGesture}
+      onMouseDown={stopBoardGesture}
+      onTouchStart={stopBoardGesture}
+      onClick={stopBoardGesture}
+    >
+      <div className="relative flex items-center gap-2">
+        <button
+          type="button"
+          onClick={handleLikeClick}
+          disabled={isLikePending}
+          aria-label={post.liked ? '추천 취소' : '추천'}
+          className="inline-flex h-8 items-center gap-1.5 rounded-full bg-white/90 px-2.5 text-[12px] font-bold text-[#3D2B1F] shadow-md backdrop-blur-sm disabled:opacity-60"
+        >
+          <Heart
+            size={15}
+            fill={post.liked ? '#E84855' : 'none'}
+            className={post.liked ? 'text-[#E84855]' : 'text-[#6B5344]'}
+            strokeWidth={2}
+          />
+          <span>{post.likes ?? 0}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation()
+            setIsReportOpen((open) => !open)
+            setMessage('')
+          }}
+          aria-label="신고하기"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-[#6B5344] shadow-md backdrop-blur-sm"
+        >
+          <Flag size={15} strokeWidth={2} />
+        </button>
+
+        {isReportOpen ? (
+          <form
+            onSubmit={handleReportSubmit}
+            className="absolute bottom-10 right-0 w-[190px] rounded-[8px] bg-white p-3 text-[#3D2B1F] shadow-[0_10px_28px_rgba(42,28,20,0.20)]"
+          >
+            <label className="block text-[12px] font-bold" htmlFor={`report-${post.id}`}>
+              신고 사유
+            </label>
+            <select
+              id={`report-${post.id}`}
+              value={reportKind}
+              onChange={(event) => setReportKind(event.target.value)}
+              className="mt-2 h-9 w-full rounded-[6px] border border-[#D8CEC2] bg-[#F8F4EE] px-2 text-[12px] outline-none"
+            >
+              {REPORT_REASONS.map((reason) => (
+                <option key={reason.value} value={reason.value}>
+                  {reason.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="submit"
+              disabled={isReportPending}
+              className="mt-2 h-9 w-full rounded-[6px] bg-[#3D2B1F] text-[12px] font-bold text-white disabled:opacity-60"
+            >
+              {isReportPending ? '접수 중' : '신고하기'}
+            </button>
+          </form>
+        ) : null}
+      </div>
+
+      {message ? (
+        <p className="mt-1 max-w-[190px] rounded-full bg-white/90 px-2 py-1 text-right text-[11px] font-semibold text-[#7A4D3B] shadow-sm">
+          {message}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+function PolaroidCard({ post, onToggleLike, onReport }) {
   const [imageFailed, setImageFailed] = useState(false)
   const imageSrc = post.media?.image
   const captionLength = post.content?.length ?? 0
@@ -137,11 +277,12 @@ function PolaroidCard({ post }) {
           {post.media?.dateLabel}
         </p>
       </div>
+      <TraceActions post={post} onToggleLike={onToggleLike} onReport={onReport} />
     </article>
   )
 }
 
-function PostItCard({ post }) {
+function PostItCard({ post, onToggleLike, onReport }) {
   const paperColor = post.style?.paperColor ?? 'yellow'
   const texture = POSTIT_TEXTURE[paperColor]
   const bgColor = POSTIT_COLOR[paperColor] ?? '#F3D98E'
@@ -180,6 +321,7 @@ function PostItCard({ post }) {
           {post.content}
         </p>
       </div>
+      <TraceActions post={post} onToggleLike={onToggleLike} onReport={onReport} />
     </article>
   )
 }
@@ -204,7 +346,7 @@ function EmptyBoard({ onAdd }) {
   )
 }
 
-function BoardCanvas({ posts, onAdd }) {
+function BoardCanvas({ posts, onAdd, onToggleLike, onReport }) {
   const laid = useMemo(() => layoutPosts(posts), [posts])
 
   const rows = Math.ceil(posts.length / 2)
@@ -240,9 +382,9 @@ function BoardCanvas({ posts, onAdd }) {
         >
           {laid.map((post) =>
             post.type === 'polaroid' ? (
-              <PolaroidCard key={post.id} post={post} />
+              <PolaroidCard key={post.id} post={post} onToggleLike={onToggleLike} onReport={onReport} />
             ) : (
-              <PostItCard key={post.id} post={post} />
+              <PostItCard key={post.id} post={post} onToggleLike={onToggleLike} onReport={onReport} />
             ),
           )}
         </div>
