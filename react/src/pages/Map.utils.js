@@ -28,7 +28,7 @@ export const MAP_CATEGORY_FILTER_BUTTON_CLASSES =
   'inline-flex min-h-10 shrink-0 snap-start items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] transition'
 export const MAP_RESULT_SINGLE_PLACE_LEVEL = 4
 export const MAP_SELECTED_PLACE_LEVEL = 4
-export const MAP_RESULT_MAX_FIT_LEVEL = 7
+export const MAP_RESULT_MAX_FIT_LEVEL = 9
 export const MAP_RESULT_VIEWPORT_PADDING = {
   top: 150,
   right: 36,
@@ -264,10 +264,6 @@ export function buildPopularPlaceRequest({ latitude, longitude } = {}) {
   if (safeLatitude === null || safeLongitude === null) return null
 
   return {
-    latitude: safeLatitude,
-    longitude: safeLongitude,
-    radius: NEARBY_RADIUS_METERS,
-    page: 1,
     limit: NEARBY_LIMIT,
   }
 }

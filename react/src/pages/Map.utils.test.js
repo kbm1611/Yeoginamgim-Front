@@ -139,20 +139,20 @@ test('buildNearbyPlaceRequests is only for category marker lookups', () => {
   assert.deepEqual(requests, [])
 })
 
-test('buildPopularPlaceRequest creates an uncategorized nearby lookup for the bottom sheet', () => {
+test('buildPopularPlaceRequest creates a popular places lookup for the bottom sheet', () => {
   const request = buildPopularPlaceRequest({
     latitude: 37.5447,
     longitude: 127.0559,
   })
 
   assert.deepEqual(request, {
-    latitude: 37.5447,
-    longitude: 127.0559,
-    radius: 20000,
-    page: 1,
     limit: 15,
   })
   assert.equal(Object.hasOwn(request, 'category'), false)
+  assert.equal(Object.hasOwn(request, 'latitude'), false)
+  assert.equal(Object.hasOwn(request, 'longitude'), false)
+  assert.equal(Object.hasOwn(request, 'radius'), false)
+  assert.equal(Object.hasOwn(request, 'page'), false)
 })
 
 test('category filters expose stable icon names for map controls', () => {
@@ -472,6 +472,7 @@ test('map viewport plan fits multiple results with the current position and max 
 
   assert.equal(plan.type, 'bounds')
   assert.equal(plan.maxLevel, MAP_RESULT_MAX_FIT_LEVEL)
+  assert.equal(MAP_RESULT_MAX_FIT_LEVEL, 9)
   assert.deepEqual(
     plan.points.map((point) => point.kind),
     ['place', 'place', 'current']

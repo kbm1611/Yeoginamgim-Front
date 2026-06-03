@@ -32,7 +32,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { fetchOrCreateBoardForPlace } from '../api/boards'
 import { ensureKakaoMaps } from '../api/kakaoMaps'
-import { fetchNearbyPlaces } from '../api/places'
+import { fetchNearbyPlaces, fetchPopularPlaces } from '../api/places'
 import mainLogo from '../assets/logo/image_12-removebg-preview.png'
 import {
   buildNearbyPlaceRequests,
@@ -101,6 +101,7 @@ function MapPage() {
   const cardRefs = useRef({})
   const categoryPlacesRequestIdRef = useRef(0)
   const popularPlacesRequestIdRef = useRef(0)
+  const placeLookupRef = useRef(new globalThis.Map())
   const selectedPlaceIdRef = useRef(null)
   const isMountedRef = useRef(false)
 
@@ -181,10 +182,7 @@ function MapPage() {
     setIsSheetOpen(true)
 
     if (focusMap) {
-      focusMapOnPlace(
-        categoryPlaces.find((place) => place.kakaoPlaceId === kakaoPlaceId)
-          ?? popularPlaces.find((place) => place.kakaoPlaceId === kakaoPlaceId)
-      )
+      focusMapOnPlace(placeLookupRef.current.get(kakaoPlaceId))
     }
 
     window.setTimeout(() => {
@@ -194,7 +192,7 @@ function MapPage() {
         inline: 'center',
       })
     }, 0)
-  }, [categoryPlaces, focusMapOnPlace, popularPlaces])
+  }, [focusMapOnPlace])
 
   const fitMapToPlaces = useCallback((nextPlaces) => {
     const kakao = kakaoRef.current
@@ -319,7 +317,7 @@ function MapPage() {
     setPopularPlacesError('')
 
     try {
-      const response = await fetchNearbyPlaces(request)
+      const response = await fetchPopularPlaces(request)
       if (!isMountedRef.current || popularPlacesRequestIdRef.current !== requestId) return
 
       setPopularPlaces(normalizePopularPlaces(response, currentPosition, NEARBY_LIMIT))
@@ -402,6 +400,16 @@ function MapPage() {
 
     return clearCurrentLocationOverlay
   }, [clearCurrentLocationOverlay, currentPosition, locationStatus, mapStatus])
+
+  useEffect(() => {
+    const nextLookup = new globalThis.Map()
+    ;[...categoryPlaces, ...popularPlaces].forEach((place) => {
+      if (place?.kakaoPlaceId) {
+        nextLookup.set(place.kakaoPlaceId, place)
+      }
+    })
+    placeLookupRef.current = nextLookup
+  }, [categoryPlaces, popularPlaces])
 
   useEffect(() => {
     window.queueMicrotask(() => {
