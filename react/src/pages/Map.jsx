@@ -1,21 +1,39 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   AlertCircle,
+  Baby,
+  Banknote,
+  Building,
+  Building2,
   ChevronDown,
   ChevronUp,
+  CircleParking,
+  Coffee,
+  Fuel,
+  GraduationCap,
+  Hospital,
+  Hotel,
+  Landmark,
   LocateFixed,
   Loader2,
+  Map as MapIcon,
+  MapPinned,
   MapPin,
   Navigation,
+  Pill,
   RefreshCw,
+  School,
   SlidersHorizontal,
+  ShoppingCart,
+  Store,
+  TrainFront,
+  Utensils,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { fetchOrCreateBoardForPlace } from '../api/boards'
 import { ensureKakaoMaps } from '../api/kakaoMaps'
 import { fetchNearbyPlaces } from '../api/places'
 import mainLogo from '../assets/logo/image_12-removebg-preview.png'
-import placePlaceholder from '../assets/images/home/place-placeholder.png'
 import {
   buildNearbyPlaceRequests,
   CATEGORY_FILTERS,
@@ -26,12 +44,14 @@ import {
   MAP_FLOATING_CONTROLS_TRANSITION_CLASSES,
   MAP_PLACE_CARD_SCROLL_CLASSES,
   MAP_PLACE_LIST_SCROLL_CLASSES,
+  PLACE_MARKER_ICON_PATHS,
   NEARBY_LIMIT,
   getBottomSheetContentClasses,
   getBottomSheetToggleLabel,
   getBottomSheetTransform,
   getCurrentPositionMarkerTitle,
   getFloatingControlsBottom,
+  getPlaceCategoryMeta,
   normalizePlaces,
 } from './Map.utils'
 
@@ -39,6 +59,28 @@ const GEOLOCATION_OPTIONS = {
   enableHighAccuracy: false,
   maximumAge: 5 * 60 * 1000,
   timeout: 8000,
+}
+
+const CATEGORY_ICON_COMPONENTS = {
+  mapPinned: MapPinned,
+  shoppingCart: ShoppingCart,
+  store: Store,
+  baby: Baby,
+  school: School,
+  graduationCap: GraduationCap,
+  circleParking: CircleParking,
+  fuel: Fuel,
+  trainFront: TrainFront,
+  banknote: Banknote,
+  landmark: Landmark,
+  building2: Building2,
+  building: Building,
+  map: MapIcon,
+  hotel: Hotel,
+  coffee: Coffee,
+  utensils: Utensils,
+  hospital: Hospital,
+  pill: Pill,
 }
 
 function MapPage() {
@@ -51,6 +93,7 @@ function MapPage() {
   const currentLocationOverlayRef = useRef(null)
   const cardRefs = useRef({})
   const placesRequestIdRef = useRef(0)
+  const selectedPlaceIdRef = useRef(null)
   const isMountedRef = useRef(false)
 
   const [mapStatus, setMapStatus] = useState('loading')
@@ -59,7 +102,7 @@ function MapPage() {
   const [locationStatus, setLocationStatus] = useState('loading')
   const [locationNotice, setLocationNotice] = useState('')
   const [currentPosition, setCurrentPosition] = useState(DEFAULT_MAP_CENTER)
-  const [selectedCategory, setSelectedCategory] = useState('전체')
+  const [selectedCategory, setSelectedCategory] = useState(null)
   const [places, setPlaces] = useState([])
   const [placesStatus, setPlacesStatus] = useState('idle')
   const [placesError, setPlacesError] = useState('')
@@ -69,6 +112,10 @@ function MapPage() {
   const [isSheetOpen, setIsSheetOpen] = useState(false)
 
   const selectedPlace = places.find((place) => place.kakaoPlaceId === selectedPlaceId) ?? null
+  const selectedCategoryLabel = selectedCategory ?? '카테고리'
+  const placesPanelNotice = selectedCategory
+    ? locationNotice || '현재 지도 기준으로 가까운 공간을 보여드려요.'
+    : '카테고리를 선택하면 주변 공간을 보여드려요.'
   const locationLabel =
     locationStatus === 'loading'
       ? '현재 위치 확인 중'
@@ -78,8 +125,10 @@ function MapPage() {
 
   const clearMarkers = useCallback(() => {
     const kakao = kakaoRef.current
-    markersRef.current.forEach(({ marker, handler }) => {
-      if (kakao && handler) {
+    markersRef.current.forEach(({ marker, element, handler }) => {
+      if (element && handler) {
+        element.removeEventListener('click', handler)
+      } else if (kakao && handler) {
         kakao.maps.event.removeListener(marker, 'click', handler)
       }
       marker.setMap(null)
@@ -145,6 +194,15 @@ function MapPage() {
   }, [moveMapTo])
 
   const loadNearbyPlaces = useCallback(async () => {
+    if (!selectedCategory) {
+      setPlaces([])
+      setSelectedPlaceId(null)
+      setPlacesStatus('idle')
+      setPlacesError('')
+      setBoardError('')
+      return
+    }
+
     const requests = buildNearbyPlaceRequests({
       latitude: currentPosition.latitude,
       longitude: currentPosition.longitude,
@@ -165,7 +223,12 @@ function MapPage() {
     setBoardError('')
 
     try {
-      const responses = await Promise.all(requests.map((request) => fetchNearbyPlaces(request)))
+      const responses = await Promise.all(
+        requests.map(async (request) => ({
+          requestCategory: request.category,
+          places: await fetchNearbyPlaces(request),
+        }))
+      )
       if (!isMountedRef.current || placesRequestIdRef.current !== requestId) return
 
       const normalizedPlaces = normalizePlaces(responses, currentPosition, NEARBY_LIMIT)
@@ -279,15 +342,24 @@ function MapPage() {
       if (place.latitude === null || place.longitude === null) return
 
       const position = new kakao.maps.LatLng(place.latitude, place.longitude)
-      const marker = new kakao.maps.Marker({
+      const markerElement = createPlaceMarkerElement(place)
+      const isSelected = place.kakaoPlaceId === selectedPlaceIdRef.current
+      setPlaceMarkerElementSelected(markerElement, isSelected)
+      const marker = new kakao.maps.CustomOverlay({
         map,
         position,
-        title: place.placeName,
+        content: markerElement,
+        xAnchor: 0.5,
+        yAnchor: 1,
+        zIndex: isSelected ? 40 : 10,
       })
-      const handler = () => selectPlace(place.kakaoPlaceId)
+      const handler = (event) => {
+        event.stopPropagation()
+        selectPlace(place.kakaoPlaceId)
+      }
 
-      kakao.maps.event.addListener(marker, 'click', handler)
-      markersRef.current.push({ marker, handler, placeId: place.kakaoPlaceId })
+      markerElement.addEventListener('click', handler)
+      markersRef.current.push({ marker, element: markerElement, handler, placeId: place.kakaoPlaceId })
       bounds.extend(position)
       markerPositions.push(position)
     })
@@ -303,14 +375,33 @@ function MapPage() {
   }, [clearMarkers, mapStatus, places, selectPlace])
 
   useEffect(() => {
-    markersRef.current.forEach(({ marker, placeId }) => {
-      marker.setZIndex(placeId === selectedPlaceId ? 20 : 1)
+    selectedPlaceIdRef.current = selectedPlaceId
+    markersRef.current.forEach(({ marker, element, placeId }) => {
+      const isSelected = placeId === selectedPlaceId
+      marker.setZIndex(isSelected ? 40 : 10)
+      if (element) {
+        setPlaceMarkerElementSelected(element, isSelected)
+      }
     })
   }, [selectedPlaceId])
 
   const handleCategorySelect = (categoryLabel) => {
+    placesRequestIdRef.current += 1
     setSelectedCategory(categoryLabel)
+    setPlaces([])
     setSelectedPlaceId(null)
+    setPlacesStatus('loading')
+    setPlacesError('')
+    setBoardError('')
+    setIsSheetOpen(true)
+
+    if (categoryLabel === selectedCategory) {
+      window.queueMicrotask(() => {
+        if (isMountedRef.current) {
+          loadNearbyPlaces()
+        }
+      })
+    }
   }
 
   const handleOpenKakaoMap = () => {
@@ -402,23 +493,29 @@ function MapPage() {
           <div className="mx-2 h-5 w-px bg-[#EFE7DB]" />
           <button type="button" className="flex items-center gap-1.5 text-[14px] font-medium">
             <SlidersHorizontal size={14} strokeWidth={1.8} />
-            <span>{selectedCategory}</span>
+            <span>{selectedCategoryLabel}</span>
           </button>
         </div>
 
         <div className="scrollbar-hide mt-3 flex gap-2 overflow-x-auto pb-1">
-          {CATEGORY_FILTERS.map((item) => (
-            <button
-              key={item.label}
-              type="button"
-              onClick={() => handleCategorySelect(item.label)}
-              className={`shrink-0 rounded-full px-4 py-2 text-[13px] ${
-                selectedCategory === item.label ? 'bg-[#3D2415] text-white' : 'bg-[#EEE6DA] text-[#5A4030]'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
+          {CATEGORY_FILTERS.map((item) => {
+            const CategoryIcon = CATEGORY_ICON_COMPONENTS[item.iconName] ?? MapPinned
+            const isSelected = selectedCategory === item.label
+
+            return (
+              <button
+                key={item.label}
+                type="button"
+                onClick={() => handleCategorySelect(item.label)}
+                className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] ${
+                  isSelected ? 'bg-[#3D2415] text-white' : 'bg-[#EEE6DA] text-[#5A4030]'
+                }`}
+              >
+                <CategoryIcon size={14} strokeWidth={1.9} className="shrink-0" />
+                <span className="whitespace-nowrap">{item.label}</span>
+              </button>
+            )
+          })}
         </div>
       </section>
 
@@ -480,7 +577,7 @@ function MapPage() {
             <div className="mb-2 flex items-center justify-between">
               <div className="min-w-0">
                 <p className="truncate text-[13px] font-medium text-[#7A6558]">
-                  {locationNotice || '현재 지도 기준으로 가까운 공간을 보여드려요.'}
+                  {placesPanelNotice}
                 </p>
               </div>
               <button
@@ -497,6 +594,9 @@ function MapPage() {
             {boardError ? <p className="mb-2 text-[12px] font-medium text-[#A74831]">{boardError}</p> : null}
 
             <div className={MAP_PLACE_LIST_SCROLL_CLASSES}>
+              {placesStatus === 'idle' ? (
+                <PlacesPanelState message="카테고리를 선택하면 주변 공간을 보여드려요." />
+              ) : null}
               {placesStatus === 'loading' ? <PlaceLoadingCards /> : null}
               {placesStatus === 'error' ? (
                 <PlacesPanelState message={placesError} actionLabel="다시 불러오기" onAction={loadNearbyPlaces} />
@@ -535,7 +635,7 @@ function PlaceCard({ place, isSelected, isOpening, onSelect, onOpen, refCallback
       }`}
     >
       <button type="button" onClick={onOpen} onMouseEnter={onSelect} className="block h-full w-full text-left">
-        <img src={place.imageUrl || placePlaceholder} alt={place.placeName} className="aspect-square w-full object-cover" />
+        <PlaceCardImage place={place} />
         <div className="px-2.5 pb-2.5 pt-2">
           <span className="inline-block rounded-full bg-[#F2EBDF] px-2 py-0.5 text-[10px] font-medium text-[#6B5343]">
             {place.groupName}
@@ -563,6 +663,25 @@ function PlaceCard({ place, isSelected, isOpening, onSelect, onOpen, refCallback
   )
 }
 
+function PlaceCardImage({ place }) {
+  if (place.imageUrl) {
+    return <img src={place.imageUrl} alt={place.placeName} className="aspect-square w-full object-cover" />
+  }
+
+  const meta = getPlaceCategoryMeta(place.categoryKey)
+  const PlaceholderIcon = CATEGORY_ICON_COMPONENTS[meta.iconName] ?? MapPinned
+
+  return (
+    <div
+      className="flex aspect-square w-full flex-col items-center justify-center gap-2 bg-[#F7F2EA] text-[#6B5343]"
+      aria-label={`${place.placeName} 장소 이미지`}
+    >
+      <PlaceholderIcon size={28} strokeWidth={1.6} />
+      <span className="text-[12px] font-semibold">{meta.label}</span>
+    </div>
+  )
+}
+
 function PlaceLoadingCards() {
   return Array.from({ length: 3 }, (_, index) => (
     <article key={index} className="w-[156px] shrink-0 overflow-hidden rounded-[16px] border border-[#EFE6DB] bg-white">
@@ -580,14 +699,16 @@ function PlacesPanelState({ message, actionLabel, onAction }) {
   return (
     <div className="flex min-w-full flex-col items-center justify-center rounded-[16px] border border-[#EFE6DB] bg-[#FBF8F3] px-5 text-center">
       <p className="text-[14px] font-semibold text-[#3D2415]">{message}</p>
-      <button
-        type="button"
-        onClick={onAction}
-        className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#3D2415] px-4 py-2 text-[12px] font-semibold text-white"
-      >
-        <RefreshCw size={13} />
-        {actionLabel}
-      </button>
+      {actionLabel && onAction ? (
+        <button
+          type="button"
+          onClick={onAction}
+          className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#3D2415] px-4 py-2 text-[12px] font-semibold text-white"
+        >
+          <RefreshCw size={13} />
+          {actionLabel}
+        </button>
+      ) : null}
     </div>
   )
 }
@@ -600,6 +721,116 @@ function MapOverlay({ children }) {
   )
 }
 
+function createPlaceMarkerElement(place) {
+  const categoryKey = place.categoryKey ?? 'default'
+  const meta = getPlaceCategoryMeta(categoryKey)
+  const marker = document.createElement('button')
+  marker.type = 'button'
+  marker.title = place.placeName
+  marker.dataset.categoryKey = categoryKey
+  marker.setAttribute('aria-label', `${place.placeName} 선택`)
+  marker.style.width = '38px'
+  marker.style.height = '44px'
+  marker.style.padding = '0'
+  marker.style.border = '0'
+  marker.style.background = 'transparent'
+  marker.style.cursor = 'pointer'
+  marker.style.display = 'flex'
+  marker.style.flexDirection = 'column'
+  marker.style.alignItems = 'center'
+  marker.style.justifyContent = 'flex-start'
+  marker.style.lineHeight = '0'
+  marker.style.transformOrigin = '50% 100%'
+  marker.style.transition = 'transform 180ms ease, filter 180ms ease'
+
+  const shell = document.createElement('span')
+  shell.dataset.markerShell = 'true'
+  shell.style.width = '32px'
+  shell.style.height = '32px'
+  shell.style.borderRadius = '13px'
+  shell.style.background = meta.backgroundColor
+  shell.style.display = 'flex'
+  shell.style.alignItems = 'center'
+  shell.style.justifyContent = 'center'
+  shell.style.position = 'relative'
+  shell.style.zIndex = '1'
+
+  const icon = createPlaceMarkerIconElement(meta.iconName, meta.markerColor)
+
+  const tail = document.createElement('span')
+  tail.dataset.markerTail = 'true'
+  tail.style.width = '11px'
+  tail.style.height = '11px'
+  tail.style.marginTop = '-5px'
+  tail.style.background = meta.backgroundColor
+  tail.style.transform = 'rotate(45deg)'
+
+  shell.appendChild(icon)
+  marker.appendChild(shell)
+  marker.appendChild(tail)
+  setPlaceMarkerElementSelected(marker, false)
+
+  return marker
+}
+
+function createPlaceMarkerIconElement(iconName, color) {
+  const svgNamespace = 'http://www.w3.org/2000/svg'
+  const svg = document.createElementNS(svgNamespace, 'svg')
+  svg.dataset.markerIcon = 'true'
+  svg.setAttribute('viewBox', '0 0 24 24')
+  svg.setAttribute('fill', 'none')
+  svg.setAttribute('stroke', color)
+  svg.setAttribute('stroke-width', '1.8')
+  svg.setAttribute('stroke-linecap', 'round')
+  svg.setAttribute('stroke-linejoin', 'round')
+  svg.setAttribute('aria-hidden', 'true')
+  svg.style.width = '17px'
+  svg.style.height = '17px'
+  svg.style.display = 'block'
+  svg.style.transition = 'width 180ms ease, height 180ms ease, stroke-width 180ms ease'
+
+  const paths = PLACE_MARKER_ICON_PATHS[iconName] ?? PLACE_MARKER_ICON_PATHS.mapPinned
+  paths.forEach((pathData) => {
+    const path = document.createElementNS(svgNamespace, 'path')
+    path.setAttribute('d', pathData)
+    svg.appendChild(path)
+  })
+
+  return svg
+}
+
+function setPlaceMarkerElementSelected(marker, isSelected) {
+  const meta = getPlaceCategoryMeta(marker.dataset.categoryKey)
+  const shell = marker.querySelector('[data-marker-shell]')
+  const icon = marker.querySelector('[data-marker-icon]')
+  const tail = marker.querySelector('[data-marker-tail]')
+  const borderColor = isSelected ? meta.selectedBorderColor : meta.borderColor
+  const borderWidth = isSelected ? '2px' : '1.5px'
+
+  marker.setAttribute('aria-pressed', String(isSelected))
+  marker.style.transform = isSelected ? 'scale(1.16)' : 'scale(1)'
+  marker.style.filter = isSelected ? `drop-shadow(0 10px 14px ${meta.shadowColor})` : 'none'
+
+  if (shell) {
+    shell.style.border = `${borderWidth} solid ${borderColor}`
+    shell.style.boxShadow = isSelected
+      ? `0 8px 18px ${meta.shadowColor}`
+      : `0 5px 12px ${meta.shadowColor}`
+  }
+
+  if (icon) {
+    icon.setAttribute('stroke', meta.markerColor)
+    icon.setAttribute('stroke-width', isSelected ? '2.1' : '1.8')
+    icon.style.width = isSelected ? '19px' : '17px'
+    icon.style.height = isSelected ? '19px' : '17px'
+  }
+
+  if (tail) {
+    tail.style.borderRight = `${borderWidth} solid ${borderColor}`
+    tail.style.borderBottom = `${borderWidth} solid ${borderColor}`
+  }
+}
+
 function createCurrentLocationMarkerElement(title) {
   const marker = document.createElement('div')
   marker.title = title
@@ -607,20 +838,20 @@ function createCurrentLocationMarkerElement(title) {
   marker.style.width = '28px'
   marker.style.height = '28px'
   marker.style.borderRadius = '9999px'
-  marker.style.background = 'rgba(61, 36, 21, 0.16)'
-  marker.style.border = '1px solid rgba(61, 36, 21, 0.22)'
+  marker.style.background = 'rgba(37, 99, 235, 0.16)'
+  marker.style.border = '1px solid rgba(37, 99, 235, 0.28)'
   marker.style.display = 'flex'
   marker.style.alignItems = 'center'
   marker.style.justifyContent = 'center'
-  marker.style.boxShadow = '0 6px 14px rgba(61, 36, 21, 0.18)'
+  marker.style.boxShadow = '0 6px 14px rgba(37, 99, 235, 0.24)'
 
   const dot = document.createElement('span')
   dot.style.width = '13px'
   dot.style.height = '13px'
   dot.style.borderRadius = '9999px'
-  dot.style.background = '#3D2415'
+  dot.style.background = '#2563EB'
   dot.style.border = '3px solid #FFFFFF'
-  dot.style.boxShadow = '0 2px 6px rgba(61, 36, 21, 0.24)'
+  dot.style.boxShadow = '0 2px 6px rgba(37, 99, 235, 0.24)'
   marker.appendChild(dot)
 
   return marker
