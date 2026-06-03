@@ -1,6 +1,26 @@
 import { ChevronDown, MapPin } from 'lucide-react'
 
-const categories = ['전체', '카페', '맛집', '편집샵', '공원', '문화', '기타']
+const categories = [
+  '전체',
+  '대형마트',
+  '편의점',
+  '어린이집·유치원',
+  '학교',
+  '학원',
+  '주차장',
+  '주유소·충전소',
+  '지하철역',
+  '은행',
+  '문화시설',
+  '중개업소',
+  '공공기관',
+  '관광명소',
+  '숙박',
+  '음식점',
+  '카페',
+  '병원',
+  '약국',
+]
 
 function HomeFilters({
   activeCategory,
