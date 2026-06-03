@@ -73,6 +73,7 @@ function MapPage() {
   const heightRef = useRef(280)
   const [isSheetOpen, setIsSheetOpen] = useState(true)
   const [sheetHeight, setSheetHeight] = useState(280)
+  const [isDragging, setIsDragging] = useState(false)
   const DISMISS_THRESHOLD = 150
 
   const getHeightBounds = () => {
@@ -90,12 +91,26 @@ function MapPage() {
   }
 
   useEffect(() => {
+    const getHeightBoundsForEffect = () => {
+      const viewportHeight = containerRef.current?.clientHeight ?? window.innerHeight
+      return {
+        minHeight: 70,
+        maxHeight: Math.max(70, Math.floor(viewportHeight * 0.85)),
+      }
+    }
+
+    const clampHeightForEffect = (value, allowBelowMin = false) => {
+      const { minHeight, maxHeight } = getHeightBoundsForEffect()
+      const minBoundary = allowBelowMin ? 0 : minHeight
+      return Math.max(minBoundary, Math.min(maxHeight, value))
+    }
+
     const setInitialHeight = () => {
-      const { minHeight, maxHeight } = getHeightBounds()
+      const { minHeight, maxHeight } = getHeightBoundsForEffect()
       setSheetHeight((prev) => {
-        if (prev !== 280) return clampHeight(prev)
+        if (prev !== 280) return clampHeightForEffect(prev)
         const preferred = Math.floor((minHeight + maxHeight) * 0.52)
-        return clampHeight(preferred)
+        return clampHeightForEffect(preferred)
       })
     }
 
@@ -109,10 +124,24 @@ function MapPage() {
   }, [sheetHeight])
 
   useEffect(() => {
+    const getHeightBoundsForEffect = () => {
+      const viewportHeight = containerRef.current?.clientHeight ?? window.innerHeight
+      return {
+        minHeight: 70,
+        maxHeight: Math.max(70, Math.floor(viewportHeight * 0.85)),
+      }
+    }
+
+    const clampHeightForEffect = (value, allowBelowMin = false) => {
+      const { minHeight, maxHeight } = getHeightBoundsForEffect()
+      const minBoundary = allowBelowMin ? 0 : minHeight
+      return Math.max(minBoundary, Math.min(maxHeight, value))
+    }
+
     const onMouseMove = (event) => {
       if (!dragStateRef.current.dragging) return
       const deltaY = dragStateRef.current.startY - event.clientY
-      setSheetHeight(clampHeight(dragStateRef.current.startHeight + deltaY, true))
+      setSheetHeight(clampHeightForEffect(dragStateRef.current.startHeight + deltaY, true))
     }
 
     const onTouchMove = (event) => {
@@ -120,7 +149,7 @@ function MapPage() {
       const point = event.touches[0]
       if (!point) return
       const deltaY = dragStateRef.current.startY - point.clientY
-      setSheetHeight(clampHeight(dragStateRef.current.startHeight + deltaY, true))
+      setSheetHeight(clampHeightForEffect(dragStateRef.current.startHeight + deltaY, true))
     }
 
     const endDrag = () => {
@@ -128,10 +157,11 @@ function MapPage() {
         if (heightRef.current <= DISMISS_THRESHOLD) {
           setIsSheetOpen(false)
         } else {
-          setSheetHeight(clampHeight(heightRef.current, false))
+          setSheetHeight(clampHeightForEffect(heightRef.current, false))
         }
       }
       dragStateRef.current.dragging = false
+      setIsDragging(false)
     }
 
     window.addEventListener('mousemove', onMouseMove)
@@ -166,6 +196,7 @@ function MapPage() {
       startY: clientY,
       startHeight: sheetHeight,
     }
+    setIsDragging(true)
   }
 
   const onHandleMouseDown = (event) => {
@@ -267,7 +298,7 @@ function MapPage() {
         style={{
           height: `${sheetHeight}px`,
           transform: isSheetOpen ? 'translateY(0)' : 'translateY(130%)',
-          transition: dragStateRef.current.dragging ? 'none' : 'transform 240ms ease, height 200ms ease',
+          transition: isDragging ? 'none' : 'transform 240ms ease, height 200ms ease',
         }}
       >
         <button
