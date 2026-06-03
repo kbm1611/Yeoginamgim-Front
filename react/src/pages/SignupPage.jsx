@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Link, useNavigate } from 'react-router-dom'
+import { signupUser } from '../api/users'
 import '../css/signup.css'
 
 const initialForm = {
@@ -9,15 +10,42 @@ const initialForm = {
   nickname: '',
 }
 
+const signupErrorMessages = [
+  ['email is required', '이메일을 입력해주세요.'],
+  ['email must be valid', '올바른 이메일 형식으로 입력해주세요.'],
+  ['email must be 255', '이메일은 255자 이하로 입력해주세요.'],
+  ['password is required', '비밀번호를 입력해주세요.'],
+  ['password must be between', '비밀번호는 8자 이상 255자 이하로 입력해주세요.'],
+  ['nickname is required', '닉네임을 입력해주세요.'],
+  ['nickname must be 255', '닉네임은 255자 이하로 입력해주세요.'],
+  ['duplicate', '이미 사용 중인 이메일입니다.'],
+  ['already', '이미 사용 중인 이메일입니다.'],
+]
+
+function getFriendlySignupError(error) {
+  const message = String(error?.message ?? '').trim()
+  const normalized = message.toLowerCase()
+  const matched = signupErrorMessages.find(([key]) => normalized.includes(key))
+
+  if (matched) return matched[1]
+  if (error?.status === 409) return '이미 사용 중인 이메일입니다.'
+  if (error?.status >= 500) return '서버에 문제가 생겼습니다. 잠시 후 다시 시도해주세요.'
+  if (message) return message
+
+  return '회원가입에 실패했습니다. 입력한 정보를 다시 확인해주세요.'
+}
+
 function SignupPage() {
   const [form, setForm] = useState(initialForm)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const navigate = useNavigate()
 
   const handleChange = (event) => {
     const { name, value } = event.target
     setForm((current) => ({ ...current, [name]: value }))
+    setError('')
   }
 
   const validateForm = () => {
@@ -33,32 +61,33 @@ function SignupPage() {
     const validationError = validateForm()
 
     if (validationError) {
+      setSuccess('')
       setError(validationError)
       return
     }
 
     const signupData = new FormData()
-    signupData.append('email', form.email.trim())
+    const email = form.email.trim()
+    signupData.append('email', email)
     signupData.append('password', form.password)
     signupData.append('nickname', form.nickname.trim())
 
     setError('')
+    setSuccess('')
     setIsSubmitting(true)
 
     try {
-      const response = await fetch('/api/user/signup', {
-        method: 'POST',
-        body: signupData,
-      })
-
-      if (!response.ok) {
-        throw new Error('signup failed')
-      }
-
-      navigate('/login')
-    } catch {
-      setError('회원가입에 실패했어요. 잠시 후 다시 시도해주세요.')
-    } finally {
+      await signupUser(signupData)
+      const message = '회원가입이 완료되었습니다. 로그인해주세요.'
+      setSuccess(message)
+      window.setTimeout(() => {
+        navigate('/login', {
+          replace: true,
+          state: { signupEmail: email, message },
+        })
+      }, 500)
+    } catch (signupError) {
+      setError(getFriendlySignupError(signupError))
       setIsSubmitting(false)
     }
   }
@@ -91,6 +120,7 @@ function SignupPage() {
               placeholder="you@example.com"
               value={form.email}
               onChange={handleChange}
+              disabled={isSubmitting}
             />
           </label>
 
@@ -103,6 +133,7 @@ function SignupPage() {
               placeholder="8자 이상"
               value={form.password}
               onChange={handleChange}
+              disabled={isSubmitting}
             />
           </label>
 
@@ -112,13 +143,17 @@ function SignupPage() {
               name="nickname"
               type="text"
               autoComplete="nickname"
-              placeholder="남겨질 이름"
+              placeholder="남길 이름"
               value={form.nickname}
               onChange={handleChange}
+              disabled={isSubmitting}
             />
           </label>
 
-          {error && <p className="signup-error">{error}</p>}
+          <div className="signup-status" aria-live="polite">
+            {success && <p className="signup-success">{success}</p>}
+            {error && <p className="signup-error">{error}</p>}
+          </div>
 
           <motion.button
             type="submit"
