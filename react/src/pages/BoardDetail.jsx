@@ -1,45 +1,156 @@
 import { useEffect, useState } from 'react'
 import { Filter, Plus, ScanSearch } from 'lucide-react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
+import { API_BASE_URL } from '../api/client'
+import { fetchBoardTraces } from '../api/traces'
 import BoardCanvas from '../components/board/BoardCanvas'
 import boardBg from '../assets/image.png'
 
-const storageKey = (id) => `board_posts_${id}`
+const POSTIT_COLOR_BY_HEX = {
+  '#fff8dc': 'cream',
+  '#ffe4e1': 'pink',
+  '#f3d98e': 'yellow',
+  '#eeb7c6': 'pink',
+  '#d2d4a2': 'green',
+  '#f0ead6': 'cream',
+  '#f8f6f0': 'white',
+}
+
+function parseStyleJson(styleJson) {
+  if (!styleJson) return {}
+  if (typeof styleJson === 'object') return styleJson
+
+  try {
+    return JSON.parse(styleJson)
+  } catch {
+    return {}
+  }
+}
+
+function resolveImageUrl(imageUrl) {
+  if (!imageUrl) return ''
+  if (/^https?:\/\//i.test(imageUrl)) return imageUrl
+  if (/^[a-zA-Z]:[\\/]/.test(imageUrl)) return ''
+  if (imageUrl.startsWith('/')) return `${API_BASE_URL}${imageUrl}`
+
+  return imageUrl
+}
+
+function resolvePaperColor(style) {
+  if (style.paperColor) return style.paperColor
+
+  const backgroundColor = style.backgroundColor?.toLowerCase()
+  return POSTIT_COLOR_BY_HEX[backgroundColor] ?? 'yellow'
+}
+
+function formatDateLabel(dateText) {
+  if (!dateText) return ''
+
+  const date = new Date(dateText)
+  if (Number.isNaN(date.getTime())) return ''
+
+  return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(
+    date.getDate(),
+  ).padStart(2, '0')}`
+}
+
+function traceToPost(trace) {
+  const element = trace.elements?.[0] ?? {}
+  const style = parseStyleJson(element.styleJson)
+  const isPolaroid = element.contentType === 'POLAROID'
+
+  return {
+    id: trace.traceId ?? element.elementId,
+    type: isPolaroid ? 'polaroid' : 'postit',
+    content: element.textContent ?? '',
+    media: isPolaroid
+      ? {
+          image: resolveImageUrl(element.imageUrl),
+          dateLabel: formatDateLabel(trace.createdAt),
+        }
+      : undefined,
+    style: isPolaroid
+      ? {
+          ...style,
+          color: style.textColor ?? '#2E231B',
+        }
+      : {
+          ...style,
+          paperColor: resolvePaperColor(style),
+        },
+    position: {
+      x: trace.traceX,
+      y: trace.traceY,
+    },
+    createdAt: trace.createdAt,
+    likes: trace.likeCount ?? 0,
+    nickname: trace.nickname,
+  }
+}
 
 function BoardDetail() {
   const navigate = useNavigate()
-  const location = useLocation()
   const { id } = useParams()
   const boardId = id ?? 'default'
 
   const [sort, setSort] = useState('latest')
-  const [posts, setPosts] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem(storageKey(boardId))) ?? []
-    } catch {
-      return []
-    }
-  })
+  const [posts, setPosts] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [errorMessage, setErrorMessage] = useState('')
 
   useEffect(() => {
-    const draft = location.state?.placementDraft
-    if (!draft) return
-    const post = { ...draft }
+    let ignore = false
 
-    queueMicrotask(() => {
-      setPosts((prev) => {
-        const next = [post, ...prev]
-        localStorage.setItem(storageKey(boardId), JSON.stringify(next))
-        return next
-      })
-      navigate(location.pathname, { replace: true, state: {} })
-    })
-  }, [boardId, location.pathname, location.state?.placementDraft, navigate])
+    async function loadTraces() {
+      setIsLoading(true)
+      setErrorMessage('')
 
-  const sortedPosts =
-    sort === 'latest'
-      ? [...posts].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      : [...posts].sort((a, b) => (b.likes ?? 0) - (a.likes ?? 0))
+      try {
+        const data = await fetchBoardTraces(boardId, { sort, limit: 100 })
+        if (ignore) return
+
+        setPosts((data.traces ?? []).map(traceToPost))
+      } catch (error) {
+        if (ignore) return
+
+        setPosts([])
+        setErrorMessage(error.message ?? '흔적을 불러오지 못했습니다.')
+      } finally {
+        if (!ignore) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    loadTraces()
+
+    return () => {
+      ignore = true
+    }
+  }, [boardId, sort])
+
+  const renderBoardContent = () => {
+    if (isLoading) {
+      return (
+        <div className="flex h-full items-center justify-center text-[18px] font-semibold text-[#5C4030]">
+          흔적을 불러오는 중...
+        </div>
+      )
+    }
+
+    if (errorMessage) {
+      return (
+        <div className="flex h-full items-center justify-center px-8 text-center">
+          <div className="rounded-[8px] bg-white/85 px-5 py-4 text-[#5C4030] shadow-md backdrop-blur-sm">
+            <p className="text-[16px] font-semibold">흔적을 불러오지 못했습니다.</p>
+            <p className="mt-2 break-words text-[13px] text-[#8A6A58]">{errorMessage}</p>
+          </div>
+        </div>
+      )
+    }
+
+    return <BoardCanvas posts={posts} onAdd={handleAdd} />
+  }
 
   const handleAdd = () => navigate(`/board/${boardId}/postit`)
 
@@ -56,7 +167,7 @@ function BoardDetail() {
       <div className="absolute left-4 right-4 top-4 z-20 flex items-center justify-between">
         <div className="flex gap-1 rounded-full bg-white/85 p-1 shadow-md backdrop-blur-sm">
           {[
-            { key: 'popular', label: '랭기순' },
+            { key: 'popular', label: '인기순' },
             { key: 'latest', label: '최신순' },
           ].map(({ key, label }) => (
             <button
@@ -81,7 +192,7 @@ function BoardDetail() {
 
       {/* 보드 캔버스 */}
       <div className="absolute inset-0">
-        <BoardCanvas posts={sortedPosts} onAdd={handleAdd} />
+        {renderBoardContent()}
       </div>
 
       {/* 플로팅 버튼 */}

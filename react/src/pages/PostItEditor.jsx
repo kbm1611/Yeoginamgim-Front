@@ -1,7 +1,8 @@
 import { motion } from 'framer-motion'
 import { Camera, Copy, RotateCcw, StickyNote, Trash2, X } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { createTrace, uploadTraceImage } from '../api/traces'
 import postitYellow from '../assets/images/postits/yellow.png'
 import postitPink from '../assets/images/postits/pink-torn.png'
 import postitGreen from '../assets/images/postits/green.png'
@@ -26,9 +27,17 @@ const photos = [
   'https://images.unsplash.com/photo-1501908734255-16579c18c25f?auto=format&fit=crop&w=1200&q=80',
 ]
 
-function formatDate() {
-  const d = new Date()
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
+function extractImageUrl(uploadResult) {
+  if (typeof uploadResult === 'string') return uploadResult
+
+  return uploadResult?.imageUrl ?? ''
+}
+
+function createDefaultPosition() {
+  return {
+    traceX: 40 + Math.floor(Math.random() * 21),
+    traceY: 40 + Math.floor(Math.random() * 21),
+  }
 }
 
 function SelectionBox({ children }) {
@@ -81,44 +90,117 @@ function PostItEditor() {
   const location = useLocation()
   const { id } = useParams()
   const boardId = id ?? 'default'
+  const photoInputRef = useRef(null)
 
   const [tab, setTab] = useState(location.state?.initialTab === 'polaroid' ? 'polaroid' : 'postit')
   const [photoIdx, setPhotoIdx] = useState(0)
+  const [selectedPhotoFile, setSelectedPhotoFile] = useState(null)
+  const [selectedPhotoPreview, setSelectedPhotoPreview] = useState('')
   const [text, setText] = useState('오늘 행복했다 ♡')
-  const [postitColor] = useState('yellow')
+  const [postitColor, setPostitColor] = useState('yellow')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
 
   const activePalette = useMemo(() => postitPalette.find((p) => p.key === postitColor) ?? postitPalette[0], [postitColor])
+  const currentPhoto = selectedPhotoPreview || photos[photoIdx]
 
-  const handleComplete = () => {
-    const baseId = Date.now()
-    if (tab === 'polaroid') {
-      navigate(`/board/${boardId}`, {
-        state: {
-          placementDraft: {
-            id: `polaroid-${baseId}`,
-            type: 'polaroid',
-            content: text,
-            media: { image: photos[photoIdx], dateLabel: formatDate() },
-            style: { color: '#2E231B' },
-            position: { x: 50, y: 50 },
-            createdAt: new Date().toISOString(),
-          },
-        },
-      })
+  useEffect(() => {
+    return () => {
+      if (selectedPhotoPreview) {
+        URL.revokeObjectURL(selectedPhotoPreview)
+      }
+    }
+  }, [selectedPhotoPreview])
+
+  const handlePhotoFileChange = (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setSelectedPhotoFile(file)
+    setSelectedPhotoPreview(URL.createObjectURL(file))
+    setSubmitError('')
+    event.target.value = ''
+  }
+
+  const handleSamplePhotoChange = () => {
+    setSelectedPhotoFile(null)
+    setSelectedPhotoPreview('')
+    setPhotoIdx((p) => (p + 1) % photos.length)
+  }
+
+  const handleNextPostitColor = () => {
+    setPostitColor((current) => {
+      const currentIndex = postitPalette.findIndex((item) => item.key === current)
+      const nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % postitPalette.length
+
+      return postitPalette[nextIndex].key
+    })
+  }
+
+  const handleComplete = async () => {
+    if (isSubmitting) return
+
+    const trimmedText = text.trim()
+    if (!trimmedText) {
+      setSubmitError('내용을 입력해주세요.')
       return
     }
-    navigate(`/board/${boardId}`, {
-      state: {
-        placementDraft: {
-          id: `postit-${baseId}`,
-          type: 'postit',
-          content: text,
-          style: { paperColor: postitColor },
-          position: { x: 50, y: 50 },
-          createdAt: new Date().toISOString(),
-        },
-      },
-    })
+
+    setIsSubmitting(true)
+    setSubmitError('')
+
+    try {
+      const isPolaroid = tab === 'polaroid'
+      let imageUrl = null
+
+      if (isPolaroid) {
+        if (selectedPhotoFile) {
+          const uploadResult = await uploadTraceImage(selectedPhotoFile)
+          imageUrl = extractImageUrl(uploadResult)
+
+          if (!imageUrl) {
+            throw new Error('이미지 업로드 응답에 imageUrl이 없습니다.')
+          }
+        } else {
+          imageUrl = photos[photoIdx]
+        }
+      }
+
+      const { traceX, traceY } = createDefaultPosition()
+      await createTrace(boardId, {
+        traceX,
+        traceY,
+        elements: [
+          {
+            contentType: isPolaroid ? 'POLAROID' : 'POST_IT',
+            textContent: trimmedText,
+            imageUrl,
+            elementX: traceX,
+            elementY: traceY,
+            styleJson: JSON.stringify(
+              isPolaroid
+                ? {
+                    font: 'hand',
+                    paperColor: 'white',
+                    textColor: '#2E231B',
+                  }
+                : {
+                    paperColor: postitColor,
+                    backgroundColor: activePalette.hex,
+                    textColor: '#2D2218',
+                    fontFamily: 'Nanum Pen Script',
+                  },
+            ),
+          },
+        ],
+      })
+
+      navigate(`/board/${boardId}`, { replace: true })
+    } catch (error) {
+      setSubmitError(error.message ?? '흔적 저장에 실패했습니다.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -137,8 +219,29 @@ function PostItEditor() {
             <X size={26} strokeWidth={2} />
           </button>
           <h1 className="text-[19px] font-bold tracking-[-0.02em]">흔적 남기기</h1>
-          <button type="button" onClick={handleComplete} className="text-[17px] font-bold">완료</button>
+          <button
+            type="button"
+            onClick={handleComplete}
+            disabled={isSubmitting}
+            className="text-[17px] font-bold disabled:opacity-50"
+          >
+            {isSubmitting ? '저장 중' : '완료'}
+          </button>
         </header>
+
+        {submitError ? (
+          <p className="mt-2 rounded-[8px] bg-red-50 px-3 py-2 text-[13px] font-medium text-red-700">
+            {submitError}
+          </p>
+        ) : null}
+
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handlePhotoFileChange}
+        />
 
         {/* 탭 */}
         <div className="mt-4 rounded-[14px] bg-[#E8E4DE] p-1">
@@ -183,11 +286,11 @@ function PostItEditor() {
 
                 {/* 사진 */}
                 <img
-                  src={photos[photoIdx]}
+                  src={currentPhoto}
                   alt="preview"
                   className="w-full rounded-[2px] object-cover"
                   style={{ height: 280 }}
-                  onClick={() => setPhotoIdx((p) => (p + 1) % photos.length)}
+                  onClick={handleSamplePhotoChange}
                 />
 
                 {/* 스티커 장식 */}
@@ -245,7 +348,7 @@ function PostItEditor() {
 
         {/* 툴바 */}
         <div className="mt-4 flex items-start justify-around px-1">
-          <ToolBtn label="사진" onClick={() => setPhotoIdx((p) => (p + 1) % photos.length)}>
+          <ToolBtn label="사진" onClick={() => photoInputRef.current?.click()}>
             <Camera size={24} strokeWidth={1.7} />
           </ToolBtn>
           <ToolBtn label="스티커">
@@ -264,7 +367,7 @@ function PostItEditor() {
               <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
             </svg>
           </ToolBtn>
-          <ToolBtn label="색상">
+          <ToolBtn label="색상" onClick={handleNextPostitColor}>
             <div className="h-7 w-7 rounded-full" style={{
               background: 'conic-gradient(#FF6B6B, #FFD93D, #6BCB77, #4D96FF, #CC77FF, #FF6B6B)'
             }} />

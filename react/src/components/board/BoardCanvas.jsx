@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { TransformComponent, TransformWrapper } from 'react-zoom-pan-pinch'
 import postitYellow from '../../assets/images/postits/yellow.png'
 import postitPink from '../../assets/images/postits/pink-torn.png'
@@ -83,6 +83,11 @@ function Tape({ color, rotate }) {
 }
 
 function PolaroidCard({ post }) {
+  const [imageFailed, setImageFailed] = useState(false)
+  const imageSrc = post.media?.image
+  const captionLength = post.content?.length ?? 0
+  const captionFontSize = captionLength > 40 ? 24 : 30
+
   return (
     <article
       className="absolute bg-white"
@@ -97,17 +102,28 @@ function PolaroidCard({ post }) {
     >
       <Tape color={post._tapeColor} rotate={post._tapeRotate} />
       <div className="p-[10px] pb-0">
-        <img
-          src={post.media?.image}
-          alt=""
-          loading="lazy"
-          className="h-[250px] w-full rounded-[6px] object-cover"
-        />
+        {imageSrc && !imageFailed ? (
+          <img
+            src={imageSrc}
+            alt=""
+            loading="lazy"
+            className="h-[250px] w-full rounded-[6px] object-cover"
+            onError={() => setImageFailed(true)}
+          />
+        ) : (
+          <div className="flex h-[250px] w-full items-center justify-center rounded-[6px] bg-[#EEE7DC] text-[15px] font-semibold text-[#8A6A58]">
+            이미지 없음
+          </div>
+        )}
       </div>
       <div className="px-3 pb-4 pt-2 text-center">
         <p
-          className="text-[30px] leading-[1.25] text-[#1E1712]"
-          style={{ fontFamily: "'Nanum Pen Script', 'Gaegu', cursive" }}
+          className="break-words leading-[1.25]"
+          style={{
+            color: post.style?.color ?? '#1E1712',
+            fontFamily: "'Nanum Pen Script', 'Gaegu', cursive",
+            fontSize: captionFontSize,
+          }}
         >
           {post.content}
         </p>
@@ -126,6 +142,8 @@ function PostItCard({ post }) {
   const paperColor = post.style?.paperColor ?? 'yellow'
   const texture = POSTIT_TEXTURE[paperColor]
   const bgColor = POSTIT_COLOR[paperColor] ?? '#F3D98E'
+  const contentLength = post.content?.length ?? 0
+  const fontSize = contentLength > 60 ? 24 : contentLength > 35 ? 29 : 34
 
   return (
     <article
@@ -145,10 +163,14 @@ function PostItCard({ post }) {
       }}
     >
       <Tape color={post._tapeColor} rotate={post._tapeRotate} />
-      <div className="flex h-full items-center justify-center p-6">
+      <div className="flex h-full items-center justify-center overflow-hidden p-6">
         <p
-          className="whitespace-pre-line text-center text-[34px] leading-[1.3] text-[#2A211A]"
-          style={{ fontFamily: "'Nanum Pen Script', 'Gaegu', cursive" }}
+          className="max-h-full whitespace-pre-line break-words text-center leading-[1.3]"
+          style={{
+            color: post.style?.textColor ?? '#2A211A',
+            fontFamily: "'Nanum Pen Script', 'Gaegu', cursive",
+            fontSize,
+          }}
         >
           {post.content}
         </p>
