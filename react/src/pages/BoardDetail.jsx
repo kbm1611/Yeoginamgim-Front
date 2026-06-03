@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Filter, Plus, ScanSearch } from 'lucide-react'
+import { Filter, Home, Plus, ScanSearch, UserRound } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { API_BASE_URL } from '../api/client'
 import { fetchBoardTraces } from '../api/traces'
@@ -153,6 +153,8 @@ function BoardDetail() {
   }
 
   const handleAdd = () => navigate(`/board/${boardId}/postit`)
+  const handleGoHome = () => navigate('/home')
+  const handleGoMyPage = () => navigate('/my')
 
   return (
     <main className="app-device relative overflow-hidden">
@@ -182,12 +184,31 @@ function BoardDetail() {
             </button>
           ))}
         </div>
-        <button
-          type="button"
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-white/85 shadow-md backdrop-blur-sm text-[#3D2B1F]"
-        >
-          <Filter size={17} />
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={handleGoHome}
+            aria-label="홈으로 이동"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-[#3D2B1F] shadow-md backdrop-blur-sm"
+          >
+            <Home size={17} />
+          </button>
+          <button
+            type="button"
+            onClick={handleGoMyPage}
+            aria-label="내 화면으로 이동"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-[#3D2B1F] shadow-md backdrop-blur-sm"
+          >
+            <UserRound size={17} />
+          </button>
+          <button
+            type="button"
+            aria-label="필터"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-[#3D2B1F] shadow-md backdrop-blur-sm"
+          >
+            <Filter size={17} />
+          </button>
+        </div>
       </div>
 
       {/* 보드 캔버스 */}

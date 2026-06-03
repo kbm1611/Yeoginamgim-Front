@@ -348,9 +348,11 @@ function PostItEditor() {
 
         {/* 툴바 */}
         <div className="mt-4 flex items-start justify-around px-1">
-          <ToolBtn label="사진" onClick={() => photoInputRef.current?.click()}>
-            <Camera size={24} strokeWidth={1.7} />
-          </ToolBtn>
+          {tab === 'polaroid' ? (
+            <ToolBtn label="사진" onClick={() => photoInputRef.current?.click()}>
+              <Camera size={24} strokeWidth={1.7} />
+            </ToolBtn>
+          ) : null}
           <ToolBtn label="스티커">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="9"/>
