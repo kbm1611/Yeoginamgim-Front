@@ -8,40 +8,67 @@ import {
   MAP_BOTTOM_SHEET_COLLAPSED_VISIBLE_HEIGHT_PX,
   MAP_BOTTOM_SHEET_CONTENT_CLASSES,
   MAP_BOTTOM_SHEET_TRANSITION_CLASSES,
+  MAP_CATEGORY_FILTER_BUTTON_CLASSES,
+  MAP_CATEGORY_FILTER_SCROLL_CLASSES,
   MAP_FLOATING_CONTROLS_GAP_PX,
   MAP_FLOATING_CONTROLS_TRANSITION_CLASSES,
   MAP_PLACE_CARD_SCROLL_CLASSES,
   MAP_PLACE_LIST_SCROLL_CLASSES,
+  MAP_RESULT_MAX_FIT_LEVEL,
+  MAP_RESULT_SINGLE_PLACE_LEVEL,
   PLACE_CATEGORY_META,
   PLACE_MARKER_ICON_PATHS,
   getBottomSheetToggleLabel,
   getBottomSheetTransform,
+  getCategorySelectionState,
   getCurrentPositionMarkerTitle,
   getFloatingControlsBottom,
+  getMapViewportPlan,
   getPlaceCategoryMeta,
   inferPlaceCategoryKey,
   normalizePlaces,
 } from './Map.utils.js'
 
 const KAKAO_CATEGORY_CODES = [
-  'MT1',
-  'CS2',
-  'PS3',
-  'SC4',
-  'AC5',
-  'PK6',
-  'OL7',
-  'SW8',
-  'BK9',
   'CT1',
-  'AG2',
-  'PO3',
-  'AT4',
-  'AD5',
   'FD6',
   'CE7',
+  'AT4',
+  'CS2',
+  'MT1',
+  'SW8',
+  'PK6',
+  'BK9',
   'HP8',
   'PM9',
+  'SC4',
+  'AC5',
+  'PS3',
+  'PO3',
+  'AG2',
+  'AD5',
+  'OL7',
+]
+
+const SERVICE_CATEGORY_CODES = [
+  'CE7',
+  'FD6',
+  'CT1',
+  'AT4',
+  'CS2',
+  'MT1',
+  'SW8',
+  'PK6',
+  'BK9',
+  'HP8',
+  'PM9',
+  'SC4',
+  'AC5',
+  'PS3',
+  'PO3',
+  'AG2',
+  'AD5',
+  'OL7',
 ]
 
 test('buildNearbyPlaceRequests maps all filter to concrete backend categories', () => {
@@ -53,7 +80,7 @@ test('buildNearbyPlaceRequests maps all filter to concrete backend categories', 
 
   assert.deepEqual(
     requests.map((request) => request.category),
-    KAKAO_CATEGORY_CODES
+    SERVICE_CATEGORY_CODES
   )
   assert.equal(requests.every((request) => request.limit === 1), true)
   assert.equal(requests[0].radius, 20000)
@@ -102,29 +129,33 @@ test('buildNearbyPlaceRequests skips nearby lookup before a category is selected
 
 test('category filters expose stable icon names for map controls', () => {
   assert.equal(CATEGORY_FILTERS.length, 19)
-  assert.deepEqual(CATEGORY_FILTERS.slice(1).map((filter) => filter.categories[0]), KAKAO_CATEGORY_CODES)
+  assert.deepEqual(CATEGORY_FILTERS.slice(1).map((filter) => filter.categories[0]), SERVICE_CATEGORY_CODES)
+  assert.deepEqual(
+    CATEGORY_FILTERS.slice(1).map((filter) => filter.label),
+    ['카페', '음식점', '문화시설', '관광명소', '편의점', '대형마트', '지하철역', '주차장', '은행', '병원', '약국', '학교', '학원', '어린이집·유치원', '공공기관', '중개업소', '숙박', '주유소·충전소']
+  )
   assert.deepEqual(
     CATEGORY_FILTERS.map((filter) => filter.iconName),
     [
       'mapPinned',
-      'shoppingCart',
-      'store',
-      'baby',
-      'school',
-      'graduationCap',
-      'circleParking',
-      'fuel',
-      'trainFront',
-      'banknote',
-      'landmark',
-      'building2',
-      'building',
-      'map',
-      'hotel',
-      'utensils',
       'coffee',
+      'utensils',
+      'landmark',
+      'map',
+      'store',
+      'shoppingCart',
+      'trainFront',
+      'circleParking',
+      'banknote',
       'hospital',
       'pill',
+      'school',
+      'graduationCap',
+      'baby',
+      'building',
+      'building2',
+      'hotel',
+      'fuel',
     ]
   )
 })
@@ -177,7 +208,7 @@ test('normalizePlaces keeps ambiguous lookup results styled by request category'
   assert.notEqual(place.categoryKey, 'default')
 })
 
-test('normalizePlaces dedupes places and sorts nearest first', () => {
+test('normalizePlaces dedupes places and sorts by trace count first', () => {
   const places = normalizePlaces(
     [
       {
@@ -209,12 +240,52 @@ test('normalizePlaces dedupes places and sorts nearest first', () => {
   )
 
   assert.equal(places.length, 2)
-  assert.equal(places[0].kakaoPlaceId, 'near')
-  assert.equal(places[0].distanceMeters, 0)
-  assert.equal(places[0].distanceLabel, '0m')
-  assert.equal(places[0].hasBoard, true)
-  assert.equal(places[0].categoryKey, 'CE7')
-  assert.equal(places[1].kakaoPlaceId, 'far')
+  assert.equal(places[0].kakaoPlaceId, 'far')
+  assert.equal(places[0].categoryKey, 'CT1')
+  assert.equal(places[1].kakaoPlaceId, 'near')
+  assert.equal(places[1].distanceMeters, 0)
+  assert.equal(places[1].distanceLabel, '0m')
+  assert.equal(places[1].hasBoard, true)
+  assert.equal(places[1].categoryKey, 'CE7')
+})
+
+test('normalizePlaces uses distance before board state when trace counts tie', () => {
+  const places = normalizePlaces(
+    [
+      {
+        kakaoPlaceId: 'far-board',
+        placeName: 'Far Board',
+        latitude: 37.5647,
+        longitude: 127.0559,
+        groupName: '카페',
+        traceCount: 8,
+        boardId: 4,
+      },
+      {
+        kakaoPlaceId: 'near-no-board',
+        placeName: 'Near No Board',
+        latitude: 37.5457,
+        longitude: 127.0559,
+        groupName: '카페',
+        traceCount: 8,
+      },
+      {
+        kakaoPlaceId: 'near-low',
+        placeName: 'Near Low',
+        latitude: 37.5447,
+        longitude: 127.0559,
+        groupName: '카페',
+        traceCount: 1,
+        boardId: 3,
+      },
+    ],
+    { latitude: 37.5447, longitude: 127.0559 }
+  )
+
+  assert.deepEqual(
+    places.map((place) => place.kakaoPlaceId),
+    ['near-no-board', 'far-board', 'near-low']
+  )
 })
 
 test('place category metadata provides warm custom marker styles with a fallback', () => {
@@ -278,6 +349,88 @@ test('place list scroll classes enable smooth horizontal snapping', () => {
   assert.match(MAP_PLACE_LIST_SCROLL_CLASSES, /snap-x/)
   assert.match(MAP_PLACE_LIST_SCROLL_CLASSES, /snap-mandatory/)
   assert.match(MAP_PLACE_CARD_SCROLL_CLASSES, /snap-start/)
+})
+
+test('category filter classes keep chips in one horizontal scroll row', () => {
+  assert.match(MAP_CATEGORY_FILTER_SCROLL_CLASSES, /overflow-x-scroll/)
+  assert.match(MAP_CATEGORY_FILTER_SCROLL_CLASSES, /overflow-y-hidden/)
+  assert.match(MAP_CATEGORY_FILTER_SCROLL_CLASSES, /flex-nowrap/)
+  assert.match(MAP_CATEGORY_FILTER_SCROLL_CLASSES, /whitespace-nowrap/)
+  assert.match(MAP_CATEGORY_FILTER_SCROLL_CLASSES, /snap-x/)
+  assert.match(MAP_CATEGORY_FILTER_SCROLL_CLASSES, /touch-action:pan-x/)
+  assert.match(MAP_CATEGORY_FILTER_BUTTON_CLASSES, /shrink-0/)
+  assert.match(MAP_CATEGORY_FILTER_BUTTON_CLASSES, /snap-start/)
+})
+
+test('map viewport plan leaves the current view alone when no place markers exist', () => {
+  const plan = getMapViewportPlan([], { latitude: 37.5447, longitude: 127.0559 })
+
+  assert.deepEqual(plan, {
+    type: 'none',
+    points: [],
+  })
+})
+
+test('map viewport plan focuses a single result at a close level', () => {
+  const plan = getMapViewportPlan(
+    [
+      {
+        kakaoPlaceId: 'single',
+        latitude: 37.5457,
+        longitude: 127.0569,
+      },
+    ],
+    { latitude: 37.5447, longitude: 127.0559 }
+  )
+
+  assert.equal(plan.type, 'single')
+  assert.deepEqual(plan.center, {
+    latitude: 37.5457,
+    longitude: 127.0569,
+  })
+  assert.equal(plan.level, MAP_RESULT_SINGLE_PLACE_LEVEL)
+})
+
+test('map viewport plan fits multiple results with the current position and max level cap', () => {
+  const plan = getMapViewportPlan(
+    [
+      {
+        kakaoPlaceId: 'first',
+        latitude: 37.5457,
+        longitude: 127.0569,
+      },
+      {
+        kakaoPlaceId: 'second',
+        latitude: 37.5497,
+        longitude: 127.0509,
+      },
+    ],
+    { latitude: 37.5447, longitude: 127.0559 }
+  )
+
+  assert.equal(plan.type, 'bounds')
+  assert.equal(plan.maxLevel, MAP_RESULT_MAX_FIT_LEVEL)
+  assert.deepEqual(
+    plan.points.map((point) => point.kind),
+    ['place', 'place', 'current']
+  )
+  assert.deepEqual(plan.points.at(-1), {
+    kind: 'current',
+    latitude: 37.5447,
+    longitude: 127.0559,
+  })
+})
+
+test('category selection state clears the previous selected place before loading', () => {
+  const state = getCategorySelectionState('\uCE74\uD398')
+
+  assert.equal(state.selectedCategory, '\uCE74\uD398')
+  assert.deepEqual(state.places, [])
+  assert.equal(state.selectedPlaceId, null)
+  assert.equal(state.placesStatus, 'loading')
+  assert.equal(state.placesError, '')
+  assert.equal(state.boardError, '')
+  assert.equal(state.isSheetOpen, true)
 })
 
 test('bottom sheet animation classes use a slower eased transform with reduced motion support', () => {

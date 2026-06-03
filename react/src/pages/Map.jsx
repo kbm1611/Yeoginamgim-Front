@@ -41,6 +41,8 @@ import {
   MAP_BOTTOM_SHEET_BOTTOM_OFFSET_PX,
   MAP_BOTTOM_SHEET_HEIGHT,
   MAP_BOTTOM_SHEET_TRANSITION_CLASSES,
+  MAP_CATEGORY_FILTER_BUTTON_CLASSES,
+  MAP_CATEGORY_FILTER_SCROLL_CLASSES,
   MAP_FLOATING_CONTROLS_TRANSITION_CLASSES,
   MAP_PLACE_CARD_SCROLL_CLASSES,
   MAP_PLACE_LIST_SCROLL_CLASSES,
@@ -404,6 +406,24 @@ function MapPage() {
     }
   }
 
+  const handleCategoryFilterWheel = useCallback((event) => {
+    const container = event.currentTarget
+    if (container.scrollWidth <= container.clientWidth) return
+
+    const delta =
+      Math.abs(event.deltaX) > Math.abs(event.deltaY)
+        ? event.deltaX
+        : event.deltaY
+    if (delta === 0) return
+
+    const maxScrollLeft = container.scrollWidth - container.clientWidth
+    const nextScrollLeft = Math.max(0, Math.min(container.scrollLeft + delta, maxScrollLeft))
+    if (nextScrollLeft === container.scrollLeft) return
+
+    event.preventDefault()
+    container.scrollLeft = nextScrollLeft
+  }, [])
+
   const handleOpenKakaoMap = () => {
     if (!selectedPlace?.kakaoMapUrl) return
     window.open(selectedPlace.kakaoMapUrl, '_blank', 'noopener,noreferrer')
@@ -497,7 +517,7 @@ function MapPage() {
           </button>
         </div>
 
-        <div className="scrollbar-hide mt-3 flex gap-2 overflow-x-auto pb-1">
+        <div className={MAP_CATEGORY_FILTER_SCROLL_CLASSES} onWheel={handleCategoryFilterWheel}>
           {CATEGORY_FILTERS.map((item) => {
             const CategoryIcon = CATEGORY_ICON_COMPONENTS[item.iconName] ?? MapPinned
             const isSelected = selectedCategory === item.label
@@ -507,8 +527,11 @@ function MapPage() {
                 key={item.label}
                 type="button"
                 onClick={() => handleCategorySelect(item.label)}
-                className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] ${
-                  isSelected ? 'bg-[#3D2415] text-white' : 'bg-[#EEE6DA] text-[#5A4030]'
+                aria-pressed={isSelected}
+                className={`${MAP_CATEGORY_FILTER_BUTTON_CLASSES} ${
+                  isSelected
+                    ? 'border-[#3D2415] bg-[#3D2415] text-white shadow-[0_6px_14px_rgba(61,36,21,0.18)]'
+                    : 'border-[#E2D6C8] bg-[#EEE6DA] text-[#5A4030]'
                 }`}
               >
                 <CategoryIcon size={14} strokeWidth={1.9} className="shrink-0" />

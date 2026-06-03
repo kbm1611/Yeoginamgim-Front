@@ -22,26 +22,39 @@ export const MAP_BOTTOM_SHEET_CONTENT_CLASSES = `${MAP_BOTTOM_SHEET_CONTENT_BASE
 export const MAP_BOTTOM_SHEET_CONTENT_CLOSED_CLASSES = `${MAP_BOTTOM_SHEET_CONTENT_BASE_CLASSES} pointer-events-none opacity-0 delay-0`
 export const MAP_PLACE_LIST_SCROLL_CLASSES = 'scrollbar-hide flex h-[calc(100%-34px)] snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-hidden scroll-smooth pb-1'
 export const MAP_PLACE_CARD_SCROLL_CLASSES = 'snap-start scroll-ml-1'
+export const MAP_CATEGORY_FILTER_SCROLL_CLASSES =
+  'scrollbar-hide mt-3 flex w-full snap-x snap-proximity flex-nowrap gap-2 overflow-x-scroll overflow-y-hidden overscroll-x-contain scroll-smooth pb-1 whitespace-nowrap [touch-action:pan-x] [-webkit-overflow-scrolling:touch]'
+export const MAP_CATEGORY_FILTER_BUTTON_CLASSES =
+  'inline-flex min-h-10 shrink-0 snap-start items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] transition'
+export const MAP_RESULT_SINGLE_PLACE_LEVEL = 4
+export const MAP_SELECTED_PLACE_LEVEL = 4
+export const MAP_RESULT_MAX_FIT_LEVEL = 7
+export const MAP_RESULT_VIEWPORT_PADDING = {
+  top: 150,
+  right: 36,
+  bottom: 300,
+  left: 36,
+}
 
 const KAKAO_CATEGORY_DEFINITIONS = [
-  { code: 'MT1', label: '대형마트', iconName: 'shoppingCart', aliases: ['mart', 'large_mart', 'largemart', 'market', 'supermarket', '마트'] },
-  { code: 'CS2', label: '편의점', iconName: 'store', aliases: ['convenience', 'convenience_store', 'store'] },
-  { code: 'PS3', label: '어린이집·유치원', iconName: 'baby', aliases: ['preschool', 'kindergarten', '어린이집', '유치원', '어린이집,유치원'] },
-  { code: 'SC4', label: '학교', iconName: 'school', aliases: ['school'] },
-  { code: 'AC5', label: '학원', iconName: 'graduationCap', aliases: ['academy', 'hagwon'] },
-  { code: 'PK6', label: '주차장', iconName: 'circleParking', aliases: ['parking'] },
-  { code: 'OL7', label: '주유소·충전소', iconName: 'fuel', aliases: ['oil', 'gas', 'charging', '주유소', '충전소', '주유소,충전소'] },
-  { code: 'SW8', label: '지하철역', iconName: 'trainFront', aliases: ['subway', 'subway_station'] },
-  { code: 'BK9', label: '은행', iconName: 'banknote', aliases: ['bank'] },
-  { code: 'CT1', label: '문화시설', iconName: 'landmark', aliases: ['culture', 'cultural_facility', '문화', '전시'] },
-  { code: 'AG2', label: '중개업소', iconName: 'building2', aliases: ['real_estate', 'realestate', '부동산'] },
-  { code: 'PO3', label: '공공기관', iconName: 'building', aliases: ['public', 'public_institution', 'institution'] },
-  { code: 'AT4', label: '관광명소', iconName: 'map', aliases: ['attraction', 'tour', 'tourist_attraction', '관광', '명소', '관광,명소'] },
-  { code: 'AD5', label: '숙박', iconName: 'hotel', aliases: ['lodging', 'accommodation', 'hotel'] },
-  { code: 'FD6', label: '음식점', iconName: 'utensils', aliases: ['food', 'restaurant', 'dining', '맛집', '음식', '식당'] },
   { code: 'CE7', label: '카페', iconName: 'coffee', aliases: ['cafe', 'coffee', '커피'] },
+  { code: 'FD6', label: '음식점', iconName: 'utensils', aliases: ['food', 'restaurant', 'dining', '맛집', '음식', '식당'] },
+  { code: 'CT1', label: '문화시설', iconName: 'landmark', aliases: ['culture', 'cultural_facility', '문화', '전시'] },
+  { code: 'AT4', label: '관광명소', iconName: 'map', aliases: ['attraction', 'tour', 'tourist_attraction', '관광', '명소', '관광,명소'] },
+  { code: 'CS2', label: '편의점', iconName: 'store', aliases: ['convenience', 'convenience_store', 'store'] },
+  { code: 'MT1', label: '대형마트', iconName: 'shoppingCart', aliases: ['mart', 'large_mart', 'largemart', 'market', 'supermarket', '마트'] },
+  { code: 'SW8', label: '지하철역', iconName: 'trainFront', aliases: ['subway', 'subway_station'] },
+  { code: 'PK6', label: '주차장', iconName: 'circleParking', aliases: ['parking'] },
+  { code: 'BK9', label: '은행', iconName: 'banknote', aliases: ['bank'] },
   { code: 'HP8', label: '병원', iconName: 'hospital', aliases: ['hospital'] },
   { code: 'PM9', label: '약국', iconName: 'pill', aliases: ['pharmacy'] },
+  { code: 'SC4', label: '학교', iconName: 'school', aliases: ['school'] },
+  { code: 'AC5', label: '학원', iconName: 'graduationCap', aliases: ['academy', 'hagwon'] },
+  { code: 'PS3', label: '어린이집·유치원', iconName: 'baby', aliases: ['preschool', 'kindergarten', '어린이집', '유치원', '어린이집,유치원'] },
+  { code: 'PO3', label: '공공기관', iconName: 'building', aliases: ['public', 'public_institution', 'institution'] },
+  { code: 'AG2', label: '중개업소', iconName: 'building2', aliases: ['real_estate', 'realestate', '부동산'] },
+  { code: 'AD5', label: '숙박', iconName: 'hotel', aliases: ['lodging', 'accommodation', 'hotel'] },
+  { code: 'OL7', label: '주유소·충전소', iconName: 'fuel', aliases: ['oil', 'gas', 'charging', '주유소', '충전소', '주유소,충전소'] },
 ]
 
 const ALL_PLACE_CATEGORY_VALUES = KAKAO_CATEGORY_DEFINITIONS.map((category) => category.code)
@@ -330,6 +343,51 @@ export function getFloatingControlsBottom(isOpen) {
   return `calc(${MAP_BOTTOM_SHEET_BOTTOM_OFFSET_PX}px + ${sheetVisibleHeight} + ${MAP_FLOATING_CONTROLS_GAP_PX}px)`
 }
 
+export function getMapViewportPlan(places = [], currentPosition = null) {
+  const placePoints = Array.isArray(places)
+    ? places.map((place) => toMapPoint(place, 'place')).filter(Boolean)
+    : []
+
+  if (placePoints.length === 0) {
+    return {
+      type: 'none',
+      points: [],
+    }
+  }
+
+  if (placePoints.length === 1) {
+    const [{ latitude, longitude }] = placePoints
+    return {
+      type: 'single',
+      center: { latitude, longitude },
+      level: MAP_RESULT_SINGLE_PLACE_LEVEL,
+      points: placePoints,
+    }
+  }
+
+  const currentPoint = toMapPoint(currentPosition, 'current')
+  const points = currentPoint ? [...placePoints, currentPoint] : placePoints
+
+  return {
+    type: 'bounds',
+    points,
+    maxLevel: MAP_RESULT_MAX_FIT_LEVEL,
+    padding: MAP_RESULT_VIEWPORT_PADDING,
+  }
+}
+
+export function getCategorySelectionState(categoryLabel) {
+  return {
+    selectedCategory: categoryLabel,
+    places: [],
+    selectedPlaceId: null,
+    placesStatus: 'loading',
+    placesError: '',
+    boardError: '',
+    isSheetOpen: true,
+  }
+}
+
 export function inferPlaceCategoryKey(place, fallbackCategory = null) {
   const sourceText = [
     place?.categoryKey,
@@ -399,7 +457,22 @@ function normalizeCategoryText(value) {
   return String(value ?? '').trim().toLowerCase().replace(/\s+/g, '')
 }
 
+function toMapPoint(source, kind) {
+  const latitude = toCoordinate(source?.latitude)
+  const longitude = toCoordinate(source?.longitude)
+  if (latitude === null || longitude === null) return null
+
+  return {
+    kind,
+    latitude,
+    longitude,
+  }
+}
+
 function comparePlaces(left, right) {
+  const traceCompare = Number(right.traceCount ?? 0) - Number(left.traceCount ?? 0)
+  if (traceCompare !== 0) return traceCompare
+
   if (left.distanceMeters !== null && right.distanceMeters !== null) {
     const distanceCompare = left.distanceMeters - right.distanceMeters
     if (distanceCompare !== 0) return distanceCompare
@@ -408,8 +481,8 @@ function comparePlaces(left, right) {
   if (left.distanceMeters !== null) return -1
   if (right.distanceMeters !== null) return 1
 
-  const traceCompare = Number(right.traceCount ?? 0) - Number(left.traceCount ?? 0)
-  if (traceCompare !== 0) return traceCompare
+  const boardCompare = Number(Boolean(right.boardId)) - Number(Boolean(left.boardId))
+  if (boardCompare !== 0) return boardCompare
 
   return left.placeName.localeCompare(right.placeName)
 }
