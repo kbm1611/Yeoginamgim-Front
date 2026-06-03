@@ -3,13 +3,18 @@ import { test } from 'node:test'
 import {
   buildBoardRequestFromPlace,
   buildNearbyPlaceRequests,
+  MAP_BOTTOM_SHEET_BOTTOM_OFFSET_PX,
+  MAP_BOTTOM_SHEET_COLLAPSED_VISIBLE_HEIGHT_PX,
   MAP_BOTTOM_SHEET_CONTENT_CLASSES,
   MAP_BOTTOM_SHEET_TRANSITION_CLASSES,
+  MAP_FLOATING_CONTROLS_GAP_PX,
+  MAP_FLOATING_CONTROLS_TRANSITION_CLASSES,
   MAP_PLACE_CARD_SCROLL_CLASSES,
   MAP_PLACE_LIST_SCROLL_CLASSES,
   getBottomSheetToggleLabel,
   getBottomSheetTransform,
   getCurrentPositionMarkerTitle,
+  getFloatingControlsBottom,
   normalizePlaces,
 } from './Map.utils.js'
 
@@ -139,4 +144,19 @@ test('bottom sheet content fades in after the panel starts opening', () => {
   assert.match(MAP_BOTTOM_SHEET_CONTENT_CLASSES, /duration-\[220ms\]/)
   assert.match(MAP_BOTTOM_SHEET_CONTENT_CLASSES, /delay-\[120ms\]/)
   assert.match(MAP_BOTTOM_SHEET_CONTENT_CLASSES, /motion-reduce:delay-0/)
+})
+
+test('floating controls bottom follows the bottom sheet visible edge', () => {
+  assert.equal(MAP_BOTTOM_SHEET_BOTTOM_OFFSET_PX, 90)
+  assert.equal(MAP_BOTTOM_SHEET_COLLAPSED_VISIBLE_HEIGHT_PX, 56)
+  assert.equal(MAP_FLOATING_CONTROLS_GAP_PX, 12)
+  assert.equal(getFloatingControlsBottom(false), 'calc(90px + 56px + 12px)')
+  assert.equal(getFloatingControlsBottom(true), 'calc(90px + min(420px, 58%) + 12px)')
+})
+
+test('floating controls animate with the same timing as the bottom sheet', () => {
+  assert.match(MAP_FLOATING_CONTROLS_TRANSITION_CLASSES, /transition-\[bottom\]/)
+  assert.match(MAP_FLOATING_CONTROLS_TRANSITION_CLASSES, /duration-\[480ms\]/)
+  assert.match(MAP_FLOATING_CONTROLS_TRANSITION_CLASSES, /ease-\[cubic-bezier\(0\.22,1,0\.36,1\)\]/)
+  assert.match(MAP_FLOATING_CONTROLS_TRANSITION_CLASSES, /motion-reduce:duration-\[1ms\]/)
 })

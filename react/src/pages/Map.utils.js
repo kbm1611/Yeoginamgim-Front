@@ -6,9 +6,15 @@ export const DEFAULT_MAP_CENTER = {
 
 export const NEARBY_RADIUS_METERS = 20000
 export const NEARBY_LIMIT = 15
-export const MAP_BOTTOM_SHEET_HEIGHT = 'min(420px, 58%)'
+export const MAP_BOTTOM_SHEET_OPEN_HEIGHT = 'min(420px, 58%)'
+export const MAP_BOTTOM_SHEET_HEIGHT = MAP_BOTTOM_SHEET_OPEN_HEIGHT
+export const MAP_BOTTOM_SHEET_BOTTOM_OFFSET_PX = 90
+export const MAP_BOTTOM_SHEET_COLLAPSED_VISIBLE_HEIGHT_PX = 56
+export const MAP_FLOATING_CONTROLS_GAP_PX = 12
 export const MAP_BOTTOM_SHEET_CLOSED_TRANSFORM = 'translateY(calc(100% - 56px))'
-export const MAP_BOTTOM_SHEET_TRANSITION_CLASSES = 'transition-transform duration-[480ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:duration-[1ms]'
+const MAP_SHARED_MOTION_CLASSES = 'duration-[480ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:duration-[1ms]'
+export const MAP_BOTTOM_SHEET_TRANSITION_CLASSES = `transition-transform ${MAP_SHARED_MOTION_CLASSES}`
+export const MAP_FLOATING_CONTROLS_TRANSITION_CLASSES = `transition-[bottom] ${MAP_SHARED_MOTION_CLASSES}`
 const MAP_BOTTOM_SHEET_CONTENT_BASE_CLASSES = 'h-[calc(100%-56px)] transition-opacity duration-[220ms] ease-out motion-reduce:delay-0 motion-reduce:duration-[1ms]'
 export const MAP_BOTTOM_SHEET_CONTENT_CLASSES = `${MAP_BOTTOM_SHEET_CONTENT_BASE_CLASSES} opacity-100 delay-[120ms]`
 export const MAP_BOTTOM_SHEET_CONTENT_CLOSED_CLASSES = `${MAP_BOTTOM_SHEET_CONTENT_BASE_CLASSES} pointer-events-none opacity-0 delay-0`
@@ -125,6 +131,14 @@ export function getBottomSheetToggleLabel(isOpen) {
 
 export function getBottomSheetContentClasses(isOpen) {
   return isOpen ? MAP_BOTTOM_SHEET_CONTENT_CLASSES : MAP_BOTTOM_SHEET_CONTENT_CLOSED_CLASSES
+}
+
+export function getFloatingControlsBottom(isOpen) {
+  const sheetVisibleHeight = isOpen
+    ? MAP_BOTTOM_SHEET_OPEN_HEIGHT
+    : `${MAP_BOTTOM_SHEET_COLLAPSED_VISIBLE_HEIGHT_PX}px`
+
+  return `calc(${MAP_BOTTOM_SHEET_BOTTOM_OFFSET_PX}px + ${sheetVisibleHeight} + ${MAP_FLOATING_CONTROLS_GAP_PX}px)`
 }
 
 export function formatDistance(distanceMeters) {

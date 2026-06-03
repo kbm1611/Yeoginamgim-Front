@@ -21,8 +21,10 @@ import {
   buildNearbyPlaceRequests,
   CATEGORY_FILTERS,
   DEFAULT_MAP_CENTER,
+  MAP_BOTTOM_SHEET_BOTTOM_OFFSET_PX,
   MAP_BOTTOM_SHEET_HEIGHT,
   MAP_BOTTOM_SHEET_TRANSITION_CLASSES,
+  MAP_FLOATING_CONTROLS_TRANSITION_CLASSES,
   MAP_PLACE_CARD_SCROLL_CLASSES,
   MAP_PLACE_LIST_SCROLL_CLASSES,
   NEARBY_LIMIT,
@@ -30,6 +32,7 @@ import {
   getBottomSheetToggleLabel,
   getBottomSheetTransform,
   getCurrentPositionMarkerTitle,
+  getFloatingControlsBottom,
   normalizePlaces,
 } from './Map.utils'
 
@@ -420,7 +423,10 @@ function MapPage() {
         </div>
       </section>
 
-      <div className="absolute right-4 top-[48%] z-10 flex flex-col gap-3">
+      <div
+        className={`absolute right-4 z-30 flex flex-col gap-3 ${MAP_FLOATING_CONTROLS_TRANSITION_CLASSES}`}
+        style={{ bottom: getFloatingControlsBottom(isSheetOpen) }}
+      >
         <button
           type="button"
           onClick={requestCurrentLocation}
@@ -446,8 +452,9 @@ function MapPage() {
       </div>
 
       <section
-        className={`absolute bottom-[90px] left-2 right-2 z-20 overflow-hidden rounded-t-[24px] bg-white px-5 pb-4 shadow-[0_-10px_24px_rgba(0,0,0,0.08)] ${MAP_BOTTOM_SHEET_TRANSITION_CLASSES}`}
+        className={`absolute left-2 right-2 z-20 overflow-hidden rounded-t-[24px] bg-white px-5 pb-4 shadow-[0_-10px_24px_rgba(0,0,0,0.08)] ${MAP_BOTTOM_SHEET_TRANSITION_CLASSES}`}
         style={{
+          bottom: `${MAP_BOTTOM_SHEET_BOTTOM_OFFSET_PX}px`,
           height: MAP_BOTTOM_SHEET_HEIGHT,
           transform: getBottomSheetTransform(isSheetOpen),
         }}
