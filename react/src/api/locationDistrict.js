@@ -1,8 +1,7 @@
+import { ensureKakaoMaps } from './kakaoMaps'
+
 const DISTRICT_CACHE_KEY = 'yeoginamgim.currentDistrict'
 const DISTRICT_CACHE_TTL_MS = 30 * 60 * 1000
-const KAKAO_SCRIPT_ID = 'kakao-map-sdk'
-
-let kakaoScriptPromise = null
 
 export function readCachedDistrict() {
   try {
@@ -86,44 +85,4 @@ async function reverseGeocodeDistrict(latitude, longitude) {
       )
     })
   })
-}
-
-function ensureKakaoMaps() {
-  if (window.kakao?.maps?.services?.Geocoder) {
-    return Promise.resolve(window.kakao)
-  }
-
-  const kakaoJavaScriptKey = import.meta.env.VITE_KAKAO_JAVASCRIPT_KEY
-  if (!kakaoJavaScriptKey) {
-    return Promise.reject(new Error('Kakao JavaScript key is not configured.'))
-  }
-
-  if (!kakaoScriptPromise) {
-    kakaoScriptPromise = new Promise((resolve, reject) => {
-      const finishLoading = () => {
-        window.kakao.maps.load(() => resolve(window.kakao))
-      }
-
-      const existingScript = document.getElementById(KAKAO_SCRIPT_ID)
-      if (existingScript) {
-        if (window.kakao?.maps) {
-          finishLoading()
-          return
-        }
-        existingScript.addEventListener('load', finishLoading, { once: true })
-        existingScript.addEventListener('error', reject, { once: true })
-        return
-      }
-
-      const script = document.createElement('script')
-      script.id = KAKAO_SCRIPT_ID
-      script.async = true
-      script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(kakaoJavaScriptKey)}&libraries=services&autoload=false`
-      script.addEventListener('load', finishLoading, { once: true })
-      script.addEventListener('error', reject, { once: true })
-      document.head.appendChild(script)
-    })
-  }
-
-  return kakaoScriptPromise
 }
