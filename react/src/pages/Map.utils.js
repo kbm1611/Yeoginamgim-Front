@@ -6,6 +6,14 @@ export const DEFAULT_MAP_CENTER = {
 
 export const NEARBY_RADIUS_METERS = 20000
 export const NEARBY_LIMIT = 15
+export const MAP_BOTTOM_SHEET_HEIGHT = 'min(420px, 58%)'
+export const MAP_BOTTOM_SHEET_CLOSED_TRANSFORM = 'translateY(calc(100% - 56px))'
+export const MAP_BOTTOM_SHEET_TRANSITION_CLASSES = 'transition-transform duration-[480ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:duration-[1ms]'
+const MAP_BOTTOM_SHEET_CONTENT_BASE_CLASSES = 'h-[calc(100%-56px)] transition-opacity duration-[220ms] ease-out motion-reduce:delay-0 motion-reduce:duration-[1ms]'
+export const MAP_BOTTOM_SHEET_CONTENT_CLASSES = `${MAP_BOTTOM_SHEET_CONTENT_BASE_CLASSES} opacity-100 delay-[120ms]`
+export const MAP_BOTTOM_SHEET_CONTENT_CLOSED_CLASSES = `${MAP_BOTTOM_SHEET_CONTENT_BASE_CLASSES} pointer-events-none opacity-0 delay-0`
+export const MAP_PLACE_LIST_SCROLL_CLASSES = 'scrollbar-hide flex h-[calc(100%-34px)] snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-hidden scroll-smooth pb-1'
+export const MAP_PLACE_CARD_SCROLL_CLASSES = 'snap-start scroll-ml-1'
 const ALL_PLACE_CATEGORY_VALUES = ['cafe', 'food', 'shop', 'park', 'culture']
 
 export const CATEGORY_FILTERS = [
@@ -105,6 +113,18 @@ export function getCurrentPositionMarkerTitle(locationStatus) {
   if (locationStatus === 'fallback') return '성수동 기준 위치'
   if (locationStatus === 'loading') return '위치 확인 중'
   return '현재 위치'
+}
+
+export function getBottomSheetTransform(isOpen) {
+  return isOpen ? 'translateY(0)' : MAP_BOTTOM_SHEET_CLOSED_TRANSFORM
+}
+
+export function getBottomSheetToggleLabel(isOpen) {
+  return isOpen ? '주변 인기 공간 닫기' : '주변 인기 공간 열기'
+}
+
+export function getBottomSheetContentClasses(isOpen) {
+  return isOpen ? MAP_BOTTOM_SHEET_CONTENT_CLASSES : MAP_BOTTOM_SHEET_CONTENT_CLOSED_CLASSES
 }
 
 export function formatDistance(distanceMeters) {

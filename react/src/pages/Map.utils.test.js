@@ -3,6 +3,12 @@ import { test } from 'node:test'
 import {
   buildBoardRequestFromPlace,
   buildNearbyPlaceRequests,
+  MAP_BOTTOM_SHEET_CONTENT_CLASSES,
+  MAP_BOTTOM_SHEET_TRANSITION_CLASSES,
+  MAP_PLACE_CARD_SCROLL_CLASSES,
+  MAP_PLACE_LIST_SCROLL_CLASSES,
+  getBottomSheetToggleLabel,
+  getBottomSheetTransform,
   getCurrentPositionMarkerTitle,
   normalizePlaces,
 } from './Map.utils.js'
@@ -102,4 +108,35 @@ test('getCurrentPositionMarkerTitle describes real and fallback positions', () =
   assert.equal(getCurrentPositionMarkerTitle('success'), '현재 위치')
   assert.equal(getCurrentPositionMarkerTitle('fallback'), '성수동 기준 위치')
   assert.equal(getCurrentPositionMarkerTitle('loading'), '위치 확인 중')
+})
+
+test('bottom sheet helpers keep the sheet height fixed and toggle by transform', () => {
+  assert.equal(getBottomSheetTransform(true), 'translateY(0)')
+  assert.equal(getBottomSheetTransform(false), 'translateY(calc(100% - 56px))')
+})
+
+test('bottom sheet toggle label reflects the next action', () => {
+  assert.equal(getBottomSheetToggleLabel(false), '\uC8FC\uBCC0 \uC778\uAE30 \uACF5\uAC04 \uC5F4\uAE30')
+  assert.equal(getBottomSheetToggleLabel(true), '\uC8FC\uBCC0 \uC778\uAE30 \uACF5\uAC04 \uB2EB\uAE30')
+})
+
+test('place list scroll classes enable smooth horizontal snapping', () => {
+  assert.match(MAP_PLACE_LIST_SCROLL_CLASSES, /scroll-smooth/)
+  assert.match(MAP_PLACE_LIST_SCROLL_CLASSES, /snap-x/)
+  assert.match(MAP_PLACE_LIST_SCROLL_CLASSES, /snap-mandatory/)
+  assert.match(MAP_PLACE_CARD_SCROLL_CLASSES, /snap-start/)
+})
+
+test('bottom sheet animation classes use a slower eased transform with reduced motion support', () => {
+  assert.match(MAP_BOTTOM_SHEET_TRANSITION_CLASSES, /transition-transform/)
+  assert.match(MAP_BOTTOM_SHEET_TRANSITION_CLASSES, /duration-\[480ms\]/)
+  assert.match(MAP_BOTTOM_SHEET_TRANSITION_CLASSES, /ease-\[cubic-bezier\(0\.22,1,0\.36,1\)\]/)
+  assert.match(MAP_BOTTOM_SHEET_TRANSITION_CLASSES, /motion-reduce:duration-\[1ms\]/)
+})
+
+test('bottom sheet content fades in after the panel starts opening', () => {
+  assert.match(MAP_BOTTOM_SHEET_CONTENT_CLASSES, /transition-opacity/)
+  assert.match(MAP_BOTTOM_SHEET_CONTENT_CLASSES, /duration-\[220ms\]/)
+  assert.match(MAP_BOTTOM_SHEET_CONTENT_CLASSES, /delay-\[120ms\]/)
+  assert.match(MAP_BOTTOM_SHEET_CONTENT_CLASSES, /motion-reduce:delay-0/)
 })

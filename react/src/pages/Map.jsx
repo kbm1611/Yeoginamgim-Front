@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   AlertCircle,
   ChevronDown,
+  ChevronUp,
   LocateFixed,
   Loader2,
   MapPin,
@@ -20,12 +21,18 @@ import {
   buildNearbyPlaceRequests,
   CATEGORY_FILTERS,
   DEFAULT_MAP_CENTER,
+  MAP_BOTTOM_SHEET_HEIGHT,
+  MAP_BOTTOM_SHEET_TRANSITION_CLASSES,
+  MAP_PLACE_CARD_SCROLL_CLASSES,
+  MAP_PLACE_LIST_SCROLL_CLASSES,
   NEARBY_LIMIT,
+  getBottomSheetContentClasses,
+  getBottomSheetToggleLabel,
+  getBottomSheetTransform,
   getCurrentPositionMarkerTitle,
   normalizePlaces,
 } from './Map.utils'
 
-const DISMISS_THRESHOLD = 150
 const GEOLOCATION_OPTIONS = {
   enableHighAccuracy: false,
   maximumAge: 5 * 60 * 1000,
@@ -43,8 +50,6 @@ function MapPage() {
   const cardRefs = useRef({})
   const placesRequestIdRef = useRef(0)
   const isMountedRef = useRef(false)
-  const dragStateRef = useRef({ dragging: false, startY: 0, startHeight: 0 })
-  const heightRef = useRef(280)
 
   const [mapStatus, setMapStatus] = useState('loading')
   const [mapError, setMapError] = useState('')
@@ -59,9 +64,7 @@ function MapPage() {
   const [selectedPlaceId, setSelectedPlaceId] = useState(null)
   const [openingPlaceId, setOpeningPlaceId] = useState(null)
   const [boardError, setBoardError] = useState('')
-  const [isSheetOpen, setIsSheetOpen] = useState(true)
-  const [sheetHeight, setSheetHeight] = useState(280)
-  const [isDragging, setIsDragging] = useState(false)
+  const [isSheetOpen, setIsSheetOpen] = useState(false)
 
   const selectedPlace = places.find((place) => place.kakaoPlaceId === selectedPlaceId) ?? null
   const locationLabel =
@@ -70,20 +73,6 @@ function MapPage() {
       : locationStatus === 'fallback'
         ? `${DEFAULT_MAP_CENTER.label} 기준`
         : '현재 위치 근처'
-
-  const getHeightBounds = () => {
-    const viewportHeight = containerRef.current?.clientHeight ?? window.innerHeight
-    return {
-      minHeight: 70,
-      maxHeight: Math.max(70, Math.floor(viewportHeight * 0.85)),
-    }
-  }
-
-  const clampHeight = (value, allowBelowMin = false) => {
-    const { minHeight, maxHeight } = getHeightBounds()
-    const minBoundary = allowBelowMin ? 0 : minHeight
-    return Math.max(minBoundary, Math.min(maxHeight, value))
-  }
 
   const clearMarkers = useCallback(() => {
     const kakao = kakaoRef.current
@@ -317,130 +306,9 @@ function MapPage() {
     })
   }, [selectedPlaceId])
 
-  useEffect(() => {
-    const getHeightBoundsForEffect = () => {
-      const viewportHeight = containerRef.current?.clientHeight ?? window.innerHeight
-      return {
-        minHeight: 70,
-        maxHeight: Math.max(70, Math.floor(viewportHeight * 0.85)),
-      }
-    }
-
-    const clampHeightForEffect = (value, allowBelowMin = false) => {
-      const { minHeight, maxHeight } = getHeightBoundsForEffect()
-      const minBoundary = allowBelowMin ? 0 : minHeight
-      return Math.max(minBoundary, Math.min(maxHeight, value))
-    }
-
-    const setInitialHeight = () => {
-      const { minHeight, maxHeight } = getHeightBoundsForEffect()
-      setSheetHeight((prev) => {
-        if (prev !== 280) return clampHeightForEffect(prev)
-        const preferred = Math.floor((minHeight + maxHeight) * 0.52)
-        return clampHeightForEffect(preferred)
-      })
-    }
-
-    setInitialHeight()
-    window.addEventListener('resize', setInitialHeight)
-    return () => window.removeEventListener('resize', setInitialHeight)
-  }, [])
-
-  useEffect(() => {
-    heightRef.current = sheetHeight
-  }, [sheetHeight])
-
-  useEffect(() => {
-    const getHeightBoundsForEffect = () => {
-      const viewportHeight = containerRef.current?.clientHeight ?? window.innerHeight
-      return {
-        minHeight: 70,
-        maxHeight: Math.max(70, Math.floor(viewportHeight * 0.85)),
-      }
-    }
-
-    const clampHeightForEffect = (value, allowBelowMin = false) => {
-      const { minHeight, maxHeight } = getHeightBoundsForEffect()
-      const minBoundary = allowBelowMin ? 0 : minHeight
-      return Math.max(minBoundary, Math.min(maxHeight, value))
-    }
-
-    const onMouseMove = (event) => {
-      if (!dragStateRef.current.dragging) return
-      const deltaY = dragStateRef.current.startY - event.clientY
-      setSheetHeight(clampHeightForEffect(dragStateRef.current.startHeight + deltaY, true))
-    }
-
-    const onTouchMove = (event) => {
-      if (!dragStateRef.current.dragging) return
-      const point = event.touches[0]
-      if (!point) return
-      const deltaY = dragStateRef.current.startY - point.clientY
-      setSheetHeight(clampHeightForEffect(dragStateRef.current.startHeight + deltaY, true))
-    }
-
-    const endDrag = () => {
-      if (dragStateRef.current.dragging) {
-        if (heightRef.current <= DISMISS_THRESHOLD) {
-          setIsSheetOpen(false)
-        } else {
-          setSheetHeight(clampHeightForEffect(heightRef.current))
-        }
-      }
-      dragStateRef.current.dragging = false
-      setIsDragging(false)
-    }
-
-    window.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('mouseup', endDrag)
-    window.addEventListener('touchmove', onTouchMove, { passive: true })
-    window.addEventListener('touchend', endDrag)
-    window.addEventListener('touchcancel', endDrag)
-
-    return () => {
-      window.removeEventListener('mousemove', onMouseMove)
-      window.removeEventListener('mouseup', endDrag)
-      window.removeEventListener('touchmove', onTouchMove)
-      window.removeEventListener('touchend', endDrag)
-      window.removeEventListener('touchcancel', endDrag)
-    }
-  }, [])
-
-  const openSheet = () => {
-    const { minHeight, maxHeight } = getHeightBounds()
-    const defaultHeight = Math.floor((minHeight + maxHeight) * 0.4)
-    setIsSheetOpen(true)
-    setSheetHeight(clampHeight(defaultHeight))
-  }
-
-  const startDrag = (clientY) => {
-    if (!isSheetOpen) {
-      openSheet()
-      return
-    }
-    dragStateRef.current = {
-      dragging: true,
-      startY: clientY,
-      startHeight: sheetHeight,
-    }
-    setIsDragging(true)
-  }
-
-  const onHandleMouseDown = (event) => {
-    event.preventDefault()
-    startDrag(event.clientY)
-  }
-
-  const onHandleTouchStart = (event) => {
-    const point = event.touches[0]
-    if (!point) return
-    startDrag(point.clientY)
-  }
-
   const handleCategorySelect = (categoryLabel) => {
     setSelectedCategory(categoryLabel)
     setSelectedPlaceId(null)
-    setIsSheetOpen(true)
   }
 
   const handleOpenKakaoMap = () => {
@@ -578,65 +446,74 @@ function MapPage() {
       </div>
 
       <section
-        className="absolute bottom-[90px] left-2 right-2 z-20 rounded-t-[24px] bg-white px-5 pb-4 pt-1 shadow-[0_-10px_24px_rgba(0,0,0,0.08)]"
+        className={`absolute bottom-[90px] left-2 right-2 z-20 overflow-hidden rounded-t-[24px] bg-white px-5 pb-4 shadow-[0_-10px_24px_rgba(0,0,0,0.08)] ${MAP_BOTTOM_SHEET_TRANSITION_CLASSES}`}
         style={{
-          height: `${sheetHeight}px`,
-          transform: isSheetOpen ? 'translateY(0)' : 'translateY(130%)',
-          transition: isDragging ? 'none' : 'transform 240ms ease, height 200ms ease',
+          height: MAP_BOTTOM_SHEET_HEIGHT,
+          transform: getBottomSheetTransform(isSheetOpen),
         }}
       >
         <button
           type="button"
-          className="mb-1 flex h-9 w-full items-center justify-center bg-transparent"
-          onMouseDown={onHandleMouseDown}
-          onTouchStart={onHandleTouchStart}
-          aria-label="주변 장소 시트 높이 조절"
-          style={{ touchAction: 'none' }}
+          className="flex h-14 w-full items-center justify-between bg-transparent text-left"
+          onClick={() => setIsSheetOpen((prev) => !prev)}
+          aria-expanded={isSheetOpen}
+          aria-label={getBottomSheetToggleLabel(isSheetOpen)}
         >
-          <span className="h-1 w-16 rounded-full bg-[#DDD3C6]" />
+          <span className="flex min-w-0 items-center gap-3">
+            <span className="h-1 w-12 shrink-0 rounded-full bg-[#DDD3C6]" />
+            <span className="truncate text-[18px] font-bold text-[#2B1810]">주변 인기 공간</span>
+          </span>
+          {isSheetOpen ? (
+            <ChevronDown size={18} strokeWidth={1.8} className="shrink-0 text-[#5A4030]" />
+          ) : (
+            <ChevronUp size={18} strokeWidth={1.8} className="shrink-0 text-[#5A4030]" />
+          )}
         </button>
 
-        <div className="mb-2 flex items-center justify-between">
-          <div>
-            <h2 className="text-[20px] font-bold text-[#2B1810]">주변 공간</h2>
-            {locationNotice ? <p className="mt-0.5 text-[12px] text-[#7A6558]">{locationNotice}</p> : null}
-          </div>
-          <button
-            type="button"
-            onClick={loadNearbyPlaces}
-            disabled={placesStatus === 'loading'}
-            className="flex items-center gap-1.5 text-[12px] font-medium text-[#5A4030] disabled:opacity-60"
-          >
-            <RefreshCw size={13} strokeWidth={1.8} className={placesStatus === 'loading' ? 'animate-spin' : ''} />
-            갱신
-          </button>
-        </div>
+        <div className={getBottomSheetContentClasses(isSheetOpen)} aria-hidden={!isSheetOpen} inert={!isSheetOpen}>
+            <div className="mb-2 flex items-center justify-between">
+              <div className="min-w-0">
+                <p className="truncate text-[13px] font-medium text-[#7A6558]">
+                  {locationNotice || '현재 지도 기준으로 가까운 공간을 보여드려요.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={loadNearbyPlaces}
+                disabled={placesStatus === 'loading'}
+                className="ml-3 flex shrink-0 items-center gap-1.5 text-[12px] font-medium text-[#5A4030] disabled:opacity-60"
+              >
+                <RefreshCw size={13} strokeWidth={1.8} className={placesStatus === 'loading' ? 'animate-spin' : ''} />
+                갱신
+              </button>
+            </div>
 
-        {boardError ? <p className="mb-2 text-[12px] font-medium text-[#A74831]">{boardError}</p> : null}
+            {boardError ? <p className="mb-2 text-[12px] font-medium text-[#A74831]">{boardError}</p> : null}
 
-        <div className="scrollbar-hide flex h-[calc(100%-76px)] gap-3 overflow-x-auto overflow-y-hidden pb-1">
-          {placesStatus === 'loading' ? <PlaceLoadingCards /> : null}
-          {placesStatus === 'error' ? (
-            <PlacesPanelState message={placesError} actionLabel="다시 불러오기" onAction={loadNearbyPlaces} />
-          ) : null}
-          {placesStatus === 'success' && places.length === 0 ? (
-            <PlacesPanelState message="근처에 보여줄 장소가 아직 없어요." actionLabel="다시 찾기" onAction={loadNearbyPlaces} />
-          ) : null}
-          {placesStatus === 'success'
-            ? places.map((place) => (
-              <PlaceCard
-                key={place.kakaoPlaceId}
-                refCallback={(node) => {
-                  if (node) cardRefs.current[place.kakaoPlaceId] = node
-                }}
-                place={place}
-                isSelected={place.kakaoPlaceId === selectedPlaceId}
-                isOpening={place.kakaoPlaceId === openingPlaceId}
-                onSelect={() => selectPlace(place.kakaoPlaceId)}
-                onOpen={() => handleOpenBoard(place)}
-              />
-            ))
-            : null}
+            <div className={MAP_PLACE_LIST_SCROLL_CLASSES}>
+              {placesStatus === 'loading' ? <PlaceLoadingCards /> : null}
+              {placesStatus === 'error' ? (
+                <PlacesPanelState message={placesError} actionLabel="다시 불러오기" onAction={loadNearbyPlaces} />
+              ) : null}
+              {placesStatus === 'success' && places.length === 0 ? (
+                <PlacesPanelState message="근처에 보여줄 장소가 아직 없어요." actionLabel="다시 찾기" onAction={loadNearbyPlaces} />
+              ) : null}
+              {placesStatus === 'success'
+                ? places.map((place) => (
+                  <PlaceCard
+                    key={place.kakaoPlaceId}
+                    refCallback={(node) => {
+                      if (node) cardRefs.current[place.kakaoPlaceId] = node
+                    }}
+                    place={place}
+                    isSelected={place.kakaoPlaceId === selectedPlaceId}
+                    isOpening={place.kakaoPlaceId === openingPlaceId}
+                    onSelect={() => selectPlace(place.kakaoPlaceId)}
+                    onOpen={() => handleOpenBoard(place)}
+                  />
+                ))
+                : null}
+            </div>
         </div>
       </section>
     </main>
@@ -647,7 +524,7 @@ function PlaceCard({ place, isSelected, isOpening, onSelect, onOpen, refCallback
   return (
     <article
       ref={refCallback}
-      className={`w-[156px] shrink-0 overflow-hidden rounded-[16px] border bg-white transition ${
+      className={`${MAP_PLACE_CARD_SCROLL_CLASSES} w-[156px] shrink-0 overflow-hidden rounded-[16px] border bg-white transition ${
         isSelected ? 'border-[#3D2415] shadow-[0_8px_18px_rgba(61,36,21,0.16)]' : 'border-[#EFE6DB]'
       }`}
     >
