@@ -14,6 +14,7 @@ export function normalizeMyPageData({
       email: user?.email ?? '',
       nickname,
       profileImageUrl: user?.profileImageUrl ?? '',
+      birthDate: user?.birthDate ?? '',
       initial: getInitial(nickname),
     },
     stats: {

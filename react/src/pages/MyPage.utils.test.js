@@ -8,6 +8,7 @@ test('normalizeMyPageData builds profile, stats, and recent traces from API resp
       email: 'user@example.com',
       nickname: '여김이',
       profileImageUrl: '/upload/profile/me.png',
+      birthDate: '990101',
     },
     myTracesResponse: {
       traces: [
@@ -39,6 +40,7 @@ test('normalizeMyPageData builds profile, stats, and recent traces from API resp
     email: 'user@example.com',
     nickname: '여김이',
     profileImageUrl: '/upload/profile/me.png',
+    birthDate: '990101',
     initial: '여',
   })
   assert.deepEqual(result.stats, {
@@ -79,6 +81,7 @@ test('normalizeMyPageData handles empty API responses without invented values', 
     email: 'empty@example.com',
     nickname: 'empty',
     profileImageUrl: '',
+    birthDate: '',
     initial: 'E',
   })
   assert.deepEqual(result.stats, {

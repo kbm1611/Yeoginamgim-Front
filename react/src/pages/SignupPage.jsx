@@ -8,6 +8,7 @@ const initialForm = {
   email: '',
   password: '',
   nickname: '',
+  birthDate: '',
 }
 
 const signupErrorMessages = [
@@ -18,6 +19,7 @@ const signupErrorMessages = [
   ['password must be between', '비밀번호는 8자 이상 255자 이하로 입력해주세요.'],
   ['nickname is required', '닉네임을 입력해주세요.'],
   ['nickname must be 255', '닉네임은 255자 이하로 입력해주세요.'],
+  ['birthdate', '생일은 YYMMDD 형식의 6자리 숫자로 입력해주세요.'],
   ['duplicate', '이미 사용 중인 이메일입니다.'],
   ['already', '이미 사용 중인 이메일입니다.'],
 ]
@@ -44,7 +46,8 @@ function SignupPage() {
 
   const handleChange = (event) => {
     const { name, value } = event.target
-    setForm((current) => ({ ...current, [name]: value }))
+    const nextValue = name === 'birthDate' ? onlySixDigits(value) : value
+    setForm((current) => ({ ...current, [name]: nextValue }))
     setError('')
   }
 
@@ -53,6 +56,9 @@ function SignupPage() {
     if (!form.email.includes('@')) return '올바른 이메일 형식으로 입력해주세요.'
     if (form.password.length < 8) return '비밀번호는 8자 이상 입력해주세요.'
     if (!form.nickname.trim()) return '닉네임을 입력해주세요.'
+    if (form.birthDate && !/^\d{6}$/.test(form.birthDate)) {
+      return '생일은 YYMMDD 형식의 6자리 숫자로 입력해주세요.'
+    }
     return ''
   }
 
@@ -71,6 +77,9 @@ function SignupPage() {
     signupData.append('email', email)
     signupData.append('password', form.password)
     signupData.append('nickname', form.nickname.trim())
+    if (form.birthDate) {
+      signupData.append('birthDate', form.birthDate)
+    }
 
     setError('')
     setSuccess('')
@@ -150,6 +159,21 @@ function SignupPage() {
             />
           </label>
 
+          <label className="signup-field">
+            <span>생일</span>
+            <input
+              name="birthDate"
+              type="text"
+              inputMode="numeric"
+              autoComplete="bday"
+              maxLength={6}
+              placeholder="생년월일 6자리"
+              value={form.birthDate}
+              onChange={handleChange}
+              disabled={isSubmitting}
+            />
+          </label>
+
           <div className="signup-status" aria-live="polite">
             {success && <p className="signup-success">{success}</p>}
             {error && <p className="signup-error">{error}</p>}
@@ -168,6 +192,10 @@ function SignupPage() {
       </section>
     </motion.main>
   )
+}
+
+function onlySixDigits(value) {
+  return value.replace(/\D/g, '').slice(0, 6)
 }
 
 export default SignupPage

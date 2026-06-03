@@ -32,6 +32,7 @@ function MyPage() {
   const [pageState, setPageState] = useState(initialPageState)
   const [isEditing, setIsEditing] = useState(false)
   const [nickname, setNickname] = useState('')
+  const [birthDate, setBirthDate] = useState('')
   const [profileFile, setProfileFile] = useState(null)
   const [updateStatus, setUpdateStatus] = useState({ type: '', message: '' })
   const [isUpdating, setIsUpdating] = useState(false)
@@ -62,6 +63,7 @@ function MyPage() {
 
       setPageState({ status: 'ready', data, error: '' })
       setNickname(data.profile.nickname)
+      setBirthDate(data.profile.birthDate)
     } catch (error) {
       if (error?.status === 401) {
         clearAuthToken()
@@ -95,6 +97,7 @@ function MyPage() {
   const resetEditState = () => {
     setIsEditing(false)
     setNickname(profile?.nickname ?? '')
+    setBirthDate(profile?.birthDate ?? '')
     setProfileFile(null)
     setUpdateStatus({ type: '', message: '' })
     if (fileInputRef.current) {
@@ -111,12 +114,18 @@ function MyPage() {
       return
     }
 
+    if (birthDate && !/^\d{6}$/.test(birthDate)) {
+      setUpdateStatus({ type: 'error', message: '생일은 YYMMDD 형식의 6자리 숫자로 입력해주세요.' })
+      return
+    }
+
     setIsUpdating(true)
     setUpdateStatus({ type: '', message: '' })
 
     try {
       const formData = new FormData()
       formData.append('nickname', trimmedNickname)
+      formData.append('birthDate', birthDate)
       if (profileFile) {
         formData.append('profileUploadFile', profileFile)
       }
@@ -196,6 +205,11 @@ function MyPage() {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[22px] font-bold text-[#2B1810]">{profile.nickname}</p>
                 <p className="mt-1 truncate text-[13px] font-medium text-[#77685c]">{profile.email}</p>
+                {profile.birthDate && (
+                  <p className="mt-1 truncate text-[13px] font-medium text-[#8a7767]">
+                    생일 {profile.birthDate}
+                  </p>
+                )}
               </div>
 
               <button
@@ -205,6 +219,7 @@ function MyPage() {
                 onClick={() => {
                   setIsEditing(true)
                   setNickname(profile.nickname)
+                  setBirthDate(profile.birthDate ?? '')
                   setUpdateStatus({ type: '', message: '' })
                 }}
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#F4EEE5] text-[#4B3120]"
@@ -223,6 +238,21 @@ function MyPage() {
                     onChange={(event) => setNickname(event.target.value)}
                     disabled={isUpdating}
                     maxLength={255}
+                    className="mt-2 w-full rounded-lg border border-[#eadfce] bg-[#fffbf5] px-3 py-3 text-[15px] font-semibold text-[#2B1810] outline-none focus:border-[#8a5c3a]"
+                  />
+                </label>
+
+                <label className="mt-3 block">
+                  <span className="text-[12px] font-semibold text-[#7b6a5d]">생일</span>
+                  <input
+                    type="text"
+                    name="birthDate"
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder="생년월일 6자리"
+                    value={birthDate}
+                    onChange={(event) => setBirthDate(onlySixDigits(event.target.value))}
+                    disabled={isUpdating}
                     className="mt-2 w-full rounded-lg border border-[#eadfce] bg-[#fffbf5] px-3 py-3 text-[15px] font-semibold text-[#2B1810] outline-none focus:border-[#8a5c3a]"
                   />
                 </label>
@@ -402,6 +432,10 @@ function resolveMediaUrl(path) {
   if (!path) return ''
   if (/^https?:\/\//i.test(path)) return path
   return new URL(path, API_BASE_URL).toString()
+}
+
+function onlySixDigits(value) {
+  return value.replace(/\D/g, '').slice(0, 6)
 }
 
 function formatDate(value) {
