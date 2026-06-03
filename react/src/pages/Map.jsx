@@ -36,6 +36,7 @@ import { fetchNearbyPlaces } from '../api/places'
 import mainLogo from '../assets/logo/image_12-removebg-preview.png'
 import {
   buildNearbyPlaceRequests,
+  buildPopularPlaceRequest,
   CATEGORY_FILTERS,
   DEFAULT_MAP_CENTER,
   MAP_BOTTOM_SHEET_BOTTOM_OFFSET_PX,
@@ -46,15 +47,19 @@ import {
   MAP_FLOATING_CONTROLS_TRANSITION_CLASSES,
   MAP_PLACE_CARD_SCROLL_CLASSES,
   MAP_PLACE_LIST_SCROLL_CLASSES,
+  MAP_SELECTED_PLACE_LEVEL,
   PLACE_MARKER_ICON_PATHS,
   NEARBY_LIMIT,
   getBottomSheetContentClasses,
   getBottomSheetToggleLabel,
   getBottomSheetTransform,
+  getCategorySelectionState,
   getCurrentPositionMarkerTitle,
   getFloatingControlsBottom,
+  getMapViewportPlan,
   getPlaceCategoryMeta,
   normalizePlaces,
+  normalizePopularPlaces,
 } from './Map.utils'
 
 const GEOLOCATION_OPTIONS = {
@@ -94,7 +99,8 @@ function MapPage() {
   const markersRef = useRef([])
   const currentLocationOverlayRef = useRef(null)
   const cardRefs = useRef({})
-  const placesRequestIdRef = useRef(0)
+  const categoryPlacesRequestIdRef = useRef(0)
+  const popularPlacesRequestIdRef = useRef(0)
   const selectedPlaceIdRef = useRef(null)
   const isMountedRef = useRef(false)
 
@@ -105,19 +111,21 @@ function MapPage() {
   const [locationNotice, setLocationNotice] = useState('')
   const [currentPosition, setCurrentPosition] = useState(DEFAULT_MAP_CENTER)
   const [selectedCategory, setSelectedCategory] = useState(null)
-  const [places, setPlaces] = useState([])
-  const [placesStatus, setPlacesStatus] = useState('idle')
-  const [placesError, setPlacesError] = useState('')
+  const [categoryPlaces, setCategoryPlaces] = useState([])
+  const [categoryPlacesStatus, setCategoryPlacesStatus] = useState('idle')
+  const [categoryPlacesError, setCategoryPlacesError] = useState('')
+  const [popularPlaces, setPopularPlaces] = useState([])
+  const [popularPlacesStatus, setPopularPlacesStatus] = useState('idle')
+  const [popularPlacesError, setPopularPlacesError] = useState('')
   const [selectedPlaceId, setSelectedPlaceId] = useState(null)
   const [openingPlaceId, setOpeningPlaceId] = useState(null)
   const [boardError, setBoardError] = useState('')
   const [isSheetOpen, setIsSheetOpen] = useState(false)
 
-  const selectedPlace = places.find((place) => place.kakaoPlaceId === selectedPlaceId) ?? null
+  const knownPlaces = [...categoryPlaces, ...popularPlaces]
+  const selectedPlace = knownPlaces.find((place) => place.kakaoPlaceId === selectedPlaceId) ?? null
   const selectedCategoryLabel = selectedCategory ?? '카테고리'
-  const placesPanelNotice = selectedCategory
-    ? locationNotice || '현재 지도 기준으로 가까운 공간을 보여드려요.'
-    : '카테고리를 선택하면 주변 공간을 보여드려요.'
+  const popularPlacesPanelNotice = locationNotice || '현재 위치 기준으로 흔적이 많은 공간을 보여드려요.'
   const locationLabel =
     locationStatus === 'loading'
       ? '현재 위치 확인 중'
@@ -156,9 +164,28 @@ function MapPage() {
     map.setCenter(center)
   }, [])
 
-  const selectPlace = useCallback((kakaoPlaceId) => {
+  const focusMapOnPlace = useCallback((place) => {
+    const latitude = Number(place?.latitude)
+    const longitude = Number(place?.longitude)
+    const map = mapInstanceRef.current
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || !map) return
+
+    if (typeof map.getLevel === 'function' && typeof map.setLevel === 'function' && map.getLevel() > MAP_SELECTED_PLACE_LEVEL) {
+      map.setLevel(MAP_SELECTED_PLACE_LEVEL)
+    }
+    moveMapTo({ latitude, longitude })
+  }, [moveMapTo])
+
+  const selectPlace = useCallback((kakaoPlaceId, { focusMap = false } = {}) => {
     setSelectedPlaceId(kakaoPlaceId)
     setIsSheetOpen(true)
+
+    if (focusMap) {
+      focusMapOnPlace(
+        categoryPlaces.find((place) => place.kakaoPlaceId === kakaoPlaceId)
+          ?? popularPlaces.find((place) => place.kakaoPlaceId === kakaoPlaceId)
+      )
+    }
 
     window.setTimeout(() => {
       cardRefs.current[kakaoPlaceId]?.scrollIntoView({
@@ -167,7 +194,33 @@ function MapPage() {
         inline: 'center',
       })
     }, 0)
-  }, [])
+  }, [categoryPlaces, focusMapOnPlace, popularPlaces])
+
+  const fitMapToPlaces = useCallback((nextPlaces) => {
+    const kakao = kakaoRef.current
+    const map = mapInstanceRef.current
+    if (!kakao || !map) return
+
+    const viewportPlan = getMapViewportPlan(nextPlaces, currentPosition)
+    if (viewportPlan.type === 'none') return
+
+    if (viewportPlan.type === 'single') {
+      map.setLevel(viewportPlan.level)
+      moveMapTo(viewportPlan.center)
+      return
+    }
+
+    const bounds = new kakao.maps.LatLngBounds()
+    viewportPlan.points.forEach((point) => {
+      bounds.extend(new kakao.maps.LatLng(point.latitude, point.longitude))
+    })
+
+    const { padding } = viewportPlan
+    map.setBounds(bounds, padding.top, padding.right, padding.bottom, padding.left)
+    if (typeof map.getLevel === 'function' && typeof map.setLevel === 'function' && map.getLevel() > viewportPlan.maxLevel) {
+      map.setLevel(viewportPlan.maxLevel)
+    }
+  }, [currentPosition, moveMapTo])
 
   const requestCurrentLocation = useCallback(async () => {
     setLocationStatus('loading')
@@ -195,13 +248,11 @@ function MapPage() {
     }
   }, [moveMapTo])
 
-  const loadNearbyPlaces = useCallback(async () => {
+  const loadCategoryPlaces = useCallback(async () => {
     if (!selectedCategory) {
-      setPlaces([])
-      setSelectedPlaceId(null)
-      setPlacesStatus('idle')
-      setPlacesError('')
-      setBoardError('')
+      setCategoryPlaces([])
+      setCategoryPlacesStatus('idle')
+      setCategoryPlacesError('')
       return
     }
 
@@ -212,16 +263,16 @@ function MapPage() {
     })
 
     if (requests.length === 0) {
-      setPlaces([])
-      setPlacesStatus('error')
-      setPlacesError('좌표를 확인할 수 없어 주변 장소를 불러오지 못했어요.')
+      setCategoryPlaces([])
+      setCategoryPlacesStatus('error')
+      setCategoryPlacesError('좌표를 확인할 수 없어 주변 장소를 불러오지 못했어요.')
       return
     }
 
-    const requestId = placesRequestIdRef.current + 1
-    placesRequestIdRef.current = requestId
-    setPlacesStatus('loading')
-    setPlacesError('')
+    const requestId = categoryPlacesRequestIdRef.current + 1
+    categoryPlacesRequestIdRef.current = requestId
+    setCategoryPlacesStatus('loading')
+    setCategoryPlacesError('')
     setBoardError('')
 
     try {
@@ -231,26 +282,56 @@ function MapPage() {
           places: await fetchNearbyPlaces(request),
         }))
       )
-      if (!isMountedRef.current || placesRequestIdRef.current !== requestId) return
+      if (!isMountedRef.current || categoryPlacesRequestIdRef.current !== requestId) return
 
       const normalizedPlaces = normalizePlaces(responses, currentPosition, NEARBY_LIMIT)
-      setPlaces(normalizedPlaces)
-      setSelectedPlaceId((currentId) =>
-        normalizedPlaces.some((place) => place.kakaoPlaceId === currentId)
-          ? currentId
-          : normalizedPlaces[0]?.kakaoPlaceId ?? null
-      )
-      setPlacesStatus('success')
+      setCategoryPlaces(normalizedPlaces)
+      setSelectedPlaceId(normalizedPlaces[0]?.kakaoPlaceId ?? null)
+      setCategoryPlacesStatus('success')
     } catch {
-      if (!isMountedRef.current || placesRequestIdRef.current !== requestId) return
+      if (!isMountedRef.current || categoryPlacesRequestIdRef.current !== requestId) return
 
-      setPlaces([])
+      setCategoryPlaces([])
       setSelectedPlaceId(null)
-      setPlacesStatus('error')
-      setPlacesError('주변 장소를 불러오지 못했어요.')
+      setCategoryPlacesStatus('error')
+      setCategoryPlacesError('주변 장소를 불러오지 못했어요.')
     }
   }, [currentPosition, selectedCategory])
 
+  const loadPopularPlaces = useCallback(async () => {
+    if (locationStatus === 'loading') return
+
+    const request = buildPopularPlaceRequest({
+      latitude: currentPosition.latitude,
+      longitude: currentPosition.longitude,
+    })
+
+    if (!request) {
+      setPopularPlaces([])
+      setPopularPlacesStatus('error')
+      setPopularPlacesError('주변 인기 공간을 불러올 위치를 확인하지 못했어요.')
+      return
+    }
+
+    const requestId = popularPlacesRequestIdRef.current + 1
+    popularPlacesRequestIdRef.current = requestId
+    setPopularPlacesStatus('loading')
+    setPopularPlacesError('')
+
+    try {
+      const response = await fetchNearbyPlaces(request)
+      if (!isMountedRef.current || popularPlacesRequestIdRef.current !== requestId) return
+
+      setPopularPlaces(normalizePopularPlaces(response, currentPosition, NEARBY_LIMIT))
+      setPopularPlacesStatus('success')
+    } catch {
+      if (!isMountedRef.current || popularPlacesRequestIdRef.current !== requestId) return
+
+      setPopularPlaces([])
+      setPopularPlacesStatus('error')
+      setPopularPlacesError('주변 인기 공간을 불러오지 못했어요.')
+    }
+  }, [currentPosition, locationStatus])
   useEffect(() => {
     isMountedRef.current = true
     window.queueMicrotask(() => {
@@ -325,22 +406,28 @@ function MapPage() {
   useEffect(() => {
     window.queueMicrotask(() => {
       if (isMountedRef.current) {
-        loadNearbyPlaces()
+        loadCategoryPlaces()
       }
     })
-  }, [loadNearbyPlaces])
+  }, [loadCategoryPlaces])
+
+  useEffect(() => {
+    window.queueMicrotask(() => {
+      if (isMountedRef.current) {
+        loadPopularPlaces()
+      }
+    })
+  }, [loadPopularPlaces])
 
   useEffect(() => {
     if (mapStatus !== 'ready' || !mapInstanceRef.current || !kakaoRef.current) return
 
     const kakao = kakaoRef.current
     const map = mapInstanceRef.current
-    const bounds = new kakao.maps.LatLngBounds()
-    const markerPositions = []
 
     clearMarkers()
 
-    places.forEach((place) => {
+    categoryPlaces.forEach((place) => {
       if (place.latitude === null || place.longitude === null) return
 
       const position = new kakao.maps.LatLng(place.latitude, place.longitude)
@@ -357,24 +444,17 @@ function MapPage() {
       })
       const handler = (event) => {
         event.stopPropagation()
-        selectPlace(place.kakaoPlaceId)
+        selectPlace(place.kakaoPlaceId, { focusMap: true })
       }
 
       markerElement.addEventListener('click', handler)
       markersRef.current.push({ marker, element: markerElement, handler, placeId: place.kakaoPlaceId })
-      bounds.extend(position)
-      markerPositions.push(position)
     })
 
-    if (markerPositions.length === 1) {
-      map.setLevel(4)
-      map.setCenter(markerPositions[0])
-    } else if (markerPositions.length > 1) {
-      map.setBounds(bounds)
-    }
+    fitMapToPlaces(categoryPlaces)
 
     return clearMarkers
-  }, [clearMarkers, mapStatus, places, selectPlace])
+  }, [categoryPlaces, clearMarkers, fitMapToPlaces, mapStatus, selectPlace])
 
   useEffect(() => {
     selectedPlaceIdRef.current = selectedPlaceId
@@ -388,19 +468,20 @@ function MapPage() {
   }, [selectedPlaceId])
 
   const handleCategorySelect = (categoryLabel) => {
-    placesRequestIdRef.current += 1
-    setSelectedCategory(categoryLabel)
-    setPlaces([])
-    setSelectedPlaceId(null)
-    setPlacesStatus('loading')
-    setPlacesError('')
-    setBoardError('')
-    setIsSheetOpen(true)
+    const nextState = getCategorySelectionState(categoryLabel)
+    categoryPlacesRequestIdRef.current += 1
+    setSelectedCategory(nextState.selectedCategory)
+    setCategoryPlaces(nextState.categoryPlaces)
+    setSelectedPlaceId(nextState.selectedPlaceId)
+    setCategoryPlacesStatus(nextState.categoryPlacesStatus)
+    setCategoryPlacesError(nextState.categoryPlacesError)
+    setBoardError(nextState.boardError)
+    setIsSheetOpen(nextState.isSheetOpen)
 
     if (categoryLabel === selectedCategory) {
       window.queueMicrotask(() => {
         if (isMountedRef.current) {
-          loadNearbyPlaces()
+          loadCategoryPlaces()
         }
       })
     }
@@ -434,7 +515,7 @@ function MapPage() {
 
     setBoardError('')
     setOpeningPlaceId(place.kakaoPlaceId)
-    selectPlace(place.kakaoPlaceId)
+    selectPlace(place.kakaoPlaceId, { focusMap: true })
 
     try {
       if (place.boardId) {
@@ -512,7 +593,11 @@ function MapPage() {
           </button>
           <div className="mx-2 h-5 w-px bg-[#EFE7DB]" />
           <button type="button" className="flex items-center gap-1.5 text-[14px] font-medium">
-            <SlidersHorizontal size={14} strokeWidth={1.8} />
+            {categoryPlacesStatus === 'loading' ? (
+              <Loader2 size={14} strokeWidth={1.8} className="animate-spin" />
+            ) : (
+              <SlidersHorizontal size={14} strokeWidth={1.8} />
+            )}
             <span>{selectedCategoryLabel}</span>
           </button>
         </div>
@@ -540,6 +625,11 @@ function MapPage() {
             )
           })}
         </div>
+        {categoryPlacesStatus === 'error' && categoryPlacesError ? (
+          <p className="mt-2 rounded-full bg-white/90 px-3 py-1.5 text-[12px] font-medium text-[#A74831] shadow-[0_4px_10px_rgba(0,0,0,0.04)]">
+            {categoryPlacesError}
+          </p>
+        ) : null}
       </section>
 
       <div
@@ -600,16 +690,16 @@ function MapPage() {
             <div className="mb-2 flex items-center justify-between">
               <div className="min-w-0">
                 <p className="truncate text-[13px] font-medium text-[#7A6558]">
-                  {placesPanelNotice}
+                  {popularPlacesPanelNotice}
                 </p>
               </div>
               <button
                 type="button"
-                onClick={loadNearbyPlaces}
-                disabled={placesStatus === 'loading'}
+                onClick={loadPopularPlaces}
+                disabled={popularPlacesStatus === 'loading'}
                 className="ml-3 flex shrink-0 items-center gap-1.5 text-[12px] font-medium text-[#5A4030] disabled:opacity-60"
               >
-                <RefreshCw size={13} strokeWidth={1.8} className={placesStatus === 'loading' ? 'animate-spin' : ''} />
+                <RefreshCw size={13} strokeWidth={1.8} className={popularPlacesStatus === 'loading' ? 'animate-spin' : ''} />
                 갱신
               </button>
             </div>
@@ -617,18 +707,18 @@ function MapPage() {
             {boardError ? <p className="mb-2 text-[12px] font-medium text-[#A74831]">{boardError}</p> : null}
 
             <div className={MAP_PLACE_LIST_SCROLL_CLASSES}>
-              {placesStatus === 'idle' ? (
-                <PlacesPanelState message="카테고리를 선택하면 주변 공간을 보여드려요." />
+              {popularPlacesStatus === 'idle' ? (
+                <PlacesPanelState message="현재 위치를 확인하면 주변 인기 공간을 보여드려요." />
               ) : null}
-              {placesStatus === 'loading' ? <PlaceLoadingCards /> : null}
-              {placesStatus === 'error' ? (
-                <PlacesPanelState message={placesError} actionLabel="다시 불러오기" onAction={loadNearbyPlaces} />
+              {popularPlacesStatus === 'loading' ? <PlaceLoadingCards /> : null}
+              {popularPlacesStatus === 'error' ? (
+                <PlacesPanelState message={popularPlacesError} actionLabel="다시 불러오기" onAction={loadPopularPlaces} />
               ) : null}
-              {placesStatus === 'success' && places.length === 0 ? (
-                <PlacesPanelState message="근처에 보여줄 장소가 아직 없어요." actionLabel="다시 찾기" onAction={loadNearbyPlaces} />
+              {popularPlacesStatus === 'success' && popularPlaces.length === 0 ? (
+                <PlacesPanelState message="근처에 보여줄 장소가 아직 없어요." actionLabel="다시 찾기" onAction={loadPopularPlaces} />
               ) : null}
-              {placesStatus === 'success'
-                ? places.map((place) => (
+              {popularPlacesStatus === 'success'
+                ? popularPlaces.map((place) => (
                   <PlaceCard
                     key={place.kakaoPlaceId}
                     refCallback={(node) => {
@@ -637,7 +727,7 @@ function MapPage() {
                     place={place}
                     isSelected={place.kakaoPlaceId === selectedPlaceId}
                     isOpening={place.kakaoPlaceId === openingPlaceId}
-                    onSelect={() => selectPlace(place.kakaoPlaceId)}
+                    onSelect={() => selectPlace(place.kakaoPlaceId, { focusMap: true })}
                     onOpen={() => handleOpenBoard(place)}
                   />
                 ))

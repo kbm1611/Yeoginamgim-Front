@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import {
   buildBoardRequestFromPlace,
   buildNearbyPlaceRequests,
+  buildPopularPlaceRequest,
   CATEGORY_FILTERS,
   MAP_BOTTOM_SHEET_BOTTOM_OFFSET_PX,
   MAP_BOTTOM_SHEET_COLLAPSED_VISIBLE_HEIGHT_PX,
@@ -27,6 +28,7 @@ import {
   getPlaceCategoryMeta,
   inferPlaceCategoryKey,
   normalizePlaces,
+  normalizePopularPlaces,
 } from './Map.utils.js'
 
 const KAKAO_CATEGORY_CODES = [
@@ -125,6 +127,32 @@ test('buildNearbyPlaceRequests skips nearby lookup before a category is selected
     }),
     []
   )
+})
+
+test('buildNearbyPlaceRequests is only for category marker lookups', () => {
+  const requests = buildNearbyPlaceRequests({
+    latitude: 37.5447,
+    longitude: 127.0559,
+    selectedCategory: null,
+  })
+
+  assert.deepEqual(requests, [])
+})
+
+test('buildPopularPlaceRequest creates an uncategorized nearby lookup for the bottom sheet', () => {
+  const request = buildPopularPlaceRequest({
+    latitude: 37.5447,
+    longitude: 127.0559,
+  })
+
+  assert.deepEqual(request, {
+    latitude: 37.5447,
+    longitude: 127.0559,
+    radius: 20000,
+    page: 1,
+    limit: 15,
+  })
+  assert.equal(Object.hasOwn(request, 'category'), false)
 })
 
 test('category filters expose stable icon names for map controls', () => {
@@ -288,6 +316,40 @@ test('normalizePlaces uses distance before board state when trace counts tie', (
   )
 })
 
+test('normalizePopularPlaces keeps trace count as the primary bottom sheet sort', () => {
+  const places = normalizePopularPlaces(
+    [
+      {
+        kakaoPlaceId: 'near-low',
+        placeName: 'Near Low',
+        latitude: 37.5447,
+        longitude: 127.0559,
+        traceCount: 2,
+      },
+      {
+        kakaoPlaceId: 'far-high',
+        placeName: 'Far High',
+        latitude: 37.5647,
+        longitude: 127.0559,
+        traceCount: 9,
+      },
+      {
+        kakaoPlaceId: 'near-high',
+        placeName: 'Near High',
+        latitude: 37.5457,
+        longitude: 127.0559,
+        traceCount: 9,
+      },
+    ],
+    { latitude: 37.5447, longitude: 127.0559 }
+  )
+
+  assert.deepEqual(
+    places.map((place) => place.kakaoPlaceId),
+    ['near-high', 'far-high', 'near-low']
+  )
+})
+
 test('place category metadata provides warm custom marker styles with a fallback', () => {
   assert.equal(PLACE_CATEGORY_META.default.backgroundColor, '#FFFDF8')
   assert.equal(getPlaceCategoryMeta('CE7').iconName, 'coffee')
@@ -425,12 +487,14 @@ test('category selection state clears the previous selected place before loading
   const state = getCategorySelectionState('\uCE74\uD398')
 
   assert.equal(state.selectedCategory, '\uCE74\uD398')
-  assert.deepEqual(state.places, [])
+  assert.deepEqual(state.categoryPlaces, [])
   assert.equal(state.selectedPlaceId, null)
-  assert.equal(state.placesStatus, 'loading')
-  assert.equal(state.placesError, '')
+  assert.equal(state.categoryPlacesStatus, 'loading')
+  assert.equal(state.categoryPlacesError, '')
   assert.equal(state.boardError, '')
   assert.equal(state.isSheetOpen, true)
+  assert.equal(Object.hasOwn(state, 'popularPlaces'), false)
+  assert.equal(Object.hasOwn(state, 'popularPlacesStatus'), false)
 })
 
 test('bottom sheet animation classes use a slower eased transform with reduced motion support', () => {

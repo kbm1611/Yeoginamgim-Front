@@ -258,6 +258,20 @@ export function buildNearbyPlaceRequests({ latitude, longitude, selectedCategory
   }))
 }
 
+export function buildPopularPlaceRequest({ latitude, longitude } = {}) {
+  const safeLatitude = toCoordinate(latitude)
+  const safeLongitude = toCoordinate(longitude)
+  if (safeLatitude === null || safeLongitude === null) return null
+
+  return {
+    latitude: safeLatitude,
+    longitude: safeLongitude,
+    radius: NEARBY_RADIUS_METERS,
+    page: 1,
+    limit: NEARBY_LIMIT,
+  }
+}
+
 export function normalizePlaces(places, origin, limit = NEARBY_LIMIT) {
   const seenPlaceIds = new Set()
   const flattenedPlaces = Array.isArray(places)
@@ -273,6 +287,10 @@ export function normalizePlaces(places, origin, limit = NEARBY_LIMIT) {
     })
     .sort(comparePlaces)
     .slice(0, limit)
+}
+
+export function normalizePopularPlaces(places, origin, limit = NEARBY_LIMIT) {
+  return normalizePlaces(places, origin, limit)
 }
 
 export function normalizePlace(place, origin, requestCategory = null) {
@@ -379,10 +397,10 @@ export function getMapViewportPlan(places = [], currentPosition = null) {
 export function getCategorySelectionState(categoryLabel) {
   return {
     selectedCategory: categoryLabel,
-    places: [],
+    categoryPlaces: [],
     selectedPlaceId: null,
-    placesStatus: 'loading',
-    placesError: '',
+    categoryPlacesStatus: 'loading',
+    categoryPlacesError: '',
     boardError: '',
     isSheetOpen: true,
   }
