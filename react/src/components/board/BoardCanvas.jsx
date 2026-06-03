@@ -86,7 +86,9 @@ function PolaroidCard({ post }) {
   const [imageFailed, setImageFailed] = useState(false)
   const imageSrc = post.media?.image
   const captionLength = post.content?.length ?? 0
-  const captionFontSize = captionLength > 40 ? 24 : 30
+  const savedFontSize = Number(post.style?.fontSize)
+  const captionFontSize = Number.isFinite(savedFontSize) && savedFontSize > 0 ? savedFontSize : captionLength > 40 ? 24 : 30
+  const captionFontFamily = post.style?.fontFamily ?? "'Nanum Pen Script', 'Gaegu', cursive"
 
   return (
     <article
@@ -97,6 +99,7 @@ function PolaroidCard({ post }) {
         width: 320,
         transform: `rotate(${post._rotate}deg)`,
         borderRadius: 10,
+        backgroundColor: post.style?.backgroundColor ?? '#FFFFFF',
         boxShadow: '0 6px 22px rgba(42,28,20,0.20), 0 2px 6px rgba(42,28,20,0.10)',
       }}
     >
@@ -121,7 +124,7 @@ function PolaroidCard({ post }) {
           className="break-words leading-[1.25]"
           style={{
             color: post.style?.color ?? '#1E1712',
-            fontFamily: "'Nanum Pen Script', 'Gaegu', cursive",
+            fontFamily: captionFontFamily,
             fontSize: captionFontSize,
           }}
         >
@@ -143,7 +146,9 @@ function PostItCard({ post }) {
   const texture = POSTIT_TEXTURE[paperColor]
   const bgColor = POSTIT_COLOR[paperColor] ?? '#F3D98E'
   const contentLength = post.content?.length ?? 0
-  const fontSize = contentLength > 60 ? 24 : contentLength > 35 ? 29 : 34
+  const savedFontSize = Number(post.style?.fontSize)
+  const fontSize = Number.isFinite(savedFontSize) && savedFontSize > 0 ? savedFontSize : contentLength > 60 ? 24 : contentLength > 35 ? 29 : 34
+  const fontFamily = post.style?.fontFamily ?? "'Nanum Pen Script', 'Gaegu', cursive"
 
   return (
     <article
@@ -168,7 +173,7 @@ function PostItCard({ post }) {
           className="max-h-full whitespace-pre-line break-words text-center leading-[1.3]"
           style={{
             color: post.style?.textColor ?? '#2A211A',
-            fontFamily: "'Nanum Pen Script', 'Gaegu', cursive",
+            fontFamily,
             fontSize,
           }}
         >

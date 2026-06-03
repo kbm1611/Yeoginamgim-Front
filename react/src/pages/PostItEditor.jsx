@@ -14,11 +14,39 @@ const tabs = [
 ]
 
 const postitPalette = [
-  { key: 'yellow', hex: '#F3D98E', texture: postitYellow },
-  { key: 'pink',   hex: '#EEB7C6', texture: postitPink },
-  { key: 'green',  hex: '#D2D4A2', texture: postitGreen },
-  { key: 'cream',  hex: '#F0EAD6', texture: postitCream },
-  { key: 'white',  hex: '#F8F6F0', texture: null },
+  { key: 'yellow', label: '노랑', hex: '#F3D98E', texture: postitYellow },
+  { key: 'pink', label: '분홍', hex: '#EEB7C6', texture: postitPink },
+  { key: 'green', label: '초록', hex: '#D2D4A2', texture: postitGreen },
+  { key: 'cream', label: '크림', hex: '#F0EAD6', texture: postitCream },
+  { key: 'white', label: '흰색', hex: '#F8F6F0', texture: null },
+]
+
+const polaroidBackgroundPalette = [
+  { key: 'white', label: '흰색', hex: '#FFFFFF' },
+  { key: 'cream', label: '크림', hex: '#F6EFE2' },
+  { key: 'pink', label: '분홍', hex: '#F8E4EA' },
+  { key: 'green', label: '초록', hex: '#E7E8CF' },
+]
+
+const textColorPalette = [
+  { key: 'brown', label: '갈색', hex: '#2D2218' },
+  { key: 'red', label: '빨강', hex: '#9B2F2F' },
+  { key: 'blue', label: '파랑', hex: '#315D8A' },
+  { key: 'green', label: '초록', hex: '#3F6F4B' },
+  { key: 'black', label: '검정', hex: '#19130F' },
+]
+
+const fontOptions = [
+  { key: 'pen', label: '손글씨', family: "'Nanum Pen Script', 'Gaegu', cursive" },
+  { key: 'round', label: '둥근글씨', family: "'Gaegu', 'Nanum Pen Script', cursive" },
+  { key: 'serif', label: '명조', family: "'Noto Serif KR', serif" },
+  { key: 'sans', label: '고딕', family: "'Pretendard', 'Noto Sans KR', sans-serif" },
+]
+
+const fontSizeOptions = [
+  { key: 'small', label: '작게', polaroid: 22, postit: 24 },
+  { key: 'medium', label: '보통', polaroid: 26, postit: 28 },
+  { key: 'large', label: '크게', polaroid: 30, postit: 32 },
 ]
 
 const photos = [
@@ -70,17 +98,70 @@ function SelectionBox({ children }) {
 }
 
 // 툴바 버튼
-function ToolBtn({ label, children, onClick }) {
+function ToolBtn({ label, children, onClick, active = false }) {
   return (
     <button
       type="button"
       onClick={onClick}
       className="flex flex-col items-center gap-1.5"
     >
-      <div className="flex h-14 w-14 items-center justify-center rounded-[16px] bg-[#EAE5DC] text-[#3A2E26]">
+      <div
+        className={`flex h-14 w-14 items-center justify-center rounded-[16px] text-[#3A2E26] ${
+          active ? 'bg-[#D6CABD] ring-2 ring-[#3A2E26]/20' : 'bg-[#EAE5DC]'
+        }`}
+      >
         {children}
       </div>
       <span className="text-[12px] font-medium text-[#3A2E26]">{label}</span>
+    </button>
+  )
+}
+
+function OptionPanel({ title, children }) {
+  return (
+    <div className="mt-3 rounded-[16px] bg-white/85 p-3 shadow-[0_8px_24px_rgba(35,24,16,0.08)]">
+      <p className="text-[13px] font-bold text-[#3A2E26]">{title}</p>
+      <div className="mt-3 space-y-3">{children}</div>
+    </div>
+  )
+}
+
+function PanelGroup({ label, children }) {
+  return (
+    <div>
+      <p className="mb-2 text-[12px] font-semibold text-[#7A6357]">{label}</p>
+      {children}
+    </div>
+  )
+}
+
+function TextOptionButton({ option, active, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`h-9 rounded-[9px] px-3 text-[13px] font-semibold ${
+        active ? 'bg-[#3A2E26] text-white' : 'bg-[#EFE8DE] text-[#3A2E26]'
+      }`}
+      style={{ fontFamily: option.family }}
+    >
+      {option.label}
+    </button>
+  )
+}
+
+function ColorOptionButton({ option, active, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={option.label}
+      className={`flex h-9 w-9 items-center justify-center rounded-full ${
+        active ? 'ring-2 ring-[#3A2E26] ring-offset-2' : ''
+      }`}
+      style={{ backgroundColor: option.hex }}
+    >
+      {active ? <span className="h-2 w-2 rounded-full bg-white shadow" /> : null}
     </button>
   )
 }
@@ -98,11 +179,22 @@ function PostItEditor() {
   const [selectedPhotoPreview, setSelectedPhotoPreview] = useState('')
   const [text, setText] = useState('오늘 행복했다 ♡')
   const [postitColor, setPostitColor] = useState('yellow')
+  const [polaroidBackgroundColor, setPolaroidBackgroundColor] = useState('#FFFFFF')
+  const [textColor, setTextColor] = useState('#2D2218')
+  const [fontKey, setFontKey] = useState('pen')
+  const [fontSizeKey, setFontSizeKey] = useState('medium')
+  const [activePanel, setActivePanel] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
 
   const activePalette = useMemo(() => postitPalette.find((p) => p.key === postitColor) ?? postitPalette[0], [postitColor])
+  const activeFont = useMemo(() => fontOptions.find((item) => item.key === fontKey) ?? fontOptions[0], [fontKey])
+  const activeFontSize = useMemo(
+    () => fontSizeOptions.find((item) => item.key === fontSizeKey) ?? fontSizeOptions[1],
+    [fontSizeKey],
+  )
   const currentPhoto = selectedPhotoPreview || photos[photoIdx]
+  const editorFontSize = tab === 'polaroid' ? activeFontSize.polaroid : activeFontSize.postit
 
   useEffect(() => {
     return () => {
@@ -128,13 +220,8 @@ function PostItEditor() {
     setPhotoIdx((p) => (p + 1) % photos.length)
   }
 
-  const handleNextPostitColor = () => {
-    setPostitColor((current) => {
-      const currentIndex = postitPalette.findIndex((item) => item.key === current)
-      const nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % postitPalette.length
-
-      return postitPalette[nextIndex].key
-    })
+  const togglePanel = (panelName) => {
+    setActivePanel((current) => (current === panelName ? null : panelName))
   }
 
   const handleComplete = async () => {
@@ -180,15 +267,20 @@ function PostItEditor() {
             styleJson: JSON.stringify(
               isPolaroid
                 ? {
-                    font: 'hand',
-                    paperColor: 'white',
-                    textColor: '#2E231B',
+                    font: fontKey,
+                    fontFamily: activeFont.family,
+                    fontSize: activeFontSize.polaroid,
+                    paperColor: polaroidBackgroundColor,
+                    backgroundColor: polaroidBackgroundColor,
+                    textColor,
                   }
                 : {
                     paperColor: postitColor,
                     backgroundColor: activePalette.hex,
-                    textColor: '#2D2218',
-                    fontFamily: 'Nanum Pen Script',
+                    textColor,
+                    font: fontKey,
+                    fontFamily: activeFont.family,
+                    fontSize: activeFontSize.postit,
                   },
             ),
           },
@@ -252,7 +344,10 @@ function PostItEditor() {
                 <button
                   key={key}
                   type="button"
-                  onClick={() => setTab(key)}
+                  onClick={() => {
+                    setTab(key)
+                    setActivePanel(null)
+                  }}
                   className={`flex items-center justify-center gap-2 rounded-[10px] py-3 text-[15px] font-semibold transition-all ${
                     active ? 'bg-[#2A1F17] text-white shadow-sm' : 'text-[#6B5344]'
                   }`}
@@ -282,7 +377,12 @@ function PostItEditor() {
 
               {/* 폴라로이드 프레임 */}
               <div className="relative bg-white shadow-[0_14px_40px_rgba(0,0,0,0.22)]"
-                style={{ width: 300, borderRadius: 4, padding: '10px 10px 52px 10px' }}>
+                style={{
+                  width: 300,
+                  borderRadius: 4,
+                  padding: '10px 10px 52px 10px',
+                  backgroundColor: polaroidBackgroundColor,
+                }}>
 
                 {/* 사진 */}
                 <img
@@ -305,8 +405,13 @@ function PostItEditor() {
                     <textarea
                       value={text}
                       onChange={(e) => setText(e.target.value)}
-                      className="w-full resize-none border-none bg-transparent text-center leading-[1.3] text-[#19130F] outline-none"
-                      style={{ fontFamily: "'Nanum Pen Script', 'Gaegu', cursive", fontSize: 26, height: 38 }}
+                      className="w-full resize-none border-none bg-transparent text-center leading-[1.3] outline-none"
+                      style={{
+                        color: textColor,
+                        fontFamily: activeFont.family,
+                        fontSize: editorFontSize,
+                        height: 38,
+                      }}
                       rows={1}
                     />
                   </SelectionBox>
@@ -335,8 +440,13 @@ function PostItEditor() {
                     <textarea
                       value={text}
                       onChange={(e) => setText(e.target.value)}
-                      className="w-full resize-none border-none bg-transparent text-center leading-[1.4] text-[#2D2218] outline-none"
-                      style={{ fontFamily: "'Nanum Pen Script', 'Gaegu', cursive", fontSize: 28, minHeight: 80 }}
+                      className="w-full resize-none border-none bg-transparent text-center leading-[1.4] outline-none"
+                      style={{
+                        color: textColor,
+                        fontFamily: activeFont.family,
+                        fontSize: editorFontSize,
+                        minHeight: 80,
+                      }}
                       rows={3}
                     />
                   </SelectionBox>
@@ -361,7 +471,7 @@ function PostItEditor() {
               <line x1="15" y1="9" x2="15.01" y2="9" strokeWidth="3" strokeLinecap="round"/>
             </svg>
           </ToolBtn>
-          <ToolBtn label="텍스트">
+          <ToolBtn label="텍스트" onClick={() => togglePanel('text')} active={activePanel === 'text'}>
             <span className="text-[22px] font-bold">T</span>
           </ToolBtn>
           <ToolBtn label="펜">
@@ -369,12 +479,87 @@ function PostItEditor() {
               <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
             </svg>
           </ToolBtn>
-          <ToolBtn label="색상" onClick={handleNextPostitColor}>
+          <ToolBtn label="색상" onClick={() => togglePanel('color')} active={activePanel === 'color'}>
             <div className="h-7 w-7 rounded-full" style={{
               background: 'conic-gradient(#FF6B6B, #FFD93D, #6BCB77, #4D96FF, #CC77FF, #FF6B6B)'
             }} />
           </ToolBtn>
         </div>
+
+        {activePanel === 'text' ? (
+          <OptionPanel title="텍스트">
+            <PanelGroup label="글꼴">
+              <div className="grid grid-cols-4 gap-2">
+                {fontOptions.map((option) => (
+                  <TextOptionButton
+                    key={option.key}
+                    option={option}
+                    active={fontKey === option.key}
+                    onClick={() => setFontKey(option.key)}
+                  />
+                ))}
+              </div>
+            </PanelGroup>
+
+            <PanelGroup label="글자 크기">
+              <div className="grid grid-cols-3 gap-2">
+                {fontSizeOptions.map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => setFontSizeKey(option.key)}
+                    className={`h-9 rounded-[9px] text-[13px] font-semibold ${
+                      fontSizeKey === option.key ? 'bg-[#3A2E26] text-white' : 'bg-[#EFE8DE] text-[#3A2E26]'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </PanelGroup>
+          </OptionPanel>
+        ) : null}
+
+        {activePanel === 'color' ? (
+          <OptionPanel title="색상">
+            <PanelGroup label="글자색">
+              <div className="flex flex-wrap gap-3">
+                {textColorPalette.map((option) => (
+                  <ColorOptionButton
+                    key={option.key}
+                    option={option}
+                    active={textColor === option.hex}
+                    onClick={() => setTextColor(option.hex)}
+                  />
+                ))}
+              </div>
+            </PanelGroup>
+
+            <PanelGroup label="배경색">
+              <div className="flex flex-wrap gap-3">
+                {(tab === 'polaroid' ? polaroidBackgroundPalette : postitPalette).map((option) => (
+                  <ColorOptionButton
+                    key={option.key}
+                    option={option}
+                    active={
+                      tab === 'polaroid'
+                        ? polaroidBackgroundColor === option.hex
+                        : postitColor === option.key
+                    }
+                    onClick={() => {
+                      if (tab === 'polaroid') {
+                        setPolaroidBackgroundColor(option.hex)
+                        return
+                      }
+
+                      setPostitColor(option.key)
+                    }}
+                  />
+                ))}
+              </div>
+            </PanelGroup>
+          </OptionPanel>
+        ) : null}
 
 
         {/* 하단 액션바 */}
