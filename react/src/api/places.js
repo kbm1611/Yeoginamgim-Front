@@ -1,24 +1,17 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
-
-function buildApiUrl(path, params = {}) {
-  const url = new URL(path, API_BASE_URL)
-
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && String(value).trim() !== '') {
-      url.searchParams.set(key, value)
-    }
-  })
-
-  return url
-}
+import { apiClient } from './client'
 
 export async function fetchPopularPlaces({ district, limit = 5 } = {}) {
-  const url = buildApiUrl('/api/places/popular', { district, limit })
-  const response = await fetch(url)
+  return apiClient.get('/api/places/popular', { district, limit })
+}
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch popular places: ${response.status}`)
-  }
-
-  return response.json()
+export async function fetchNearbyPlaces({ latitude, longitude, radius, category, query, page, limit } = {}) {
+  return apiClient.get('/api/places/nearby', {
+    latitude,
+    longitude,
+    radius,
+    category,
+    query,
+    page,
+    limit,
+  })
 }
