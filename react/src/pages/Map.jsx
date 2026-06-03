@@ -11,13 +11,12 @@ import {
   SlidersHorizontal,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { createBoard, fetchBoardByKakaoPlaceId } from '../api/boards'
+import { fetchOrCreateBoardForPlace } from '../api/boards'
 import { ensureKakaoMaps } from '../api/kakaoMaps'
 import { fetchNearbyPlaces } from '../api/places'
 import mainLogo from '../assets/logo/image_12-removebg-preview.png'
 import placePlaceholder from '../assets/images/home/place-placeholder.png'
 import {
-  buildBoardRequestFromPlace,
   buildNearbyPlaceRequests,
   CATEGORY_FILTERS,
   DEFAULT_MAP_CENTER,
@@ -332,7 +331,7 @@ function MapPage() {
         return
       }
 
-      const board = await fetchOrCreateBoard(place)
+      const board = await fetchOrCreateBoardForPlace(place)
       if (!board?.boardId) {
         throw new Error('Board response does not include boardId.')
       }
@@ -625,15 +624,6 @@ function createCurrentLocationMarkerElement(title) {
   marker.appendChild(dot)
 
   return marker
-}
-
-async function fetchOrCreateBoard(place) {
-  try {
-    return await fetchBoardByKakaoPlaceId(place.kakaoPlaceId)
-  } catch (error) {
-    if (error?.status !== 404) throw error
-    return createBoard(buildBoardRequestFromPlace(place))
-  }
 }
 
 function getCurrentPosition() {

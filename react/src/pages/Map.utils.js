@@ -1,3 +1,5 @@
+export { buildBoardRequestFromPlace } from '../api/boards.utils.js'
+
 export const DEFAULT_MAP_CENTER = {
   latitude: 37.5447,
   longitude: 127.0559,
@@ -99,19 +101,6 @@ export function normalizePlace(place, origin) {
     hasBoard: place.boardId !== null && place.boardId !== undefined,
     distanceMeters,
     distanceLabel: formatDistance(distanceMeters),
-  }
-}
-
-export function buildBoardRequestFromPlace(place) {
-  return {
-    kakaoPlaceId: place?.kakaoPlaceId,
-    placeName: place?.placeName,
-    latitude: place?.latitude,
-    longitude: place?.longitude,
-    phone: place?.phone ?? '',
-    address: place?.address ?? '',
-    kakaoMapUrl: place?.kakaoMapUrl ?? '',
-    groupName: place?.groupName,
   }
 }
 
