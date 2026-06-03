@@ -25,13 +25,16 @@ function BoardDetail() {
     const draft = location.state?.placementDraft
     if (!draft) return
     const post = { ...draft }
-    setPosts((prev) => {
-      const next = [post, ...prev]
-      localStorage.setItem(storageKey(boardId), JSON.stringify(next))
-      return next
+
+    queueMicrotask(() => {
+      setPosts((prev) => {
+        const next = [post, ...prev]
+        localStorage.setItem(storageKey(boardId), JSON.stringify(next))
+        return next
+      })
+      navigate(location.pathname, { replace: true, state: {} })
     })
-    navigate(location.pathname, { replace: true, state: {} })
-  }, [location.state?.placementDraft])
+  }, [boardId, location.pathname, location.state?.placementDraft, navigate])
 
   const sortedPosts =
     sort === 'latest'

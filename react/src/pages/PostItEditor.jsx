@@ -85,7 +85,7 @@ function PostItEditor() {
   const [tab, setTab] = useState(location.state?.initialTab === 'polaroid' ? 'polaroid' : 'postit')
   const [photoIdx, setPhotoIdx] = useState(0)
   const [text, setText] = useState('오늘 행복했다 ♡')
-  const [postitColor, setPostitColor] = useState('yellow')
+  const [postitColor] = useState('yellow')
 
   const activePalette = useMemo(() => postitPalette.find((p) => p.key === postitColor) ?? postitPalette[0], [postitColor])
 
