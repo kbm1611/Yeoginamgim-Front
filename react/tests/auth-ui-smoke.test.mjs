@@ -8,7 +8,9 @@ const read = (path) => readFileSync(join(root, path), 'utf8')
 
 const app = read('src/App.jsx')
 assert.match(app, /import SignupPage from '\.\/pages\/SignupPage'/)
+assert.match(app, /import OAuthCallbackPage from '\.\/pages\/OAuthCallbackPage'/)
 assert.match(app, /<Route path="\/signup" element={<SignupPage \/>} \/>/)
+assert.match(app, /<Route path="\/oauth\/callback" element={<OAuthCallbackPage \/>} \/>/)
 assert.match(app, /RequireAuth/)
 
 const loginPage = read('src/pages/LoginPage.jsx')
@@ -29,3 +31,8 @@ assert.doesNotMatch(signupPage, /fetch\(/)
 
 const usersApi = read('src/api/users.js')
 assert.match(usersApi, /\/api\/user\/signup/)
+
+const oauthCallbackPage = read('src/pages/OAuthCallbackPage.jsx')
+assert.match(oauthCallbackPage, /setAuthToken/)
+assert.match(oauthCallbackPage, /URLSearchParams/)
+assert.match(oauthCallbackPage, /navigate\('\/home'/)
