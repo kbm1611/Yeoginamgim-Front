@@ -1,4 +1,7 @@
 import { apiClient, pathSegment } from './client'
+import { buildBoardRequestFromPlace, resolveBoardForPlace } from './boards.utils'
+
+export { buildBoardRequestFromPlace }
 
 // 보드 조회
 export function fetchBoardByKakaoPlaceId(kakaoPlaceId) {
@@ -13,4 +16,11 @@ export function fetchBoardDetail(boardId) {
 // 보드 생성 요청
 export function createBoard(boardRequest) {
   return apiClient.post('/api/boards', boardRequest)
+}
+
+export function fetchOrCreateBoardForPlace(place) {
+  return resolveBoardForPlace(place, {
+    fetchBoardByKakaoPlaceId,
+    createBoard,
+  })
 }
