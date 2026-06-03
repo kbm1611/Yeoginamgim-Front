@@ -1,4 +1,5 @@
 const KAKAO_SCRIPT_ID = 'kakao-map-sdk'
+const KAKAO_SDK_LOAD_TIMEOUT_MS = 12000
 
 let kakaoScriptPromise = null
 
@@ -7,8 +8,12 @@ export function ensureKakaoMaps() {
     return Promise.reject(new Error('Kakao Maps SDK requires a browser environment.'))
   }
 
+  if (isLoadedKakaoMaps(window.kakao)) {
+    return Promise.resolve(window.kakao)
+  }
+
   if (window.kakao?.maps?.load) {
-    return loadKakaoMaps()
+    return loadKakaoMapsWithTimeout()
   }
 
   const kakaoJavaScriptKey = import.meta.env.VITE_KAKAO_JAVASCRIPT_KEY
@@ -18,17 +23,52 @@ export function ensureKakaoMaps() {
 
   if (!kakaoScriptPromise) {
     kakaoScriptPromise = new Promise((resolve, reject) => {
+      let timeoutId = null
+
+      const stopWaiting = () => {
+        if (timeoutId !== null) {
+          window.clearTimeout(timeoutId)
+          timeoutId = null
+        }
+      }
+
       const finishLoading = () => {
-        loadKakaoMaps().then(resolve).catch(reject)
+        loadKakaoMapsWithTimeout()
+          .then((kakao) => {
+            stopWaiting()
+            resolve(kakao)
+          })
+          .catch((error) => {
+            stopWaiting()
+            kakaoScriptPromise = null
+            reject(error)
+          })
       }
 
       const failLoading = () => {
+        stopWaiting()
         kakaoScriptPromise = null
         reject(new Error('Kakao Maps SDK failed to load.'))
       }
 
+      timeoutId = window.setTimeout(() => {
+        kakaoScriptPromise = null
+        reject(new Error('Kakao Maps SDK load timed out.'))
+      }, KAKAO_SDK_LOAD_TIMEOUT_MS)
+
       const existingScript = document.getElementById(KAKAO_SCRIPT_ID)
       if (existingScript) {
+        if (isLoadedKakaoMaps(window.kakao)) {
+          stopWaiting()
+          resolve(window.kakao)
+          return
+        }
+
+        if (window.kakao?.maps?.load) {
+          finishLoading()
+          return
+        }
+
         existingScript.addEventListener('load', finishLoading, { once: true })
         existingScript.addEventListener('error', failLoading, { once: true })
         return
@@ -47,13 +87,34 @@ export function ensureKakaoMaps() {
   return kakaoScriptPromise
 }
 
-function loadKakaoMaps() {
+export function isLoadedKakaoMaps(kakao) {
+  return Boolean(kakao?.maps?.Map && kakao?.maps?.LatLng && kakao?.maps?.Marker)
+}
+
+function loadKakaoMapsWithTimeout() {
   return new Promise((resolve, reject) => {
+    if (isLoadedKakaoMaps(window.kakao)) {
+      resolve(window.kakao)
+      return
+    }
+
     if (!window.kakao?.maps?.load) {
       reject(new Error('Kakao Maps SDK did not initialize.'))
       return
     }
 
-    window.kakao.maps.load(() => resolve(window.kakao))
+    const timeoutId = window.setTimeout(() => {
+      reject(new Error('Kakao Maps SDK load timed out.'))
+    }, KAKAO_SDK_LOAD_TIMEOUT_MS)
+
+    window.kakao.maps.load(() => {
+      window.clearTimeout(timeoutId)
+      if (isLoadedKakaoMaps(window.kakao)) {
+        resolve(window.kakao)
+        return
+      }
+
+      reject(new Error('Kakao Maps SDK did not initialize.'))
+    })
   })
 }

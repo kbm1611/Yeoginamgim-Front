@@ -21,6 +21,7 @@ import {
   CATEGORY_FILTERS,
   DEFAULT_MAP_CENTER,
   NEARBY_LIMIT,
+  getCurrentPositionMarkerTitle,
   normalizePlaces,
 } from './Map.utils'
 
@@ -38,6 +39,7 @@ function MapPage() {
   const kakaoRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const markersRef = useRef([])
+  const currentLocationOverlayRef = useRef(null)
   const cardRefs = useRef({})
   const placesRequestIdRef = useRef(0)
   const isMountedRef = useRef(false)
@@ -92,6 +94,11 @@ function MapPage() {
       marker.setMap(null)
     })
     markersRef.current = []
+  }, [])
+
+  const clearCurrentLocationOverlay = useCallback(() => {
+    currentLocationOverlayRef.current?.setMap(null)
+    currentLocationOverlayRef.current = null
   }, [])
 
   const moveMapTo = useCallback((position, { smooth = true } = {}) => {
@@ -228,14 +235,36 @@ function MapPage() {
     return () => {
       cancelled = true
       clearMarkers()
+      clearCurrentLocationOverlay()
       mapInstanceRef.current = null
     }
-  }, [clearMarkers, mapRetryKey])
+  }, [clearCurrentLocationOverlay, clearMarkers, mapRetryKey])
 
   useEffect(() => {
     if (mapStatus !== 'ready') return
     moveMapTo(currentPosition, { smooth: false })
   }, [currentPosition, mapStatus, moveMapTo])
+
+  useEffect(() => {
+    if (mapStatus !== 'ready' || !mapInstanceRef.current || !kakaoRef.current) return
+    if (currentPosition.latitude === null || currentPosition.longitude === null) return
+
+    const kakao = kakaoRef.current
+    const position = new kakao.maps.LatLng(currentPosition.latitude, currentPosition.longitude)
+    const title = getCurrentPositionMarkerTitle(locationStatus)
+
+    clearCurrentLocationOverlay()
+    currentLocationOverlayRef.current = new kakao.maps.CustomOverlay({
+      map: mapInstanceRef.current,
+      position,
+      content: createCurrentLocationMarkerElement(title),
+      xAnchor: 0.5,
+      yAnchor: 0.5,
+      zIndex: 50,
+    })
+
+    return clearCurrentLocationOverlay
+  }, [clearCurrentLocationOverlay, currentPosition, locationStatus, mapStatus])
 
   useEffect(() => {
     window.queueMicrotask(() => {
@@ -688,6 +717,32 @@ function MapOverlay({ children }) {
   )
 }
 
+function createCurrentLocationMarkerElement(title) {
+  const marker = document.createElement('div')
+  marker.title = title
+  marker.setAttribute('aria-label', title)
+  marker.style.width = '28px'
+  marker.style.height = '28px'
+  marker.style.borderRadius = '9999px'
+  marker.style.background = 'rgba(61, 36, 21, 0.16)'
+  marker.style.border = '1px solid rgba(61, 36, 21, 0.22)'
+  marker.style.display = 'flex'
+  marker.style.alignItems = 'center'
+  marker.style.justifyContent = 'center'
+  marker.style.boxShadow = '0 6px 14px rgba(61, 36, 21, 0.18)'
+
+  const dot = document.createElement('span')
+  dot.style.width = '13px'
+  dot.style.height = '13px'
+  dot.style.borderRadius = '9999px'
+  dot.style.background = '#3D2415'
+  dot.style.border = '3px solid #FFFFFF'
+  dot.style.boxShadow = '0 2px 6px rgba(61, 36, 21, 0.24)'
+  marker.appendChild(dot)
+
+  return marker
+}
+
 async function fetchOrCreateBoard(place) {
   try {
     return await fetchBoardByKakaoPlaceId(place.kakaoPlaceId)
@@ -711,6 +766,10 @@ function getMapErrorMessage(error) {
   const message = String(error?.message ?? '')
   if (message.includes('VITE_KAKAO_JAVASCRIPT_KEY')) {
     return 'Kakao JavaScript Key가 설정되지 않았어요.'
+  }
+
+  if (message.includes('timed out') || message.includes('did not initialize')) {
+    return 'Kakao Map을 초기화하지 못했어요. JavaScript Key와 등록 도메인을 확인해주세요.'
   }
 
   return 'Kakao Map SDK를 불러오지 못했어요.'

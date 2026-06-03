@@ -101,6 +101,12 @@ export function buildBoardRequestFromPlace(place) {
   }
 }
 
+export function getCurrentPositionMarkerTitle(locationStatus) {
+  if (locationStatus === 'fallback') return '성수동 기준 위치'
+  if (locationStatus === 'loading') return '위치 확인 중'
+  return '현재 위치'
+}
+
 export function formatDistance(distanceMeters) {
   if (distanceMeters === null || distanceMeters === undefined || !Number.isFinite(distanceMeters)) {
     return ''

@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import {
   buildBoardRequestFromPlace,
   buildNearbyPlaceRequests,
+  getCurrentPositionMarkerTitle,
   normalizePlaces,
 } from './Map.utils.js'
 
@@ -96,3 +97,9 @@ test('buildBoardRequestFromPlace keeps the place snapshot required by board crea
   })
 }
 )
+
+test('getCurrentPositionMarkerTitle describes real and fallback positions', () => {
+  assert.equal(getCurrentPositionMarkerTitle('success'), '현재 위치')
+  assert.equal(getCurrentPositionMarkerTitle('fallback'), '성수동 기준 위치')
+  assert.equal(getCurrentPositionMarkerTitle('loading'), '위치 확인 중')
+})
