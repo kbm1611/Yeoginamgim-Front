@@ -26,7 +26,9 @@ import {
   getCurrentPositionMarkerTitle,
   getCurrentLocationViewPlan,
   getFloatingControlsBottom,
+  getMapBottomUiState,
   getMapViewportPlan,
+  getMarkerPlaces,
   getPlaceInfoRows,
   getPlaceCategoryMeta,
   inferPlaceCategoryKey,
@@ -87,8 +89,8 @@ test('buildNearbyPlaceRequests maps all filter to concrete backend categories', 
     requests.map((request) => request.category),
     SERVICE_CATEGORY_CODES
   )
-  assert.equal(requests.every((request) => request.limit === 1), true)
-  assert.equal(requests[0].radius, 20000)
+  assert.equal(requests.every((request) => request.limit === 15), true)
+  assert.equal(requests.every((request) => request.radius === 1000), true)
   assert.equal(requests[0].page, 1)
 })
 
@@ -149,13 +151,18 @@ test('buildPopularPlaceRequest creates a popular places lookup for the bottom sh
   })
 
   assert.deepEqual(request, {
+    latitude: 37.5447,
+    longitude: 127.0559,
+    radius: 1000,
     limit: 15,
   })
   assert.equal(Object.hasOwn(request, 'category'), false)
-  assert.equal(Object.hasOwn(request, 'latitude'), false)
-  assert.equal(Object.hasOwn(request, 'longitude'), false)
-  assert.equal(Object.hasOwn(request, 'radius'), false)
   assert.equal(Object.hasOwn(request, 'page'), false)
+})
+
+test('buildPopularPlaceRequest skips lookup without a real user location', () => {
+  assert.equal(buildPopularPlaceRequest({ latitude: null, longitude: 127.0559 }), null)
+  assert.equal(buildPopularPlaceRequest({ latitude: 37.5447, longitude: undefined }), null)
 })
 
 test('category filters expose stable icon names for map controls', () => {
@@ -256,7 +263,7 @@ test('getPlaceInfoRows returns only available selected place facts', () => {
   ])
 })
 
-test('normalizePlaces dedupes places and sorts by trace count first', () => {
+test('normalizePlaces dedupes places and sorts by distance first', () => {
   const places = normalizePlaces(
     [
       {
@@ -288,13 +295,13 @@ test('normalizePlaces dedupes places and sorts by trace count first', () => {
   )
 
   assert.equal(places.length, 2)
-  assert.equal(places[0].kakaoPlaceId, 'far')
-  assert.equal(places[0].categoryKey, 'CT1')
-  assert.equal(places[1].kakaoPlaceId, 'near')
-  assert.equal(places[1].distanceMeters, 0)
-  assert.equal(places[1].distanceLabel, '0m')
-  assert.equal(places[1].hasBoard, true)
-  assert.equal(places[1].categoryKey, 'CE7')
+  assert.equal(places[0].kakaoPlaceId, 'near')
+  assert.equal(places[0].distanceMeters, 0)
+  assert.equal(places[0].distanceLabel, '0m')
+  assert.equal(places[0].hasBoard, true)
+  assert.equal(places[0].categoryKey, 'CE7')
+  assert.equal(places[1].kakaoPlaceId, 'far')
+  assert.equal(places[1].categoryKey, 'CT1')
 })
 
 test('normalizePlaces uses distance before board state when trace counts tie', () => {
@@ -332,11 +339,11 @@ test('normalizePlaces uses distance before board state when trace counts tie', (
 
   assert.deepEqual(
     places.map((place) => place.kakaoPlaceId),
-    ['near-no-board', 'far-board', 'near-low']
+    ['near-low', 'near-no-board', 'far-board']
   )
 })
 
-test('normalizePopularPlaces keeps trace count as the primary bottom sheet sort', () => {
+test('normalizePopularPlaces keeps distance as the primary bottom sheet sort', () => {
   const places = normalizePopularPlaces(
     [
       {
@@ -366,7 +373,7 @@ test('normalizePopularPlaces keeps trace count as the primary bottom sheet sort'
 
   assert.deepEqual(
     places.map((place) => place.kakaoPlaceId),
-    ['near-high', 'far-high', 'near-low']
+    ['near-low', 'near-high', 'far-high']
   )
 })
 
@@ -415,6 +422,54 @@ test('getCurrentPositionMarkerTitle describes real and fallback positions', () =
   assert.equal(getCurrentPositionMarkerTitle('fallback'), '성수동 기준 위치')
   assert.equal(getCurrentPositionMarkerTitle('loading'), '위치 확인 중')
 })
+
+test('marker places show popular markers until category results are active', () => {
+  const popularPlaces = [
+    { kakaoPlaceId: 'popular-1', placeName: 'Popular One' },
+    { kakaoPlaceId: 'popular-2', placeName: 'Popular Two' },
+  ]
+
+  assert.deepEqual(
+    getMarkerPlaces({
+      categoryPlaces: [],
+      popularPlaces,
+      selectedCategory: null,
+      selectedPlaceId: null,
+    }),
+    popularPlaces
+  )
+})
+
+test('marker places keep filtered markers and add a selected popular marker only when needed', () => {
+  const categoryPlaces = [
+    { kakaoPlaceId: 'category-1', placeName: 'Category One' },
+  ]
+  const popularPlaces = [
+    { kakaoPlaceId: 'popular-1', placeName: 'Popular One' },
+    { kakaoPlaceId: 'category-1', placeName: 'Category One Duplicate' },
+  ]
+
+  assert.deepEqual(
+    getMarkerPlaces({
+      categoryPlaces,
+      popularPlaces,
+      selectedCategory: '\uCE74\uD398',
+      selectedPlaceId: 'popular-1',
+    }).map((place) => place.kakaoPlaceId),
+    ['category-1', 'popular-1']
+  )
+
+  assert.deepEqual(
+    getMarkerPlaces({
+      categoryPlaces,
+      popularPlaces,
+      selectedCategory: '\uCE74\uD398',
+      selectedPlaceId: null,
+    }).map((place) => place.kakaoPlaceId),
+    ['category-1']
+  )
+})
+
 
 test('getCurrentLocationViewPlan keeps current location moves at a stable map level', () => {
   const plan = getCurrentLocationViewPlan({
@@ -566,4 +621,20 @@ test('floating controls animate with the same timing as the bottom sheet', () =>
   assert.match(MAP_FLOATING_CONTROLS_TRANSITION_CLASSES, /duration-\[480ms\]/)
   assert.match(MAP_FLOATING_CONTROLS_TRANSITION_CLASSES, /ease-\[cubic-bezier\(0\.22,1,0\.36,1\)\]/)
   assert.match(MAP_FLOATING_CONTROLS_TRANSITION_CLASSES, /motion-reduce:duration-\[1ms\]/)
+})
+
+test('map bottom ui keeps controls outside the detail panel while a place is selected', () => {
+  assert.deepEqual(getMapBottomUiState({ hasSelectedPlace: false }), {
+    showBottomSheet: true,
+    showFloatingControls: true,
+    showSelectedPlacePanel: false,
+    selectedPanelControlsPlacement: 'bottom-sheet-edge',
+  })
+
+  assert.deepEqual(getMapBottomUiState({ hasSelectedPlace: true }), {
+    showBottomSheet: false,
+    showFloatingControls: true,
+    showSelectedPlacePanel: true,
+    selectedPanelControlsPlacement: 'selected-panel-edge',
+  })
 })

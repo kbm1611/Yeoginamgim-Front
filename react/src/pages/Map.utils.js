@@ -6,13 +6,15 @@ export const DEFAULT_MAP_CENTER = {
   label: '성수동',
 }
 
-export const NEARBY_RADIUS_METERS = 20000
+export const NEARBY_RADIUS_METERS = 1000
 export const NEARBY_LIMIT = 15
 export const MAP_BOTTOM_SHEET_OPEN_HEIGHT = 'min(420px, 58%)'
 export const MAP_BOTTOM_SHEET_HEIGHT = MAP_BOTTOM_SHEET_OPEN_HEIGHT
 export const MAP_BOTTOM_SHEET_BOTTOM_OFFSET_PX = 90
 export const MAP_BOTTOM_SHEET_COLLAPSED_VISIBLE_HEIGHT_PX = 56
 export const MAP_FLOATING_CONTROLS_GAP_PX = 12
+export const MAP_SELECTED_PLACE_PANEL_HEIGHT = 'min(390px, 52%)'
+export const MAP_SELECTED_PLACE_PANEL_CONTROLS_BOTTOM = `calc(${MAP_SELECTED_PLACE_PANEL_HEIGHT} + ${MAP_FLOATING_CONTROLS_GAP_PX}px)`
 export const MAP_BOTTOM_SHEET_CLOSED_TRANSFORM = 'translateY(calc(100% - 56px))'
 const MAP_SHARED_MOTION_CLASSES = 'duration-[480ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:duration-[1ms]'
 export const MAP_BOTTOM_SHEET_TRANSITION_CLASSES = `transition-transform ${MAP_SHARED_MOTION_CLASSES}`
@@ -247,15 +249,13 @@ export function buildNearbyPlaceRequests({ latitude, longitude, selectedCategory
 
   const filter = CATEGORY_FILTERS.find((item) => item.label === selectedCategory) ?? CATEGORY_FILTERS[0]
   const categories = filter.categories
-  const perCategoryLimit = categories.length > 1 ? Math.max(1, Math.ceil(NEARBY_LIMIT / categories.length)) : NEARBY_LIMIT
-
   return categories.map((category) => ({
     latitude: safeLatitude,
     longitude: safeLongitude,
     radius: NEARBY_RADIUS_METERS,
     category,
     page: 1,
-    limit: perCategoryLimit,
+    limit: NEARBY_LIMIT,
   }))
 }
 
@@ -265,8 +265,30 @@ export function buildPopularPlaceRequest({ latitude, longitude } = {}) {
   if (safeLatitude === null || safeLongitude === null) return null
 
   return {
+    latitude: safeLatitude,
+    longitude: safeLongitude,
+    radius: NEARBY_RADIUS_METERS,
     limit: NEARBY_LIMIT,
   }
+}
+
+export function getMarkerPlaces({
+  categoryPlaces = [],
+  popularPlaces = [],
+  selectedCategory = null,
+  selectedPlaceId = null,
+} = {}) {
+  const markerPlaces = selectedCategory ? [...categoryPlaces] : [...popularPlaces]
+  const seenPlaceIds = new Set(markerPlaces.map((place) => place?.kakaoPlaceId).filter(Boolean))
+
+  if (selectedCategory && selectedPlaceId && !seenPlaceIds.has(selectedPlaceId)) {
+    const selectedPopularPlace = popularPlaces.find((place) => place?.kakaoPlaceId === selectedPlaceId)
+    if (selectedPopularPlace) {
+      markerPlaces.push(selectedPopularPlace)
+    }
+  }
+
+  return markerPlaces.filter((place) => place?.kakaoPlaceId)
 }
 
 export function normalizePlaces(places, origin, limit = NEARBY_LIMIT) {
@@ -370,6 +392,15 @@ export function getFloatingControlsBottom(isOpen) {
     : `${MAP_BOTTOM_SHEET_COLLAPSED_VISIBLE_HEIGHT_PX}px`
 
   return `calc(${MAP_BOTTOM_SHEET_BOTTOM_OFFSET_PX}px + ${sheetVisibleHeight} + ${MAP_FLOATING_CONTROLS_GAP_PX}px)`
+}
+
+export function getMapBottomUiState({ hasSelectedPlace = false } = {}) {
+  return {
+    showBottomSheet: !hasSelectedPlace,
+    showFloatingControls: true,
+    showSelectedPlacePanel: hasSelectedPlace,
+    selectedPanelControlsPlacement: hasSelectedPlace ? 'selected-panel-edge' : 'bottom-sheet-edge',
+  }
 }
 
 export function getMapViewportPlan(places = [], currentPosition = null) {
@@ -519,9 +550,6 @@ function toMapPoint(source, kind) {
 }
 
 function comparePlaces(left, right) {
-  const traceCompare = Number(right.traceCount ?? 0) - Number(left.traceCount ?? 0)
-  if (traceCompare !== 0) return traceCompare
-
   if (left.distanceMeters !== null && right.distanceMeters !== null) {
     const distanceCompare = left.distanceMeters - right.distanceMeters
     if (distanceCompare !== 0) return distanceCompare
@@ -529,6 +557,9 @@ function comparePlaces(left, right) {
 
   if (left.distanceMeters !== null) return -1
   if (right.distanceMeters !== null) return 1
+
+  const traceCompare = Number(right.traceCount ?? 0) - Number(left.traceCount ?? 0)
+  if (traceCompare !== 0) return traceCompare
 
   const boardCompare = Number(Boolean(right.boardId)) - Number(Boolean(left.boardId))
   if (boardCompare !== 0) return boardCompare
