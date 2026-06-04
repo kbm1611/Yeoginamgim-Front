@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import {
   Bell,
   ChevronLeft,
@@ -71,11 +71,6 @@ function formatDateLabel(dateText) {
   ).padStart(2, '0')}`
 }
 
-function toDisplayTraceCount(traceCount) {
-  const count = Number(traceCount)
-  return Number.isFinite(count) ? count : 0
-}
-
 function traceToPost(trace) {
   const element = trace.elements?.[0] ?? {}
   const style = parseStyleJson(element.styleJson)
@@ -112,9 +107,7 @@ function traceToPost(trace) {
   }
 }
 
-function BoardHeader({ placeName, traceCount, onBack }) {
-  const displayTraceCount = toDisplayTraceCount(traceCount)
-
+function BoardHeader({ placeName, onBack }) {
   return (
     <div className="flex items-center justify-between bg-[#F5EFE6] px-4 pb-2 pt-3">
       <button
@@ -131,7 +124,6 @@ function BoardHeader({ placeName, traceCount, onBack }) {
           <span className="text-[16px] font-bold text-[#3B2A1E]">{placeName}</span>
           <ChevronRight size={15} strokeWidth={2.2} className="text-[#3B2A1E]" />
         </button>
-        <p className="text-[12px] text-[#8B7A6B]">흔적 {displayTraceCount}개</p>
       </div>
 
       <div className="flex items-center gap-1">
@@ -176,7 +168,7 @@ function FilterBar({ sort, onSort }) {
         className="flex items-center gap-1.5 rounded-full border border-[#D8CDBF] bg-white/70 px-3 py-1.5 text-[13px] font-medium text-[#5C4A3B] shadow-sm"
       >
         <SlidersHorizontal size={13} strokeWidth={2} />
-        필터
+        ?꾪꽣
       </button>
     </div>
   )
@@ -261,7 +253,7 @@ function BoardDetail() {
         if (ignore) return
 
         setPosts([])
-        setErrorMessage(error.message ?? '흔적을 불러오지 못했습니다.')
+        setErrorMessage(error.message ?? '?붿쟻??遺덈윭?ㅼ? 紐삵뻽?듬땲??')
       } finally {
         if (!ignore) {
           setIsLoading(false)
@@ -276,8 +268,7 @@ function BoardDetail() {
     }
   }, [boardId, sort])
 
-  const headerPlaceName = boardDetail?.place?.placeName ?? id ?? '장소 보드'
-  const headerTraceCount = boardDetail?.traceCount ?? posts.length
+  const headerPlaceName = boardDetail?.place?.placeName ?? id ?? '?μ냼 蹂대뱶'
 
   const handleAdd = () => navigate(`/board/${boardId}/postit`)
 
@@ -317,7 +308,7 @@ function BoardDetail() {
     if (isLoading) {
       return (
         <div className="flex h-full items-center justify-center text-[18px] font-semibold text-[#5C4030]">
-          흔적을 불러오는 중...
+          ?붿쟻??遺덈윭?ㅻ뒗 以?..
         </div>
       )
     }
@@ -326,7 +317,7 @@ function BoardDetail() {
       return (
         <div className="flex h-full items-center justify-center px-8 text-center">
           <div className="rounded-[8px] bg-white/85 px-5 py-4 text-[#5C4030] shadow-md backdrop-blur-sm">
-            <p className="text-[16px] font-semibold">흔적을 불러오지 못했습니다.</p>
+            <p className="text-[16px] font-semibold">?붿쟻??遺덈윭?ㅼ? 紐삵뻽?듬땲??</p>
             <p className="mt-2 break-words text-[13px] text-[#8A6A58]">{errorMessage}</p>
           </div>
         </div>
@@ -349,7 +340,6 @@ function BoardDetail() {
     <main className="app-device flex flex-col overflow-hidden">
       <BoardHeader
         placeName={headerPlaceName}
-        traceCount={headerTraceCount}
         onBack={() => navigate(-1)}
       />
 

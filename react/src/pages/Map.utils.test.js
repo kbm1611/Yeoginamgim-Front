@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict'
+﻿import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
   buildBoardRequestFromPlace,
@@ -289,7 +289,7 @@ test('normalizePlaces keeps ambiguous lookup results styled by request category'
   assert.notEqual(place.categoryKey, 'default')
 })
 
-test('getPlaceInfoRows returns only available selected place facts', () => {
+test('getPlaceInfoRows includes zero trace count for selected place facts', () => {
   const rows = getPlaceInfoRows({
     placeName: 'Seongsu Cafe',
     groupName: '카페',
@@ -300,12 +300,12 @@ test('getPlaceInfoRows returns only available selected place facts', () => {
   })
 
   assert.deepEqual(rows, [
+    { label: '흔적', value: '0개' },
     { label: '주소', value: '서울 성동구' },
     { label: '카테고리', value: '카페' },
     { label: '거리', value: '120m' },
   ])
 })
-
 test('normalizePlaces dedupes places and sorts by distance first', () => {
   const places = normalizePlaces(
     [
@@ -814,3 +814,4 @@ test('map bottom ui keeps controls outside the detail panel while a place is sel
     selectedPanelControlsPlacement: 'selected-panel-edge',
   })
 })
+

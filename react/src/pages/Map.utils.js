@@ -1,4 +1,4 @@
-export { buildBoardRequestFromPlace } from '../api/boards.utils.js'
+﻿export { buildBoardRequestFromPlace } from '../api/boards.utils.js'
 
 export const DEFAULT_MAP_CENTER = {
   latitude: 37.5447,
@@ -539,18 +539,16 @@ export function getPlaceInfoRows(place) {
     categoryMeta.label !== PLACE_CATEGORY_META.default.label ? categoryMeta.label : ''
   )
   const traceCount = Number(place.traceCount)
+  const traceCountValue = Number.isFinite(traceCount) ? `${traceCount}개` : '0개'
 
   return [
+    createPlaceInfoRow('흔적', traceCountValue),
     createPlaceInfoRow('주소', place.address),
     createPlaceInfoRow('카테고리', categoryLabel),
     createPlaceInfoRow('전화', place.phone),
     createPlaceInfoRow('거리', place.distanceLabel),
-    Number.isFinite(traceCount) && traceCount > 0
-      ? createPlaceInfoRow('흔적', `${traceCount}개`)
-      : null,
   ].filter(Boolean)
 }
-
 export function inferPlaceCategoryKey(place, fallbackCategory = null) {
   const sourceText = [
     place?.categoryKey,
@@ -745,3 +743,4 @@ function toCoordinate(value) {
   const coordinate = Number(value)
   return Number.isFinite(coordinate) ? coordinate : null
 }
+

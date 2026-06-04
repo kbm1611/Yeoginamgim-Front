@@ -1,5 +1,10 @@
 import { apiClient, pathSegment } from './client'
-import { buildBoardRequestFromPlace, normalizeBoardDetail, resolveBoardForPlace } from './boards.utils'
+import {
+  buildBoardRequestFromPlace,
+  normalizeBoardDetail,
+  resolveBoardDetailForRouteId,
+  resolveBoardForPlace,
+} from './boards.utils'
 
 export { buildBoardRequestFromPlace }
 
@@ -22,5 +27,12 @@ export function fetchOrCreateBoardForPlace(place) {
   return resolveBoardForPlace(place, {
     fetchBoardByKakaoPlaceId,
     createBoard,
+  })
+}
+
+export function fetchBoardDetailForRouteId(routeId) {
+  return resolveBoardDetailForRouteId(routeId, {
+    fetchBoardDetail,
+    fetchBoardByKakaoPlaceId,
   })
 }
