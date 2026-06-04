@@ -110,6 +110,42 @@ react
 
 ---
 
+## 주요 파일 역할
+
+### `src/main.jsx`
+
+React 앱의 시작점입니다. `index.html`의 `root` 영역에 React 앱을 연결합니다.
+
+### `src/App.jsx`
+
+전체 앱의 최상위 컴포넌트입니다. 라우터 설정과 페이지 연결을 관리합니다.
+
+### `src/index.css`
+
+전체 프로젝트에 적용되는 전역 CSS 파일입니다. 기본 폰트, 배경색, 공통 레이아웃 기준을 관리합니다.
+
+### `index.html`
+
+React 앱이 렌더링될 기본 HTML 파일입니다.
+
+### `package.json`
+
+프로젝트 정보, 설치된 라이브러리, 실행 명령어를 관리합니다.
+
+### `package-lock.json`
+
+설치된 라이브러리의 정확한 버전을 기록합니다. 팀원 간 동일한 의존성 환경을 유지하기 위해 함께 커밋합니다.
+
+### `eslint.config.js`
+
+ESLint 설정 파일입니다. 코드 스타일 검사와 기본 오류 방지 규칙을 관리합니다.
+
+### `vite.config.js`
+
+Vite 설정 파일입니다. 개발 서버, 빌드 옵션, Tailwind CSS 플러그인 설정을 관리합니다.
+
+---
+
 ## 라우트 구조
 
 | 경로 | 컴포넌트 | 설명 |
@@ -169,6 +205,73 @@ GET /api/me/traces/{traceId}
 GET /api/me/archive/calendar
 GET /api/me/archive/boards
 GET /api/me/received-likes
+```
+
+---
+
+## 팀원 충돌 방지 가이드
+
+의존성 충돌을 줄이기 위해 아래 순서를 지킵니다.
+
+1. `react/package-lock.json`을 기준으로 설치합니다.
+2. 새 패키지 설치 시 팀 채널에 패키지명, 버전, 목적을 공유합니다.
+3. 설치 후 `package.json`과 `package-lock.json`을 함께 커밋합니다.
+
+### 설치 환경 초기화가 필요할 때
+
+`react` 폴더에서 실행합니다.
+
+```bash
+rm -rf node_modules
+rm -f package-lock.json
+npm install
+```
+
+Windows PowerShell:
+
+```powershell
+Remove-Item -Recurse -Force node_modules
+Remove-Item -Force package-lock.json
+npm install
+```
+
+---
+
+## 네이밍 규칙
+
+### 컴포넌트 파일
+
+컴포넌트 파일은 PascalCase를 사용합니다.
+
+```text
+Header.jsx
+Footer.jsx
+KakaoMap.jsx
+TraceCard.jsx
+```
+
+### API 파일
+
+API 파일은 camelCase를 사용하고 도메인 기준으로 나눕니다.
+
+```text
+auth.js
+users.js
+places.js
+boards.js
+traces.js
+reports.js
+archive.js
+```
+
+### CSS 파일
+
+CSS 파일은 기능 또는 페이지 이름을 기준으로 작성합니다.
+
+```text
+splash.css
+login.css
+onboarding.css
 ```
 
 ---
