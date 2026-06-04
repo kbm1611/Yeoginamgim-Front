@@ -1,4 +1,4 @@
-export { buildBoardRequestFromPlace } from '../api/boards.utils.js'
+﻿export { buildBoardRequestFromPlace } from '../api/boards.utils.js'
 
 export const DEFAULT_MAP_CENTER = {
   latitude: 37.5447,
@@ -7,6 +7,7 @@ export const DEFAULT_MAP_CENTER = {
 }
 
 export const NEARBY_RADIUS_METERS = 1000
+export const POI_SEARCH_RADIUS_METERS = 2000
 export const NEARBY_LIMIT = 15
 export const MAP_BOTTOM_SHEET_OPEN_HEIGHT = 'min(420px, 58%)'
 export const MAP_BOTTOM_SHEET_HEIGHT = MAP_BOTTOM_SHEET_OPEN_HEIGHT
@@ -24,8 +25,12 @@ export const MAP_BOTTOM_SHEET_CONTENT_CLASSES = `${MAP_BOTTOM_SHEET_CONTENT_BASE
 export const MAP_BOTTOM_SHEET_CONTENT_CLOSED_CLASSES = `${MAP_BOTTOM_SHEET_CONTENT_BASE_CLASSES} pointer-events-none opacity-0 delay-0`
 export const MAP_PLACE_LIST_SCROLL_CLASSES = 'scrollbar-hide flex h-[calc(100%-34px)] snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-hidden scroll-smooth pb-1'
 export const MAP_PLACE_CARD_SCROLL_CLASSES = 'snap-start scroll-ml-1'
+export const MAP_SEARCH_RESULTS_PANEL_CLASSES =
+  'relative z-[45] mb-2 overflow-hidden rounded-[20px] border border-[#EDE4D8] bg-white/97 shadow-[0_10px_24px_rgba(61,36,21,0.12)] backdrop-blur-sm'
+export const MAP_SEARCH_RESULTS_LIST_CLASSES =
+  'scrollbar-hide flex max-h-[min(320px,calc(100dvh-260px))] flex-col overflow-y-auto overscroll-contain'
 export const MAP_CATEGORY_FILTER_SCROLL_CLASSES =
-  'scrollbar-hide mt-3 flex w-full snap-x snap-proximity flex-nowrap gap-2 overflow-x-scroll overflow-y-hidden overscroll-x-contain scroll-smooth pb-1 whitespace-nowrap [touch-action:pan-x] [-webkit-overflow-scrolling:touch]'
+  'scrollbar-hide mt-3 flex w-full snap-x snap-proximity flex-nowrap gap-2 overflow-x-scroll overflow-y-hidden overscroll-x-contain scroll-smooth pb-1 whitespace-nowrap select-none cursor-grab active:cursor-grabbing [touch-action:pan-x] [-webkit-overflow-scrolling:touch]'
 export const MAP_CATEGORY_FILTER_BUTTON_CLASSES =
   'inline-flex min-h-10 shrink-0 snap-start items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] transition'
 export const MAP_CURRENT_LOCATION_LEVEL = 5
@@ -272,16 +277,47 @@ export function buildPopularPlaceRequest({ latitude, longitude } = {}) {
   }
 }
 
+export function buildPoiSearchRequest({
+  query,
+  latitude,
+  longitude,
+} = {}) {
+  const safeQuery = String(query ?? '').trim()
+  if (!safeQuery) return null
+
+  const request = {
+    query: safeQuery,
+    page: 1,
+    limit: NEARBY_LIMIT,
+  }
+
+  const safeLatitude = toCoordinate(latitude)
+  const safeLongitude = toCoordinate(longitude)
+  if (safeLatitude !== null && safeLongitude !== null) {
+    request.latitude = safeLatitude
+    request.longitude = safeLongitude
+    request.radius = POI_SEARCH_RADIUS_METERS
+  }
+
+  return request
+}
+
 export function getMarkerPlaces({
+  searchPlaces = [],
+  isSearchActive = false,
   categoryPlaces = [],
   popularPlaces = [],
   selectedCategory = null,
   selectedPlaceId = null,
 } = {}) {
-  const markerPlaces = selectedCategory ? [...categoryPlaces] : [...popularPlaces]
+  const markerPlaces = isSearchActive
+    ? [...searchPlaces]
+    : selectedCategory
+      ? [...categoryPlaces]
+      : [...popularPlaces]
   const seenPlaceIds = new Set(markerPlaces.map((place) => place?.kakaoPlaceId).filter(Boolean))
 
-  if (selectedCategory && selectedPlaceId && !seenPlaceIds.has(selectedPlaceId)) {
+  if (!isSearchActive && selectedCategory && selectedPlaceId && !seenPlaceIds.has(selectedPlaceId)) {
     const selectedPopularPlace = popularPlaces.find((place) => place?.kakaoPlaceId === selectedPlaceId)
     if (selectedPopularPlace) {
       markerPlaces.push(selectedPopularPlace)
@@ -310,6 +346,30 @@ export function normalizePlaces(places, origin, limit = NEARBY_LIMIT) {
 
 export function normalizePopularPlaces(places, origin, limit = NEARBY_LIMIT) {
   return normalizePlaces(places, origin, limit)
+}
+
+export function normalizeSearchPlaces(places, origin, query, limit = NEARBY_LIMIT) {
+  const seenPlaceIds = new Set()
+  const flattenedPlaces = Array.isArray(places)
+    ? places.flatMap(flattenPlaceGroup)
+    : []
+
+  return flattenedPlaces
+    .map(({ place, requestCategory }, index) => {
+      const normalizedPlace = normalizePlace(place, origin, requestCategory)
+      if (!normalizedPlace?.kakaoPlaceId || seenPlaceIds.has(normalizedPlace.kakaoPlaceId)) return null
+      seenPlaceIds.add(normalizedPlace.kakaoPlaceId)
+
+      return {
+        place: normalizedPlace,
+        apiRank: index,
+        relevanceScore: getSearchRelevanceScore(normalizedPlace, query),
+      }
+    })
+    .filter(Boolean)
+    .sort(compareSearchResults)
+    .slice(0, limit)
+    .map((result) => result.place)
 }
 
 export function normalizePlace(place, origin, requestCategory = null) {
@@ -371,6 +431,53 @@ export function getCurrentLocationViewPlan(position) {
       longitude,
     },
     level: MAP_CURRENT_LOCATION_LEVEL,
+  }
+}
+
+export function getHorizontalDragStartState({
+  pointerType = 'mouse',
+  button = 0,
+  clientX,
+  scrollLeft,
+  scrollWidth,
+  clientWidth,
+} = {}) {
+  if (pointerType === 'mouse' && button !== 0) return null
+  if (!['mouse', 'pen'].includes(pointerType)) return null
+
+  const maxScrollLeft = getMaxScrollLeft(scrollWidth, clientWidth)
+  if (maxScrollLeft <= 0) return null
+
+  const startX = toFiniteNumber(clientX)
+  const startScrollLeft = toFiniteNumber(scrollLeft)
+  if (startX === null || startScrollLeft === null) return null
+
+  return {
+    startX,
+    startScrollLeft: Math.max(0, Math.min(startScrollLeft, maxScrollLeft)),
+    isDragging: false,
+  }
+}
+
+export function getHorizontalDragScrollLeft(dragState, {
+  clientX,
+  scrollWidth,
+  clientWidth,
+} = {}) {
+  if (!dragState) return null
+
+  const currentX = toFiniteNumber(clientX)
+  const startX = toFiniteNumber(dragState.startX)
+  const startScrollLeft = toFiniteNumber(dragState.startScrollLeft)
+  if (currentX === null || startX === null || startScrollLeft === null) return null
+
+  const maxScrollLeft = getMaxScrollLeft(scrollWidth, clientWidth)
+  const deltaX = currentX - startX
+  const scrollLeft = Math.max(0, Math.min(startScrollLeft - deltaX, maxScrollLeft))
+
+  return {
+    scrollLeft,
+    isDragging: Boolean(dragState.isDragging || Math.abs(deltaX) >= 4),
   }
 }
 
@@ -447,6 +554,29 @@ export function getCategorySelectionState(categoryLabel) {
   }
 }
 
+export function getPlaceSelectionTransitionState(kakaoPlaceId) {
+  return {
+    selectedPlaceId: null,
+    nextSelectedPlaceId: kakaoPlaceId ?? null,
+    openingPlaceId: null,
+    boardError: '',
+  }
+}
+
+export function getSearchResultsPanelState({
+  isOpen = false,
+  searchStatus = 'idle',
+  searchNotice = '',
+  resultCount = 0,
+} = {}) {
+  const shouldRender = Boolean(isOpen && (searchStatus !== 'idle' || searchNotice))
+
+  return {
+    shouldRender,
+    hasResults: Boolean(shouldRender && searchStatus === 'success' && resultCount > 0),
+  }
+}
+
 export function getPlaceInfoRows(place) {
   if (!place || typeof place !== 'object') return []
 
@@ -455,19 +585,13 @@ export function getPlaceInfoRows(place) {
     place.groupName !== PLACE_CATEGORY_META.default.label ? place.groupName : '',
     categoryMeta.label !== PLACE_CATEGORY_META.default.label ? categoryMeta.label : ''
   )
-  const traceCount = Number(place.traceCount)
-
   return [
     createPlaceInfoRow('주소', place.address),
     createPlaceInfoRow('카테고리', categoryLabel),
     createPlaceInfoRow('전화', place.phone),
     createPlaceInfoRow('거리', place.distanceLabel),
-    Number.isFinite(traceCount) && traceCount > 0
-      ? createPlaceInfoRow('흔적', `${traceCount}개`)
-      : null,
   ].filter(Boolean)
 }
-
 export function inferPlaceCategoryKey(place, fallbackCategory = null) {
   const sourceText = [
     place?.categoryKey,
@@ -567,6 +691,53 @@ function comparePlaces(left, right) {
   return left.placeName.localeCompare(right.placeName)
 }
 
+function compareSearchResults(left, right) {
+  return left.apiRank - right.apiRank
+}
+
+function getSearchRelevanceScore(place, query) {
+  const normalizedQuery = normalizeSearchText(query)
+  if (!normalizedQuery) return 0
+
+  const fields = {
+    name: normalizeSearchText(place?.placeName),
+    category: normalizeSearchText(place?.groupName),
+    address: normalizeSearchText(place?.address),
+  }
+  const tokens = getSearchTokens(query)
+  let score = 0
+
+  if (fields.name === normalizedQuery) score += 100
+  if (fields.name.startsWith(normalizedQuery)) score += 80
+  if (fields.name.includes(normalizedQuery)) score += 60
+  if (fields.category.includes(normalizedQuery)) score += 30
+  if (fields.address.includes(normalizedQuery)) score += 10
+
+  tokens.forEach((token) => {
+    if (fields.name.includes(token)) score += 8
+    if (fields.category.includes(token)) score += 4
+    if (fields.address.includes(token)) score += 2
+  })
+
+  return score
+}
+
+function getSearchTokens(query) {
+  return String(query ?? '')
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .map(normalizeSearchText)
+    .filter(Boolean)
+}
+
+function normalizeSearchText(value) {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '')
+}
+
 function createPlaceInfoRow(label, value) {
   const normalizedValue = String(value ?? '').trim()
   if (!normalizedValue) return null
@@ -607,6 +778,19 @@ function toRadians(value) {
   return (value * Math.PI) / 180
 }
 
+function getMaxScrollLeft(scrollWidth, clientWidth) {
+  const safeScrollWidth = toFiniteNumber(scrollWidth)
+  const safeClientWidth = toFiniteNumber(clientWidth)
+  if (safeScrollWidth === null || safeClientWidth === null) return 0
+
+  return Math.max(0, safeScrollWidth - safeClientWidth)
+}
+
+function toFiniteNumber(value) {
+  const number = Number(value)
+  return Number.isFinite(number) ? number : null
+}
+
 function toCoordinate(value) {
   if (value === null || value === undefined || String(value).trim() === '') {
     return null
@@ -615,3 +799,4 @@ function toCoordinate(value) {
   const coordinate = Number(value)
   return Number.isFinite(coordinate) ? coordinate : null
 }
+

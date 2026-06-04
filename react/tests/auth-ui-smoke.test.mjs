@@ -36,9 +36,13 @@ assert.doesNotMatch(signupPage, /fetch\(/)
 const myPage = read('src/pages/MyPage.jsx')
 assert.match(myPage, /birthDate/)
 assert.match(myPage, /formData\.append\('birthDate'/)
+assert.match(myPage, /deleteMyAccount/)
+assert.match(myPage, /회원 탈퇴/)
+assert.match(myPage, /isWithdrawing/)
 
 const usersApi = read('src/api/users.js')
 assert.match(usersApi, /\/api\/user\/signup/)
+assert.match(usersApi, /\/api\/user\/me/)
 
 const oauthCallbackPage = read('src/pages/OAuthCallbackPage.jsx')
 assert.match(oauthCallbackPage, /setAuthToken/)

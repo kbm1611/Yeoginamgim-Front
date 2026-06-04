@@ -1,4 +1,5 @@
-import { motion } from 'framer-motion'
+﻿import { motion } from 'framer-motion'
+import { useEffect, useState } from 'react'
 import {
   Bookmark,
   ChevronLeft,
@@ -11,30 +12,38 @@ import {
   Share,
   Star,
   User,
-  Users,
 } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { fetchBoardDetailForRouteId } from '../api/boards'
+import {
+  getPlaceDetailRows,
+  getTraceCountText,
+  mergeBoardDetailIntoPlace,
+  resolveBoardNavigationId,
+} from './PlaceDetail.utils'
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
+// ??? Mock Data ????????????????????????????????????????????????????????????????
 
 const mockPlace = {
-  name: '메가커피 성수점',
-  address: '서울 성동구 연무장7길 13',
+  name: '성수의 작은 카페',
+  address: '서울 성동구 연무장길 13',
   category: '카페',
+  kakaoPlaceId: '',
+  latitude: null,
+  longitude: null,
+  phone: '',
   savedCount: 85,
-  stats: { traces: 124, todayVisit: 37, likes: '2.4k' },
-  intro: '창가 좌석이 많고 햇살이 잘 들어오는 공간이에요.\n조용해서 공부하거나 책 읽기에도 좋아요.',
+  stats: { traces: 0, todayVisit: 37, likes: '2.4k' },
+  intro: '창가 자리가 좋고 조용히 머물기 좋은 공간입니다.\n이곳에 남겨진 흔적을 천천히 둘러보세요.',
   tags: [
-    { label: '#카페', emoji: '☕', bg: '#F2EBE0', text: '#5C4230', border: '#E4D5C4' },
-    { label: '#조용해요', emoji: '🌿', bg: '#E5EFE2', text: '#3D5C38', border: '#C8DEC4' },
-    { label: '#공부하기 좋아요', emoji: '📖', bg: '#DDE8F5', text: '#2B4D73', border: '#BACEEA' },
-    { label: '#감성적', emoji: '✨', bg: '#FAF0D5', text: '#7A5A1A', border: '#EDD9A0' },
-    { label: '#창가자리', emoji: '🌤', bg: '#FDF3DC', text: '#7A5A1A', border: '#EDD9A0' },
+    { label: '#카페', emoji: '커피', bg: '#F2EBE0', text: '#5C4230', border: '#E4D5C4' },
+    { label: '#조용해요', emoji: '쉼', bg: '#E5EFE2', text: '#3D5C38', border: '#C8DEC4' },
+    { label: '#머물기좋은', emoji: '공간', bg: '#DDE8F5', text: '#2B4D73', border: '#BACEEA' },
   ],
   images: [
     'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=800&q=80',
   ],
-  totalImages: 8,
+  totalImages: 1,
 }
 
 const mockTraces = [
@@ -42,48 +51,30 @@ const mockTraces = [
     id: 1,
     type: 'photo',
     image: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=400&q=80',
-    text: '아침 햇살 맞집 🌤',
+    text: '따뜻한 커피가 좋았던 아침',
     user: 'daily_sun',
     time: '2시간 전',
     likes: 23,
   },
   {
     id: 2,
-    type: 'photo',
-    image: 'https://images.unsplash.com/photo-1521017432531-fbd92d768814?auto=format&fit=crop&w=400&q=80',
-    text: '창가 자리 최고 ♡',
-    user: 'window_lover',
-    time: '5시간 전',
-    likes: 17,
-  },
-  {
-    id: 3,
     type: 'note',
     noteBg: '#F5EDD5',
-    text: '테라스 너무 예뻐요\n또 올게요! :)',
+    text: '조용히 쉬어가기 좋은 자리',
     date: '2024.06.09',
     user: 'mood_yeon',
     time: '6시간 전',
     likes: 12,
   },
-  {
-    id: 4,
-    type: 'photo',
-    image: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=400&q=80',
-    text: '역시 메가커피 👍',
-    user: 'happy_day',
-    time: '1일 전',
-    likes: 15,
-  },
 ]
 
-// ─── Components ───────────────────────────────────────────────────────────────
+// ??? Components ???????????????????????????????????????????????????????????????
 
 function HeroImage({ src, totalImages }) {
   return (
     <div className="relative h-[260px] w-full overflow-hidden">
-      <img src={src} alt="장소 이미지" className="h-full w-full object-cover" />
-      {/* 이미지 카운터 배지 — 이미지 우측 하단, 겹침 영역 위 */}
+      <img src={src} alt="?μ냼 ?대?吏" className="h-full w-full object-cover" />
+      {/* ?대?吏 移댁슫??諛곗? ???대?吏 ?곗륫 ?섎떒, 寃뱀묠 ?곸뿭 ??*/}
       <div className="absolute bottom-8 right-3 rounded-full bg-black/45 px-2.5 py-[3px] text-[12px] font-medium text-white backdrop-blur-sm">
         1/{totalImages}
       </div>
@@ -91,65 +82,56 @@ function HeroImage({ src, totalImages }) {
   )
 }
 
-function PlaceInfo({ place }) {
-  return (
-    <div className="px-5 pb-1 pt-5">
-      {/* 제목 + 별 아이콘 */}
-      <div className="flex items-center gap-2">
-        <h1 className="text-[26px] font-bold leading-tight text-[#3B2A1E]">{place.name}</h1>
-        <Star size={20} className="shrink-0 fill-[#F5C842] text-[#F5C842]" />
-      </div>
+function PlaceInfoCard({ place, traceStatus }) {
+  const detailRows = getPlaceDetailRows(place)
+  const traceCountText = getTraceCountText(place.stats?.traces, traceStatus)
 
-      {/* 주소 + 카테고리 + 저장 버튼 */}
-      <div className="mt-2.5 flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-1.5 text-[13px] text-[#8B7A6B]">
+  return (
+    <section className="mx-5 mt-5 rounded-[16px] border border-[#EBE1D6] bg-white px-4 py-4 shadow-[0_2px_8px_rgba(60,42,30,0.07)]">
+      <div className="min-w-0">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex items-center gap-2">
+            <h1 className="min-w-0 truncate text-[24px] font-bold leading-tight text-[#3B2A1E]">{place.name}</h1>
+            <Star size={18} className="shrink-0 fill-[#F5C842] text-[#F5C842]" />
+          </div>
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#FFF8ED] px-2.5 py-1 text-[11px] font-semibold text-[#7A5A2E]">
+            <ClipboardList size={11} strokeWidth={1.8} />
+            흔적 {traceCountText}
+          </span>
+        </div>
+        <div className="mt-2 flex min-w-0 items-center gap-1.5 text-[13px] text-[#8B7A6B]">
           <MapPin size={13} className="shrink-0 text-[#B0957C]" />
-          <span className="truncate">{place.address}</span>
-          <span className="shrink-0 text-[#D0C4B6]">·</span>
-          <span className="shrink-0">{place.category}</span>
+          <span className="min-w-0 truncate">{place.address || '주소 정보 없음'}</span>
         </div>
-        <button
-          type="button"
-          className="flex shrink-0 items-center gap-1.5 rounded-xl border border-[#E0D4C5] bg-[#F5F0EA] px-3 py-1.5 text-[13px] font-medium text-[#5C4A3B]"
-        >
-          <Bookmark size={13} strokeWidth={1.8} />
-          저장 {place.savedCount}
-        </button>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <span className="rounded-full bg-[#F5F0EA] px-2.5 py-1 text-[12px] font-medium text-[#6B5344]">
+            {place.category || '카테고리 없음'}
+          </span>
+          <button
+            type="button"
+            className="flex shrink-0 items-center gap-1 rounded-full border border-[#E0D4C5] bg-[#F5F0EA] px-2.5 py-1 text-[12px] font-medium text-[#5C4A3B]"
+          >
+            <Bookmark size={12} strokeWidth={1.8} />
+            저장 {place.savedCount ?? 0}
+          </button>
+        </div>
       </div>
-    </div>
-  )
-}
 
-function StatsCard({ stats }) {
-  return (
-    <div className="mx-5 mt-4 rounded-2xl border border-[#EBE1D6] bg-white px-3 py-3.5 shadow-[0_2px_8px_rgba(60,42,30,0.07)]">
-      <div className="grid grid-cols-3">
-        {/* 흔적 */}
-        <div className="flex flex-col items-center gap-0.5 border-r border-[#EBE1D6]">
-          <div className="flex items-center gap-1 text-[12px] text-[#8B7A6B]">
-            <ClipboardList size={13} strokeWidth={1.5} className="text-[#B0957C]" />
-            흔적
+      <dl className="mt-4 grid gap-2 border-t border-[#F0E7DC] pt-3">
+        {detailRows.map((row) => (
+          <div key={row.label} className="flex items-start justify-between gap-3 text-[12px]">
+            <dt className="shrink-0 font-medium text-[#9A8573]">{row.label}</dt>
+            <dd className="min-w-0 break-words text-right font-semibold text-[#4A3728]">{row.value}</dd>
           </div>
-          <span className="text-[20px] font-bold leading-tight text-[#3B2A1E]">{stats.traces}개</span>
-        </div>
-        {/* 오늘 방문 */}
-        <div className="flex flex-col items-center gap-0.5 border-r border-[#EBE1D6]">
-          <div className="flex items-center gap-1 text-[12px] text-[#8B7A6B]">
-            <Users size={13} strokeWidth={1.5} className="text-[#B0957C]" />
-            오늘 방문
-          </div>
-          <span className="text-[20px] font-bold leading-tight text-[#3B2A1E]">{stats.todayVisit}명</span>
-        </div>
-        {/* 좋아요 */}
-        <div className="flex flex-col items-center gap-0.5">
-          <div className="flex items-center gap-1 text-[12px] text-[#8B7A6B]">
-            <Heart size={13} strokeWidth={1.5} className="text-[#B0957C]" />
-            좋아요
-          </div>
-          <span className="text-[20px] font-bold leading-tight text-[#3B2A1E]">{stats.likes}</span>
-        </div>
-      </div>
-    </div>
+        ))}
+      </dl>
+
+      {traceStatus === 'error' ? (
+        <p className="mt-3 rounded-[8px] bg-[#FFF7F2] px-3 py-2 text-[12px] font-medium text-[#A85C3B]">
+          흔적 수를 불러오지 못해 장소 정보만 표시하고 있습니다.
+        </p>
+      ) : null}
+    </section>
   )
 }
 
@@ -157,9 +139,9 @@ function IntroBox({ intro }) {
   return (
     <div className="relative mx-5 mt-4 overflow-hidden rounded-2xl border border-[#EBE1D6] bg-white px-4 py-4 shadow-[0_2px_8px_rgba(60,42,30,0.05)]">
       <p className="whitespace-pre-line text-[14px] leading-[1.85] text-[#4A3728]">{intro}</p>
-      {/* 꽃 장식 */}
+      {/* 苑??μ떇 */}
       <div className="pointer-events-none absolute bottom-3 right-3 select-none text-[28px] opacity-20">
-        ✿
+        ??
       </div>
     </div>
   )
@@ -168,7 +150,7 @@ function IntroBox({ intro }) {
 function MoodTags({ tags }) {
   return (
     <div className="mt-5 px-5">
-      <h2 className="mb-3 text-[16px] font-bold text-[#3B2A1E]">분위기 태그</h2>
+      <h2 className="mb-3 text-[16px] font-bold text-[#3B2A1E]">遺꾩쐞湲??쒓렇</h2>
       <div className="flex flex-wrap gap-2">
         {tags.map((tag) => (
           <span
@@ -243,17 +225,17 @@ function RecentTraceList({ traces, onMore }) {
   return (
     <div className="mt-6">
       <div className="mb-3 flex items-center justify-between px-5">
-        <h2 className="text-[16px] font-bold text-[#3B2A1E]">최근 흔적</h2>
+        <h2 className="text-[16px] font-bold text-[#3B2A1E]">理쒓렐 ?붿쟻</h2>
         <button
           type="button"
           onClick={onMore}
           className="flex items-center gap-0.5 text-[13px] font-medium text-[#6B5A4C]"
         >
-          더보기
+          ?붾낫湲?
           <ChevronRight size={14} strokeWidth={2} />
         </button>
       </div>
-      {/* 가로 스크롤 */}
+      {/* 媛濡??ㅽ겕濡?*/}
       <div
         className="flex gap-3 overflow-x-auto px-5 pb-2"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
@@ -274,8 +256,8 @@ function BottomCTA({ onClick }) {
         onClick={onClick}
         className="flex h-[56px] w-full items-center justify-center gap-2 rounded-full bg-[#3A2418] text-[16px] font-semibold text-white shadow-[0_4px_16px_rgba(58,36,24,0.35)] active:opacity-80"
       >
-        <span className="text-[17px]">📌</span>
-        <span>흔적 보드 보기</span>
+        <span className="text-[17px]">?뱦</span>
+        <span>?붿쟻 蹂대뱶 蹂닿린</span>
       </button>
     </div>
   )
@@ -285,7 +267,7 @@ const NAV_ITEMS = [
   { key: 'home', label: '홈', icon: Home, path: '/home' },
   { key: 'space', label: '공간', icon: MapPin, path: '/map' },
   { key: 'trace', label: '내 흔적', icon: Bookmark, path: null },
-  { key: 'my', label: '마이페이지', icon: User, path: null },
+  { key: 'my', label: '마이', icon: User, path: null },
 ]
 
 function BottomNav() {
@@ -296,7 +278,7 @@ function BottomNav() {
       <ul className="grid grid-cols-4">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon
-          // place 상세 화면이므로 "공간" 탭 항상 활성화
+          // place ?곸꽭 ?붾㈃?대?濡?"怨듦컙" ????긽 ?쒖꽦??
           const active = item.key === 'space'
           return (
             <li key={item.key} className="flex justify-center">
@@ -324,11 +306,44 @@ function BottomNav() {
   )
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
+// ??? Main ?????????????????????????????????????????????????????????????????????
 
 function PlaceDetailScreen() {
   const navigate = useNavigate()
   const { id } = useParams()
+  const [boardDetail, setBoardDetail] = useState(null)
+  const [boardDetailStatus, setBoardDetailStatus] = useState(id ? 'loading' : 'ready')
+  const place = mergeBoardDetailIntoPlace(mockPlace, boardDetail)
+  const boardNavigationId = resolveBoardNavigationId(id, boardDetail)
+
+  useEffect(() => {
+    if (!id) {
+      return
+    }
+
+    let ignore = false
+
+    async function loadBoardDetail() {
+      try {
+        const detail = await fetchBoardDetailForRouteId(id)
+        if (!ignore) {
+          setBoardDetail(detail)
+          setBoardDetailStatus('ready')
+        }
+      } catch {
+        if (!ignore) {
+          setBoardDetail(null)
+          setBoardDetailStatus('error')
+        }
+      }
+    }
+
+    loadBoardDetail()
+
+    return () => {
+      ignore = true
+    }
+  }, [id])
 
   return (
     <motion.div
@@ -338,7 +353,7 @@ function PlaceDetailScreen() {
       exit={{ x: '100%' }}
       transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
     >
-      {/* ── Status bar 영역 (뒤로/공유/더보기) ── */}
+      {/* ?? Status bar ?곸뿭 (?ㅻ줈/怨듭쑀/?붾낫湲? ?? */}
       <div className="flex items-center justify-between bg-[#FBF6EE] px-4 pb-1 pt-3">
         <button
           type="button"
@@ -358,29 +373,28 @@ function PlaceDetailScreen() {
         </div>
       </div>
 
-      {/* ── 스크롤 본문 ── */}
+      {/* ?? ?ㅽ겕濡?蹂몃Ц ?? */}
       <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
-        {/* Hero 이미지 */}
-        <HeroImage src={mockPlace.images[0]} totalImages={mockPlace.totalImages} />
+        {/* Hero ?대?吏 */}
+        <HeroImage src={place.images[0]} totalImages={place.totalImages} />
 
-        {/* 정보 카드 — Hero에 살짝 겹치게 (목표 이미지 기준 ~24px) */}
+        {/* ?뺣낫 移대뱶 ??Hero???댁쭩 寃뱀튂寃?(紐⑺몴 ?대?吏 湲곗? ~24px) */}
         <div className="-mt-6 rounded-t-[28px] bg-white shadow-[0_-4px_16px_rgba(0,0,0,0.10)]">
-          <PlaceInfo place={mockPlace} />
-          <StatsCard stats={mockPlace.stats} />
-          <IntroBox intro={mockPlace.intro} />
-          <MoodTags tags={mockPlace.tags} />
+          <PlaceInfoCard place={place} traceStatus={boardDetailStatus} />
+          <IntroBox intro={place.intro} />
+          <MoodTags tags={place.tags} />
           <RecentTraceList
             traces={mockTraces}
-            onMore={() => navigate(`/board/${id ?? 'onion'}`)}
+            onMore={() => navigate(`/board/${boardNavigationId}`)}
           />
-          {/* 하단 여유 공간 — CTA(56px) + 패딩(12px) + 네비(72px) = 140px */}
+          {/* ?섎떒 ?ъ쑀 怨듦컙 ??CTA(56px) + ?⑤뵫(12px) + ?ㅻ퉬(72px) = 140px */}
           <div className="h-36" />
         </div>
       </div>
 
-      {/* ── 하단 고정 영역 ── */}
+      {/* ?? ?섎떒 怨좎젙 ?곸뿭 ?? */}
       <div className="shrink-0 bg-[#FBF6EE] shadow-[0_-6px_20px_rgba(58,36,24,0.08)]">
-        <BottomCTA onClick={() => navigate(`/board/${id ?? 'onion'}`)} />
+        <BottomCTA onClick={() => navigate(`/board/${boardNavigationId}`)} />
         <BottomNav />
       </div>
     </motion.div>

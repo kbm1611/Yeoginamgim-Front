@@ -10,6 +10,7 @@ import {
   ChevronUp,
   CircleParking,
   Coffee,
+  ClipboardList,
   Fuel,
   GraduationCap,
   Hospital,
@@ -24,20 +25,23 @@ import {
   Pill,
   RefreshCw,
   School,
-  SlidersHorizontal,
+  Search,
   ShoppingCart,
+  Star,
   Store,
   TrainFront,
   Utensils,
   X,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { fetchOrCreateBoardForPlace } from '../api/boards'
+import { addFavoritePlace, fetchFavoritePlaces, removeFavoritePlace } from '../api/archive'
+import { buildBoardRequestFromPlace, fetchOrCreateBoardForPlace } from '../api/boards'
 import { ensureKakaoMaps } from '../api/kakaoMaps'
-import { fetchNearbyPlaces, fetchPopularPlaces } from '../api/places'
+import { fetchNearbyPlaces, fetchPoiPlaces, fetchPopularPlaces } from '../api/places'
 import mainLogo from '../assets/logo/image_12-removebg-preview.png'
 import {
   buildNearbyPlaceRequests,
+  buildPoiSearchRequest,
   buildPopularPlaceRequest,
   CATEGORY_FILTERS,
   DEFAULT_MAP_CENTER,
@@ -50,6 +54,8 @@ import {
   MAP_FLOATING_CONTROLS_TRANSITION_CLASSES,
   MAP_PLACE_CARD_SCROLL_CLASSES,
   MAP_PLACE_LIST_SCROLL_CLASSES,
+  MAP_SEARCH_RESULTS_LIST_CLASSES,
+  MAP_SEARCH_RESULTS_PANEL_CLASSES,
   MAP_SELECTED_PLACE_PANEL_CONTROLS_BOTTOM,
   MAP_SELECTED_PLACE_PANEL_HEIGHT,
   MAP_SELECTED_PLACE_LEVEL,
@@ -63,11 +69,15 @@ import {
   getCurrentPositionMarkerTitle,
   getFloatingControlsBottom,
   getMapBottomUiState,
+  getMapViewportPlan,
   getMarkerPlaces,
   getPlaceCategoryMeta,
+  getPlaceSelectionTransitionState,
   getPlaceInfoRows,
+  getSearchResultsPanelState,
   normalizePlaces,
   normalizePopularPlaces,
+  normalizeSearchPlaces,
 } from './Map.utils'
 
 const GEOLOCATION_OPTIONS = {
@@ -110,9 +120,11 @@ function MapPage() {
   const currentLocationOverlayRef = useRef(null)
   const cardRefs = useRef({})
   const categoryPlacesRequestIdRef = useRef(0)
+  const poiSearchRequestIdRef = useRef(0)
   const popularPlacesRequestIdRef = useRef(0)
   const placeLookupRef = useRef(new globalThis.Map())
   const selectedPlaceIdRef = useRef(null)
+  const placeSelectionRequestIdRef = useRef(0)
   const isMountedRef = useRef(false)
 
   const [mapStatus, setMapStatus] = useState('loading')
@@ -125,36 +137,49 @@ function MapPage() {
   const [categoryPlaces, setCategoryPlaces] = useState([])
   const [categoryPlacesStatus, setCategoryPlacesStatus] = useState('idle')
   const [categoryPlacesError, setCategoryPlacesError] = useState('')
+  const [searchInput, setSearchInput] = useState('')
+  const [activeSearchQuery, setActiveSearchQuery] = useState('')
+  const [searchPlaces, setSearchPlaces] = useState([])
+  const [searchStatus, setSearchStatus] = useState('idle')
+  const [searchError, setSearchError] = useState('')
+  const [searchNotice, setSearchNotice] = useState('')
   const [popularPlaces, setPopularPlaces] = useState([])
   const [popularPlacesStatus, setPopularPlacesStatus] = useState('idle')
   const [popularPlacesError, setPopularPlacesError] = useState('')
   const [selectedPlaceId, setSelectedPlaceId] = useState(null)
   const [openingPlaceId, setOpeningPlaceId] = useState(null)
   const [boardError, setBoardError] = useState('')
+  const [favoritePlaceIds, setFavoritePlaceIds] = useState(() => new Set())
+  const [favoritePlaceIdInProgress, setFavoritePlaceIdInProgress] = useState(null)
+  const [favoriteError, setFavoriteError] = useState('')
   const [isSheetOpen, setIsSheetOpen] = useState(false)
+  const [isSearchResultsOpen, setIsSearchResultsOpen] = useState(false)
 
-  const knownPlaces = [...categoryPlaces, ...popularPlaces]
+  const isPoiSearchActive = searchStatus !== 'idle'
+  const knownPlaces = [...searchPlaces, ...categoryPlaces, ...popularPlaces]
   const selectedPlace = knownPlaces.find((place) => place.kakaoPlaceId === selectedPlaceId) ?? null
+  const isSelectedPlaceFavorite = selectedPlace ? favoritePlaceIds.has(selectedPlace.kakaoPlaceId) : false
   const markerPlaces = useMemo(() => getMarkerPlaces({
+    searchPlaces,
+    isSearchActive: isPoiSearchActive,
     categoryPlaces,
     popularPlaces,
     selectedCategory,
     selectedPlaceId,
-  }), [categoryPlaces, popularPlaces, selectedCategory, selectedPlaceId])
+  }), [categoryPlaces, isPoiSearchActive, popularPlaces, searchPlaces, selectedCategory, selectedPlaceId])
   const bottomUiState = getMapBottomUiState({ hasSelectedPlace: Boolean(selectedPlace) })
   const isFloatingControlsPinnedToSelectedPanel = bottomUiState.selectedPanelControlsPlacement === 'selected-panel-edge'
   const floatingControlsBottom = isFloatingControlsPinnedToSelectedPanel
     ? MAP_SELECTED_PLACE_PANEL_CONTROLS_BOTTOM
     : getFloatingControlsBottom(isSheetOpen)
-  const selectedCategoryLabel = selectedCategory ?? '카테고리'
+  const searchPanelNotice = searchNotice || `"${activeSearchQuery}" 검색 결과`
+  const searchResultsPanelState = getSearchResultsPanelState({
+    isOpen: isSearchResultsOpen,
+    searchStatus,
+    searchNotice,
+    resultCount: searchPlaces.length,
+  })
   const popularPlacesPanelNotice = locationNotice || '현재 위치 기준으로 흔적이 많은 공간을 보여드려요.'
-  const locationLabel =
-    locationStatus === 'loading'
-      ? '현재 위치 확인 중'
-      : locationStatus === 'success'
-        ? '현재 위치 근처'
-        : '현재 위치 필요'
-
   const clearMarkers = useCallback(() => {
     const kakao = kakaoRef.current
     markersRef.current.forEach(({ marker, element, handler }) => {
@@ -193,6 +218,45 @@ function MapPage() {
     map.setCenter(center)
   }, [])
 
+  const applyMapViewportPlan = useCallback((viewPlan) => {
+    const kakao = kakaoRef.current
+    const map = mapInstanceRef.current
+    if (!kakao || !map || !viewPlan || viewPlan.type === 'none') return
+
+    if (viewPlan.type === 'single') {
+      applyMapView({
+        center: viewPlan.center,
+        level: viewPlan.level,
+      })
+      return
+    }
+
+    if (viewPlan.type !== 'bounds' || !Array.isArray(viewPlan.points) || viewPlan.points.length === 0) return
+
+    const bounds = new kakao.maps.LatLngBounds()
+    viewPlan.points.forEach((point) => {
+      bounds.extend(new kakao.maps.LatLng(point.latitude, point.longitude))
+    })
+
+    const padding = viewPlan.padding ?? {}
+    if (typeof map.setBounds === 'function') {
+      map.setBounds(
+        bounds,
+        padding.top ?? 0,
+        padding.right ?? 0,
+        padding.bottom ?? 0,
+        padding.left ?? 0
+      )
+    }
+
+    if (Number.isFinite(viewPlan.maxLevel) && typeof map.getLevel === 'function' && typeof map.setLevel === 'function') {
+      const fittedLevel = map.getLevel()
+      if (fittedLevel > viewPlan.maxLevel) {
+        map.setLevel(viewPlan.maxLevel)
+      }
+    }
+  }, [applyMapView])
+
   const focusMapOnPlace = useCallback((place) => {
     const latitude = Number(place?.latitude)
     const longitude = Number(place?.longitude)
@@ -206,16 +270,32 @@ function MapPage() {
     })
   }, [applyMapView])
 
-  const selectPlace = useCallback((kakaoPlaceId, { focusMap = false } = {}) => {
-    setSelectedPlaceId(kakaoPlaceId)
-    setBoardError('')
+  const selectPlace = useCallback((kakaoPlaceId, { focusMap = false, closeSearchResults = false, scrollCard = true } = {}) => {
+    const nextSelection = getPlaceSelectionTransitionState(kakaoPlaceId)
+    const requestId = placeSelectionRequestIdRef.current + 1
+    placeSelectionRequestIdRef.current = requestId
+
+    setSelectedPlaceId(nextSelection.selectedPlaceId)
+    setOpeningPlaceId(nextSelection.openingPlaceId)
+    setBoardError(nextSelection.boardError)
+    setFavoriteError('')
+
+    if (closeSearchResults) {
+      setIsSearchResultsOpen(false)
+    }
 
     if (focusMap) {
       focusMapOnPlace(placeLookupRef.current.get(kakaoPlaceId))
     }
 
     window.setTimeout(() => {
-      cardRefs.current[kakaoPlaceId]?.scrollIntoView({
+      if (!isMountedRef.current || placeSelectionRequestIdRef.current !== requestId) return
+
+      setSelectedPlaceId(nextSelection.nextSelectedPlaceId)
+
+      if (!scrollCard || !nextSelection.nextSelectedPlaceId) return
+
+      cardRefs.current[nextSelection.nextSelectedPlaceId]?.scrollIntoView({
         behavior: 'smooth',
         block: 'nearest',
         inline: 'center',
@@ -252,6 +332,10 @@ function MapPage() {
   }, [])
 
   const loadCategoryPlaces = useCallback(async () => {
+    if (activeSearchQuery) {
+      return
+    }
+
     if (!selectedCategory) {
       setCategoryPlaces([])
       setCategoryPlacesStatus('idle')
@@ -309,7 +393,7 @@ function MapPage() {
       setCategoryPlacesStatus('error')
       setCategoryPlacesError('주변 장소를 불러오지 못했어요.')
     }
-  }, [currentPosition, locationStatus, selectedCategory])
+  }, [activeSearchQuery, currentPosition, locationStatus, selectedCategory])
 
   const loadPopularPlaces = useCallback(async () => {
     if (locationStatus === 'loading') return
@@ -351,6 +435,139 @@ function MapPage() {
       setPopularPlacesError('주변 인기 공간을 불러오지 못했어요.')
     }
   }, [currentPosition, locationStatus])
+
+  const runPoiSearch = useCallback(async ({ query = searchInput } = {}) => {
+    const trimmedQuery = String(query ?? '').trim()
+    if (!trimmedQuery) {
+      poiSearchRequestIdRef.current += 1
+      setActiveSearchQuery('')
+      setSearchPlaces([])
+      setSearchStatus('idle')
+      setSearchNotice('검색어를 입력해 주세요.')
+      setSearchError('')
+      setSelectedPlaceId(null)
+      setOpeningPlaceId(null)
+      setBoardError('')
+      setIsSearchResultsOpen(true)
+      return
+    }
+
+    setActiveSearchQuery(trimmedQuery)
+    setSearchInput(trimmedQuery)
+    setSearchPlaces([])
+    setSelectedPlaceId(null)
+    setOpeningPlaceId(null)
+    setBoardError('')
+    setIsSearchResultsOpen(true)
+    setIsSheetOpen(false)
+
+    const searchOrigin = locationStatus === 'success' ? currentPosition : null
+    const request = buildPoiSearchRequest({
+      query: trimmedQuery,
+      latitude: searchOrigin?.latitude,
+      longitude: searchOrigin?.longitude,
+    })
+
+    if (!request) {
+      setSearchPlaces([])
+      setSearchStatus('error')
+      setSearchError('검색어를 입력한 뒤 다시 검색해 주세요.')
+      setSearchNotice('')
+      return
+    }
+
+    const requestId = poiSearchRequestIdRef.current + 1
+    poiSearchRequestIdRef.current = requestId
+    categoryPlacesRequestIdRef.current += 1
+    setSearchStatus('loading')
+    setSearchError('')
+    setSearchNotice('')
+
+    try {
+      const response = await fetchPoiPlaces(request)
+      if (!isMountedRef.current || poiSearchRequestIdRef.current !== requestId) return
+
+      const normalizedPlaces = normalizeSearchPlaces(response, searchOrigin, trimmedQuery, NEARBY_LIMIT)
+      setSearchPlaces(normalizedPlaces)
+      setSearchStatus('success')
+    } catch {
+      if (!isMountedRef.current || poiSearchRequestIdRef.current !== requestId) return
+
+      setSearchPlaces([])
+      setSearchStatus('error')
+      setSearchError('장소 검색을 완료하지 못했어요. 잠시 뒤 다시 시도해 주세요.')
+    }
+  }, [currentPosition, locationStatus, searchInput])
+
+  const clearPoiSearch = useCallback(() => {
+    poiSearchRequestIdRef.current += 1
+    placeSelectionRequestIdRef.current += 1
+    setSearchInput('')
+    setActiveSearchQuery('')
+    setSearchPlaces([])
+    setSearchStatus('idle')
+    setSearchError('')
+    setSearchNotice('')
+    setIsSearchResultsOpen(false)
+    setSelectedPlaceId(null)
+    setOpeningPlaceId(null)
+    setBoardError('')
+  }, [])
+
+  const handleSearchInputChange = (event) => {
+    const nextValue = event.target.value
+    const trimmedValue = nextValue.trim()
+
+    if (!trimmedValue) {
+      clearPoiSearch()
+      return
+    }
+
+    setSearchInput(nextValue)
+    if (searchNotice) setSearchNotice('')
+
+    if (activeSearchQuery && trimmedValue !== activeSearchQuery) {
+      poiSearchRequestIdRef.current += 1
+      setActiveSearchQuery('')
+      setSearchPlaces([])
+      setSearchStatus('idle')
+      setSearchError('')
+      setIsSearchResultsOpen(false)
+      setSelectedPlaceId(null)
+      setOpeningPlaceId(null)
+      setBoardError('')
+    }
+  }
+
+  const handleSearchResultSelect = (place) => {
+    if (!place?.kakaoPlaceId) return
+
+    selectPlace(place.kakaoPlaceId, {
+      focusMap: true,
+      closeSearchResults: true,
+      scrollCard: false,
+    })
+  }
+
+  const loadFavoritePlaces = useCallback(async () => {
+    try {
+      const response = await fetchFavoritePlaces()
+      if (!isMountedRef.current) return
+
+      const ids = new Set(
+        (Array.isArray(response?.places) ? response.places : [])
+          .map((place) => place?.kakaoPlaceId)
+          .filter(Boolean)
+      )
+      setFavoritePlaceIds(ids)
+      setFavoriteError('')
+    } catch {
+      if (isMountedRef.current) {
+        setFavoriteError('즐겨찾기 정보를 불러오지 못했어요.')
+      }
+    }
+  }, [])
+
   useEffect(() => {
     isMountedRef.current = true
     window.queueMicrotask(() => {
@@ -363,6 +580,14 @@ function MapPage() {
       isMountedRef.current = false
     }
   }, [requestCurrentLocation])
+
+  useEffect(() => {
+    window.queueMicrotask(() => {
+      if (isMountedRef.current) {
+        loadFavoritePlaces()
+      }
+    })
+  }, [loadFavoritePlaces])
 
   useEffect(() => {
     let cancelled = false
@@ -427,13 +652,13 @@ function MapPage() {
 
   useEffect(() => {
     const nextLookup = new globalThis.Map()
-    ;[...categoryPlaces, ...popularPlaces].forEach((place) => {
+    ;[...searchPlaces, ...categoryPlaces, ...popularPlaces].forEach((place) => {
       if (place?.kakaoPlaceId) {
         nextLookup.set(place.kakaoPlaceId, place)
       }
     })
     placeLookupRef.current = nextLookup
-  }, [categoryPlaces, popularPlaces])
+  }, [categoryPlaces, popularPlaces, searchPlaces])
 
   useEffect(() => {
     window.queueMicrotask(() => {
@@ -476,7 +701,7 @@ function MapPage() {
       })
       const handler = (event) => {
         event.stopPropagation()
-        selectPlace(place.kakaoPlaceId, { focusMap: true })
+        selectPlace(place.kakaoPlaceId, { focusMap: true, closeSearchResults: true })
       }
 
       markerElement.addEventListener('click', handler)
@@ -497,15 +722,34 @@ function MapPage() {
     })
   }, [selectedPlaceId])
 
+  useEffect(() => {
+    if (mapStatus !== 'ready' || searchStatus !== 'success' || searchPlaces.length === 0) return
+
+    applyMapViewportPlan(getMapViewportPlan(searchPlaces, currentPosition))
+  }, [applyMapViewportPlan, currentPosition, mapStatus, searchPlaces, searchStatus])
+
+  useEffect(() => {
+    if (mapStatus !== 'ready' || isPoiSearchActive || categoryPlacesStatus !== 'success' || categoryPlaces.length === 0) return
+
+    applyMapViewportPlan(getMapViewportPlan(categoryPlaces, currentPosition))
+  }, [applyMapViewportPlan, categoryPlaces, categoryPlacesStatus, currentPosition, isPoiSearchActive, mapStatus])
+
   const handleCategorySelect = (categoryLabel) => {
     const nextState = getCategorySelectionState(categoryLabel)
     categoryPlacesRequestIdRef.current += 1
     setSelectedCategory(nextState.selectedCategory)
     setCategoryPlaces(nextState.categoryPlaces)
-    setSelectedPlaceId(nextState.selectedPlaceId)
-    setCategoryPlacesStatus(nextState.categoryPlacesStatus)
     setCategoryPlacesError(nextState.categoryPlacesError)
     setBoardError(nextState.boardError)
+
+    if (activeSearchQuery) {
+      setCategoryPlacesStatus('idle')
+      return
+    }
+
+    setSelectedPlaceId(nextState.selectedPlaceId)
+    setCategoryPlacesStatus(nextState.categoryPlacesStatus)
+    setIsSearchResultsOpen(false)
 
     if (categoryLabel === selectedCategory) {
       window.queueMicrotask(() => {
@@ -544,7 +788,7 @@ function MapPage() {
 
     setBoardError('')
     setOpeningPlaceId(place.kakaoPlaceId)
-    selectPlace(place.kakaoPlaceId, { focusMap: true })
+    focusMapOnPlace(place)
 
     try {
       if (place.boardId) {
@@ -565,6 +809,44 @@ function MapPage() {
     } finally {
       if (isMountedRef.current) {
         setOpeningPlaceId(null)
+      }
+    }
+  }
+
+  const handleToggleFavorite = async (place) => {
+    if (!place?.kakaoPlaceId) return
+
+    const kakaoPlaceId = place.kakaoPlaceId
+    const isFavorite = favoritePlaceIds.has(kakaoPlaceId)
+
+    setFavoriteError('')
+    setFavoritePlaceIdInProgress(kakaoPlaceId)
+    selectPlace(kakaoPlaceId, { focusMap: true })
+
+    try {
+      if (isFavorite) {
+        await removeFavoritePlace(kakaoPlaceId)
+        setFavoritePlaceIds((previousIds) => {
+          const nextIds = new Set(previousIds)
+          nextIds.delete(kakaoPlaceId)
+          return nextIds
+        })
+        return
+      }
+
+      await addFavoritePlace(kakaoPlaceId, buildBoardRequestFromPlace(place))
+      setFavoritePlaceIds((previousIds) => {
+        const nextIds = new Set(previousIds)
+        nextIds.add(kakaoPlaceId)
+        return nextIds
+      })
+    } catch {
+      if (isMountedRef.current) {
+        setFavoriteError(isFavorite ? '즐겨찾기를 해제하지 못했어요.' : '즐겨찾기에 저장하지 못했어요.')
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setFavoritePlaceIdInProgress(null)
       }
     }
   }
@@ -605,31 +887,62 @@ function MapPage() {
         ) : null}
       </section>
 
-      <section className="absolute left-0 top-0 z-10 w-full px-5 pb-2 pt-3">
+      <section className="absolute left-0 top-0 z-40 w-full px-5 pb-2 pt-3">
         <div className="mx-auto mb-3 flex w-[95px] items-center justify-center">
           <img src={mainLogo} alt="여기남김" className="w-[95px] object-contain" />
         </div>
 
-        <div className="flex items-center rounded-[20px] border border-[#EDE4D8] bg-white/95 px-4 py-3 shadow-[0_4px_12px_rgba(0,0,0,0.04)] backdrop-blur-sm">
-          <button type="button" className="flex flex-1 items-center gap-2 text-[14px] font-medium">
-            {locationStatus === 'loading' ? (
-              <Loader2 size={15} strokeWidth={1.7} className="animate-spin" />
+        <form
+          className="mb-2 flex min-h-12 items-center gap-2 rounded-[20px] border border-[#EDE4D8] bg-white/96 px-3 py-2 shadow-[0_5px_14px_rgba(61,36,21,0.08)] backdrop-blur-sm"
+          onSubmit={(event) => {
+            event.preventDefault()
+            runPoiSearch()
+          }}
+        >
+          <input
+            type="search"
+            value={searchInput}
+            onChange={handleSearchInputChange}
+            placeholder="장소를 검색해 보세요"
+            className="map-search-input min-w-0 flex-1 bg-transparent text-[15px] font-medium text-[#2B1810] outline-none placeholder:text-[#9A8778]"
+            aria-label="장소 검색어"
+          />
+          {searchInput ? (
+            <button
+              type="button"
+              onClick={clearPoiSearch}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#F7F2EA] text-[#7A6558]"
+              aria-label="검색어 지우기"
+            >
+              <X size={15} strokeWidth={1.8} />
+            </button>
+          ) : null}
+          <button
+            type="submit"
+            disabled={searchStatus === 'loading'}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#3D2415] text-white shadow-[0_5px_12px_rgba(61,36,21,0.2)] disabled:opacity-60"
+            aria-label="장소 검색"
+          >
+            {searchStatus === 'loading' ? (
+              <Loader2 size={16} strokeWidth={1.8} className="animate-spin" />
             ) : (
-              <MapPin size={15} strokeWidth={1.7} />
+              <Search size={16} strokeWidth={1.9} />
             )}
-            <span>{locationLabel}</span>
-            <ChevronDown size={14} strokeWidth={1.8} />
           </button>
-          <div className="mx-2 h-5 w-px bg-[#EFE7DB]" />
-          <button type="button" className="flex items-center gap-1.5 text-[14px] font-medium">
-            {categoryPlacesStatus === 'loading' ? (
-              <Loader2 size={14} strokeWidth={1.8} className="animate-spin" />
-            ) : (
-              <SlidersHorizontal size={14} strokeWidth={1.8} />
-            )}
-            <span>{selectedCategoryLabel}</span>
-          </button>
-        </div>
+        </form>
+
+        {searchResultsPanelState.shouldRender ? (
+          <SearchResultsPanel
+            title={searchPanelNotice}
+            searchStatus={searchStatus}
+            searchNotice={searchNotice}
+            searchError={searchError}
+            places={searchPlaces}
+            selectedPlaceId={selectedPlaceId}
+            onRetry={() => runPoiSearch({ query: activeSearchQuery || searchInput })}
+            onSelectPlace={handleSearchResultSelect}
+          />
+        ) : null}
 
         <div className={MAP_CATEGORY_FILTER_SCROLL_CLASSES} onWheel={handleCategoryFilterWheel}>
           {CATEGORY_FILTERS.map((item) => {
@@ -681,11 +994,16 @@ function MapPage() {
         <SelectedPlacePanel
           place={selectedPlace}
           isOpening={selectedPlace.kakaoPlaceId === openingPlaceId}
+          isFavorite={isSelectedPlaceFavorite}
+          isFavoriteLoading={selectedPlace.kakaoPlaceId === favoritePlaceIdInProgress}
           error={boardError}
+          favoriteError={favoriteError}
           onClose={() => {
             setSelectedPlaceId(null)
             setBoardError('')
+            setFavoriteError('')
           }}
+          onToggleFavorite={() => handleToggleFavorite(selectedPlace)}
           onOpenBoard={() => handleOpenBoard(selectedPlace)}
         />
       ) : null}
@@ -780,6 +1098,135 @@ function MapPage() {
   )
 }
 
+function SearchResultsPanel({
+  title,
+  searchStatus,
+  searchNotice,
+  searchError,
+  places,
+  selectedPlaceId,
+  onRetry,
+  onSelectPlace,
+}) {
+  const showHeader = searchStatus !== 'idle' && !searchNotice
+
+  return (
+    <div className={MAP_SEARCH_RESULTS_PANEL_CLASSES} role="region" aria-label="장소 검색 결과">
+      {showHeader ? (
+        <div className="flex min-h-11 items-center justify-between gap-3 border-b border-[#F0E6DA] px-4 py-2">
+          <p className="min-w-0 truncate text-[13px] font-semibold text-[#4A3324]">{title}</p>
+          {searchStatus === 'loading' ? (
+            <Loader2 size={15} strokeWidth={1.8} className="shrink-0 animate-spin text-[#7A6558]" />
+          ) : (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[#F7F2EA] px-3 py-1.5 text-[12px] font-semibold text-[#5A4030]"
+            >
+              <RefreshCw size={12} strokeWidth={1.8} />
+              다시 검색
+            </button>
+          )}
+        </div>
+      ) : null}
+
+      <div className={MAP_SEARCH_RESULTS_LIST_CLASSES}>
+        {searchStatus === 'idle' && searchNotice ? (
+          <SearchResultsState message={searchNotice} />
+        ) : null}
+        {searchStatus === 'loading' ? <SearchResultSkeletons /> : null}
+        {searchStatus === 'error' ? (
+          <SearchResultsState
+            message={searchError}
+            actionLabel="다시 검색"
+            onAction={onRetry}
+          />
+        ) : null}
+        {searchStatus === 'success' && places.length === 0 ? (
+          <SearchResultsState
+            message="검색 결과가 없어요. 다른 검색어로 찾아보세요."
+            actionLabel="다시 검색"
+            onAction={onRetry}
+          />
+        ) : null}
+        {searchStatus === 'success'
+          ? places.map((place) => (
+            <SearchResultItem
+              key={place.kakaoPlaceId}
+              place={place}
+              isSelected={place.kakaoPlaceId === selectedPlaceId}
+              onSelect={() => onSelectPlace(place)}
+            />
+          ))
+          : null}
+      </div>
+    </div>
+  )
+}
+
+function SearchResultItem({ place, isSelected, onSelect }) {
+  const meta = getPlaceCategoryMeta(place.categoryKey)
+  const PlaceIcon = CATEGORY_ICON_COMPONENTS[meta.iconName] ?? MapPinned
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={isSelected}
+      className={`flex min-h-[78px] w-full items-center gap-3 border-b border-[#F0E6DA] px-4 py-3 text-left transition last:border-b-0 ${
+        isSelected ? 'bg-[#F7F2EA]' : 'bg-white hover:bg-[#FBF8F3]'
+      }`}
+    >
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[15px] border border-[#E1D3C5] bg-[#F8F2EA] text-[#5A4030]">
+        <PlaceIcon size={19} strokeWidth={1.8} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[15px] font-bold text-[#2B1810]">{place.placeName}</span>
+        <span className="mt-1 block truncate text-[12px] font-medium text-[#7A6558]">
+          {place.groupName || '장소'} · {place.distanceLabel || '거리 미상'}
+        </span>
+        <span className="mt-1 block truncate text-[12px] font-normal text-[#5F4A3B]">
+          {place.address || place.phone || '주소 정보가 없어요.'}
+        </span>
+      </span>
+      <span className="shrink-0 rounded-full bg-[#F2EBDF] px-2 py-1 text-[11px] font-semibold text-[#6B5343]">
+        흔적 {place.traceCount}
+      </span>
+    </button>
+  )
+}
+
+function SearchResultSkeletons() {
+  return Array.from({ length: 4 }, (_, index) => (
+    <div key={index} className="flex min-h-[78px] items-center gap-3 border-b border-[#F0E6DA] px-4 py-3 last:border-b-0">
+      <div className="h-11 w-11 shrink-0 animate-pulse rounded-[15px] bg-[#EFE7DB]" />
+      <div className="min-w-0 flex-1 space-y-2">
+        <div className="h-4 w-28 animate-pulse rounded bg-[#EFE7DB]" />
+        <div className="h-3 w-36 animate-pulse rounded bg-[#F2EBDF]" />
+        <div className="h-3 w-full animate-pulse rounded bg-[#F5EFE7]" />
+      </div>
+    </div>
+  ))
+}
+
+function SearchResultsState({ message, actionLabel, onAction }) {
+  return (
+    <div className="flex min-h-[110px] flex-col items-center justify-center px-5 py-5 text-center">
+      <p className="text-[14px] font-semibold leading-[1.45] text-[#3D2415]">{message}</p>
+      {actionLabel && onAction ? (
+        <button
+          type="button"
+          onClick={onAction}
+          className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#3D2415] px-4 py-2 text-[12px] font-semibold text-white"
+        >
+          <RefreshCw size={13} strokeWidth={1.8} />
+          {actionLabel}
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
 function FloatingMapControls({
   bottom,
   locationStatus,
@@ -827,13 +1274,19 @@ function MapActionButton({ icon: Icon, label, disabled = false, isLoading = fals
 function SelectedPlacePanel({
   place,
   isOpening,
+  isFavorite,
+  isFavoriteLoading,
   error,
+  favoriteError,
   onClose,
+  onToggleFavorite,
   onOpenBoard,
 }) {
   const rows = getPlaceInfoRows(place)
   const meta = getPlaceCategoryMeta(place.categoryKey)
   const PlaceIcon = CATEGORY_ICON_COMPONENTS[meta.iconName] ?? MapPinned
+  const traceCount = Number(place.traceCount)
+  const traceCountLabel = Number.isFinite(traceCount) ? `${traceCount}개` : '0개'
 
   return (
     <aside
@@ -853,7 +1306,28 @@ function SelectedPlacePanel({
           <p className="mt-1 truncate text-[12px] font-medium text-[#7A6558]">{place.groupName || '장소'}</p>
         </div>
 
-        <div className="flex shrink-0 items-center">
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="inline-flex items-center gap-1 rounded-full bg-[#FFF8ED] px-2.5 py-1 text-[11px] font-semibold text-[#7A5A2E]">
+            <ClipboardList size={11} strokeWidth={1.8} />
+            흔적 {traceCountLabel}
+          </span>
+          <button
+            type="button"
+            onClick={onToggleFavorite}
+            disabled={isFavoriteLoading}
+            className={`mr-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition disabled:opacity-60 ${
+              isFavorite ? 'bg-[#FCE9E5] text-[#C94A36]' : 'bg-[#F7F2EA] text-[#7A6558] hover:bg-[#F0E7DC]'
+            }`}
+            aria-label={isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
+            title={isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
+          >
+            {isFavoriteLoading ? (
+              <Loader2 size={17} strokeWidth={1.8} className="animate-spin" />
+            ) : (
+              <Star size={18} strokeWidth={1.8} fill={isFavorite ? 'currentColor' : 'none'} />
+            )}
+          </button>
+
           <button
             type="button"
             onClick={onClose}
@@ -878,6 +1352,7 @@ function SelectedPlacePanel({
         ) : null}
 
         {error ? <p className="mt-2 text-[12px] font-medium text-[#A74831]">{error}</p> : null}
+        {favoriteError ? <p className="mt-2 text-[12px] font-medium text-[#A74831]">{favoriteError}</p> : null}
       </div>
 
       <button
@@ -905,7 +1380,7 @@ function PlaceCard({ place, isSelected, isOpening, onSelect, refCallback }) {
         isSelected ? 'border-[#3D2415] shadow-[0_8px_18px_rgba(61,36,21,0.16)]' : 'border-[#EFE6DB]'
       }`}
     >
-      <button type="button" onClick={onSelect} onFocus={onSelect} onMouseEnter={onSelect} className="block h-full w-full text-left">
+      <button type="button" onClick={onSelect} className="block h-full w-full text-left">
         <PlaceCardImage place={place} />
         <div className="px-2.5 pb-2.5 pt-2">
           <span className="inline-block rounded-full bg-[#F2EBDF] px-2 py-0.5 text-[10px] font-medium text-[#6B5343]">

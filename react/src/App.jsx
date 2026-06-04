@@ -2,6 +2,7 @@ import { AnimatePresence } from 'framer-motion'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { getAuthToken } from './api/client'
 import MainLayout from './layouts/MainLayout'
+import ArchivePage from './pages/ArchivePage'
 import BoardDetail from './pages/BoardDetail'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
@@ -46,6 +47,7 @@ function AnimatedRoutes() {
         >
           <Route path="/home" element={<HomePage />} />
           <Route path="/map" element={<Map />} />
+          <Route path="/archive" element={<ArchivePage />} />
           <Route path="/my" element={<MyPage />} />
         </Route>
 

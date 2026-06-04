@@ -84,6 +84,22 @@ body {
   display: none;
 }
 
+.map-search-input::-webkit-search-cancel-button,
+.map-search-input::-webkit-search-decoration,
+.map-search-input::-webkit-search-results-button,
+.map-search-input::-webkit-search-results-decoration {
+  display: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.map-search-input::-ms-clear,
+.map-search-input::-ms-reveal {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 .map-place-overlay {
   border: 0;
   background: transparent;

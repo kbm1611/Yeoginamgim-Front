@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import {
   Bell,
   ChevronLeft,
@@ -9,8 +9,8 @@ import {
   Search,
   SlidersHorizontal,
 } from 'lucide-react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import PlacementOverlay from '../components/board/PlacementOverlay'
+import { useNavigate, useParams } from 'react-router-dom'
+import { fetchBoardDetail } from '../api/boards'
 import { API_BASE_URL } from '../api/client'
 import { createTraceReport } from '../api/reports'
 import { addTraceLike, fetchBoardTraces, removeTraceLike } from '../api/traces'
@@ -107,7 +107,7 @@ function traceToPost(trace) {
   }
 }
 
-function BoardHeader({ placeName, traceCount, onBack }) {
+function BoardHeader({ placeName, onBack }) {
   return (
     <div className="flex items-center justify-between bg-[#F5EFE6] px-4 pb-2 pt-3">
       <button
@@ -124,7 +124,6 @@ function BoardHeader({ placeName, traceCount, onBack }) {
           <span className="text-[16px] font-bold text-[#3B2A1E]">{placeName}</span>
           <ChevronRight size={15} strokeWidth={2.2} className="text-[#3B2A1E]" />
         </button>
-        <p className="text-[12px] text-[#8B7A6B]">흔적 {traceCount}개</p>
       </div>
 
       <div className="flex items-center gap-1">
@@ -169,7 +168,7 @@ function FilterBar({ sort, onSort }) {
         className="flex items-center gap-1.5 rounded-full border border-[#D8CDBF] bg-white/70 px-3 py-1.5 text-[13px] font-medium text-[#5C4A3B] shadow-sm"
       >
         <SlidersHorizontal size={13} strokeWidth={2} />
-        필터
+        ?꾪꽣
       </button>
     </div>
   )
@@ -206,21 +205,37 @@ function BoardDetail() {
   const boardId = id ?? 'default'
 
   const [sort, setSort] = useState('latest')
+  const [boardDetail, setBoardDetail] = useState(null)
   const [posts, setPosts] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
   const [zoom, setZoom] = useState(100)
   const transformRef = useRef(null)
 
-  // 배치 모드 상태 — 마운트 시점에 location.state를 즉시 읽음
-  const [placementDraft, setPlacementDraft] = useState(() => {
-    const draft = location.state?.placementDraft ?? null
-    if (draft) setTimeout(() => window.history.replaceState({}, ''), 0)
-    return draft
-  })
+  useEffect(() => {
+    let ignore = false
 
-  // 로컬에서 배치한 포스트잇 — 서버 응답이 덮어쓰지 못하게 별도 관리
-  const [localPosts, setLocalPosts] = useState([])
+    async function loadBoardDetail() {
+      setBoardDetail(null)
+
+      try {
+        const detail = await fetchBoardDetail(boardId)
+        if (!ignore) {
+          setBoardDetail(detail)
+        }
+      } catch {
+        if (!ignore) {
+          setBoardDetail(null)
+        }
+      }
+    }
+
+    loadBoardDetail()
+
+    return () => {
+      ignore = true
+    }
+  }, [boardId])
 
   useEffect(() => {
     let ignore = false
@@ -228,6 +243,7 @@ function BoardDetail() {
     async function loadTraces() {
       setIsLoading(true)
       setErrorMessage('')
+      setPosts([])
 
       try {
         // 백엔드 없이 빈 데이터로 테스트
@@ -241,7 +257,7 @@ function BoardDetail() {
       } catch (error) {
         if (ignore) return
         setPosts([])
-        setErrorMessage(error.message ?? '흔적을 불러오지 못했습니다.')
+        setErrorMessage(error.message ?? '?붿쟻??遺덈윭?ㅼ? 紐삵뻽?듬땲??')
       } finally {
         if (!ignore) setIsLoading(false)
       }
@@ -251,8 +267,7 @@ function BoardDetail() {
     return () => { ignore = true }
   }, [boardId, sort])
 
-  // 서버 포스트 + 로컬 포스트 합산
-  const allPosts = [...posts, ...localPosts]
+  const headerPlaceName = boardDetail?.place?.placeName ?? id ?? '?μ냼 蹂대뱶'
 
   const handleAdd = () => navigate(`/board/${boardId}/postit`)
 
@@ -321,7 +336,7 @@ function BoardDetail() {
     if (isLoading) {
       return (
         <div className="flex h-full items-center justify-center text-[18px] font-semibold text-[#5C4030]">
-          흔적을 불러오는 중...
+          ?붿쟻??遺덈윭?ㅻ뒗 以?..
         </div>
       )
     }
@@ -330,7 +345,7 @@ function BoardDetail() {
       return (
         <div className="flex h-full items-center justify-center px-8 text-center">
           <div className="rounded-[8px] bg-white/85 px-5 py-4 text-[#5C4030] shadow-md backdrop-blur-sm">
-            <p className="text-[16px] font-semibold">흔적을 불러오지 못했습니다.</p>
+            <p className="text-[16px] font-semibold">?붿쟻??遺덈윭?ㅼ? 紐삵뻽?듬땲??</p>
             <p className="mt-2 break-words text-[13px] text-[#8A6A58]">{errorMessage}</p>
           </div>
         </div>
@@ -352,8 +367,7 @@ function BoardDetail() {
   return (
     <main className="app-device flex flex-col overflow-hidden">
       <BoardHeader
-        placeName={id ?? '장소 보드'}
-        traceCount={allPosts.length}
+        placeName={headerPlaceName}
         onBack={() => navigate(-1)}
       />
 

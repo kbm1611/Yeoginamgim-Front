@@ -1,5 +1,9 @@
 import { apiClient, pathSegment } from './client'
 
+export function fetchRecentTraces({ period, district, limit = 5 } = {}) {
+  return apiClient.get('/api/traces/recent', { period, district, limit })
+}
+
 // 보드의 흔적 목록 조회
 export function fetchBoardTraces(boardId, { sort, limit, before } = {}) {
   return apiClient.get(`/api/boards/${pathSegment(boardId)}/traces`, { sort, limit, before })

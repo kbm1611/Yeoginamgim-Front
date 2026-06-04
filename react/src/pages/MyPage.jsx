@@ -3,22 +3,23 @@ import { motion } from 'framer-motion'
 import {
   AlertCircle,
   Archive,
-  ChevronRight,
   Heart,
   Loader2,
   LogOut,
-  MapPinned,
   Pencil,
   Save,
+  Trash2,
   User,
   X,
 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { fetchArchiveBoards, fetchMyTraces, fetchReceivedLikeTraces } from '../api/archive'
+import { fetchArchiveBoards, fetchMyTraces } from '../api/archive'
 import { logout } from '../api/auth'
 import { API_BASE_URL, clearAuthToken, getAuthToken } from '../api/client'
-import { fetchMyInfo, updateMyInfo } from '../api/users'
+import { deleteMyAccount, fetchMyInfo, updateMyInfo } from '../api/users'
 import { normalizeMyPageData } from './MyPage.utils'
+
+const WITHDRAWAL_CONFIRMATION = '회원탈퇴'
 
 const initialPageState = {
   status: 'loading',
@@ -37,6 +38,11 @@ function MyPage() {
   const [updateStatus, setUpdateStatus] = useState({ type: '', message: '' })
   const [isUpdating, setIsUpdating] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false)
+  const [withdrawPassword, setWithdrawPassword] = useState('')
+  const [withdrawConfirmation, setWithdrawConfirmation] = useState('')
+  const [withdrawStatus, setWithdrawStatus] = useState({ type: '', message: '' })
+  const [isWithdrawing, setIsWithdrawing] = useState(false)
   const fileInputRef = useRef(null)
 
   const loadMyPage = useCallback(async () => {
@@ -48,17 +54,15 @@ function MyPage() {
     setPageState({ status: 'loading', data: null, error: '' })
 
     try {
-      const [user, myTracesResponse, archiveBoardsResponse, receivedLikesResponse] = await Promise.all([
+      const [user, myTracesResponse, archiveBoardsResponse] = await Promise.all([
         fetchMyInfo(),
         fetchMyTraces(),
         fetchArchiveBoards(),
-        fetchReceivedLikeTraces(),
       ])
       const data = normalizeMyPageData({
         user,
         myTracesResponse,
         archiveBoardsResponse,
-        receivedLikesResponse,
       })
 
       setPageState({ status: 'ready', data, error: '' })
@@ -91,8 +95,8 @@ function MyPage() {
 
   const profile = pageState.data?.profile
   const stats = pageState.data?.stats
-  const recentTraces = pageState.data?.recentTraces ?? []
   const profileImageUrl = useMemo(() => resolveMediaUrl(profile?.profileImageUrl), [profile?.profileImageUrl])
+  const isLocalAccount = String(profile?.provider ?? 'LOCAL').toUpperCase() === 'LOCAL'
 
   const resetEditState = () => {
     setIsEditing(false)
@@ -103,6 +107,24 @@ function MyPage() {
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
+  }
+
+  const resetWithdrawState = () => {
+    setWithdrawPassword('')
+    setWithdrawConfirmation('')
+    setWithdrawStatus({ type: '', message: '' })
+  }
+
+  const openWithdrawModal = () => {
+    resetWithdrawState()
+    setIsWithdrawModalOpen(true)
+  }
+
+  const closeWithdrawModal = () => {
+    if (isWithdrawing) return
+
+    resetWithdrawState()
+    setIsWithdrawModalOpen(false)
   }
 
   const handleSubmitProfile = async (event) => {
@@ -164,9 +186,42 @@ function MyPage() {
     }
   }
 
-  const handleTraceClick = (trace) => {
-    if (trace.boardId) {
-      navigate(`/board/${trace.boardId}`)
+  const handleWithdrawSubmit = async (event) => {
+    event.preventDefault()
+
+    if (isWithdrawing) return
+
+    if (isLocalAccount && !withdrawPassword.trim()) {
+      setWithdrawStatus({ type: 'error', message: '비밀번호를 입력해 주세요.' })
+      return
+    }
+
+    if (!isLocalAccount && withdrawConfirmation.trim() !== WITHDRAWAL_CONFIRMATION) {
+      setWithdrawStatus({ type: 'error', message: `확인 문구 ${WITHDRAWAL_CONFIRMATION}를 입력해 주세요.` })
+      return
+    }
+
+    setIsWithdrawing(true)
+    setWithdrawStatus({ type: '', message: '' })
+
+    try {
+      await deleteMyAccount(
+        isLocalAccount
+          ? { password: withdrawPassword }
+          : { confirmation: withdrawConfirmation.trim() }
+      )
+      clearAuthToken()
+      navigate('/login', { replace: true, state: { message: '회원 탈퇴가 완료되었습니다.' } })
+    } catch (error) {
+      if (error?.status === 401) {
+        clearAuthToken()
+        navigate('/login', { replace: true })
+        return
+      }
+
+      setWithdrawStatus({ type: 'error', message: getFriendlyError(error) })
+    } finally {
+      setIsWithdrawing(false)
     }
   }
 
@@ -310,58 +365,14 @@ function MyPage() {
               <StatItem icon={Archive} label="장소" value={stats.archiveBoardCount} />
               <StatItem icon={Heart} label="받은 좋아요" value={stats.receivedLikeCount} />
             </div>
-            <p className="mt-2 text-right text-[12px] font-medium text-[#8a7767]">
-              좋아요 받은 흔적 {stats.likedTraceCount}개
-            </p>
-          </section>
-
-          <section className="mt-5">
-            <div className="mb-3 flex items-center justify-between">
-              <h1 className="text-[22px] font-bold text-[#2B1810]">내 흔적</h1>
-            </div>
-
-            {recentTraces.length > 0 ? (
-              <div className="space-y-2">
-                {recentTraces.map((trace) => (
-                  <button
-                    key={trace.id}
-                    type="button"
-                    onClick={() => handleTraceClick(trace)}
-                    className="flex w-full items-center gap-3 rounded-lg border border-[#eee3d6] bg-white/80 p-3 text-left shadow-[0_5px_12px_rgba(78,52,32,0.05)]"
-                  >
-                    {trace.imageUrl ? (
-                      <img
-                        src={resolveMediaUrl(trace.imageUrl)}
-                        alt=""
-                        className="h-13 w-13 rounded-lg object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-13 w-13 items-center justify-center rounded-lg bg-[#EFE3D4] text-[#6d503a]">
-                        <MapPinned size={20} />
-                      </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[15px] font-bold text-[#2F2118]">{trace.previewText}</p>
-                      <p className="mt-1 text-[12px] font-medium text-[#8A7A6E]">
-                        {formatDate(trace.createdAt)} · 좋아요 {trace.likeCount}
-                      </p>
-                    </div>
-                    <ChevronRight size={18} className="shrink-0 text-[#9a8877]" />
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-lg border border-dashed border-[#d9caba] bg-[#fbf6ef] px-4 py-8 text-center">
-                <p className="text-[17px] font-bold text-[#3D2415]">아직 남긴 흔적이 없어요</p>
-                <button
-                  type="button"
-                  onClick={() => navigate('/map')}
-                  className="mt-4 rounded-full bg-[#3D2415] px-5 py-3 text-[14px] font-bold text-white"
-                >
-                  지도에서 시작하기
-                </button>
-              </div>
-            )}
+            <button
+              type="button"
+              onClick={() => navigate('/archive')}
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#3D2415] px-4 py-3 text-[14px] font-bold text-white"
+            >
+              <Archive size={17} />
+              내 흔적 보관함 보기
+            </button>
           </section>
 
           <section className="mt-6 pb-2">
@@ -375,6 +386,32 @@ function MyPage() {
               로그아웃
             </button>
           </section>
+
+          <section className="mt-3 pb-8">
+            <button
+              type="button"
+              onClick={openWithdrawModal}
+              disabled={isWithdrawing}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-[#e5c8bd] bg-[#fff7f4] px-4 py-3 text-[14px] font-bold text-[#a43d30] disabled:opacity-60"
+            >
+              <Trash2 size={17} />
+              회원 탈퇴
+            </button>
+          </section>
+
+          {isWithdrawModalOpen && (
+            <WithdrawModal
+              isLocalAccount={isLocalAccount}
+              password={withdrawPassword}
+              confirmation={withdrawConfirmation}
+              status={withdrawStatus}
+              isSubmitting={isWithdrawing}
+              onPasswordChange={setWithdrawPassword}
+              onConfirmationChange={setWithdrawConfirmation}
+              onCancel={closeWithdrawModal}
+              onSubmit={handleWithdrawSubmit}
+            />
+          )}
         </>
       )}
     </motion.div>
@@ -387,6 +424,104 @@ function StatItem({ icon: Icon, label, value }) {
       <Icon size={18} className="mx-auto text-[#5f412b]" />
       <p className="mt-2 text-[20px] font-bold text-[#2B1810]">{value}</p>
       <p className="mt-0.5 text-[12px] font-semibold text-[#776353]">{label}</p>
+    </div>
+  )
+}
+
+function WithdrawModal({
+  isLocalAccount,
+  password,
+  confirmation,
+  status,
+  isSubmitting,
+  onPasswordChange,
+  onConfirmationChange,
+  onCancel,
+  onSubmit,
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-5"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="withdraw-title"
+    >
+      <form
+        className="w-full max-w-sm rounded-lg border border-[#eadfce] bg-[#fffaf4] p-5 shadow-[0_18px_45px_rgba(43,24,16,0.22)]"
+        onSubmit={onSubmit}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 id="withdraw-title" className="text-[20px] font-bold text-[#2B1810]">
+              회원 탈퇴
+            </h2>
+            <p className="mt-2 text-[13px] font-medium leading-relaxed text-[#7A6857]">
+              탈퇴 후 현재 토큰은 사용할 수 없고, 작성한 흔적은 탈퇴한 사용자로 표시됩니다.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isSubmitting}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#EFE8DE] text-[#4B3120] disabled:opacity-60"
+            aria-label="닫기"
+            title="닫기"
+          >
+            <X size={17} />
+          </button>
+        </div>
+
+        {isLocalAccount ? (
+          <label className="mt-5 block">
+            <span className="text-[12px] font-semibold text-[#7b6a5d]">비밀번호 확인</span>
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => onPasswordChange(event.target.value)}
+              disabled={isSubmitting}
+              className="mt-2 w-full rounded-lg border border-[#eadfce] bg-white px-3 py-3 text-[15px] font-semibold text-[#2B1810] outline-none focus:border-[#8a5c3a]"
+            />
+          </label>
+        ) : (
+          <label className="mt-5 block">
+            <span className="text-[12px] font-semibold text-[#7b6a5d]">확인 문구</span>
+            <input
+              type="text"
+              value={confirmation}
+              onChange={(event) => onConfirmationChange(event.target.value)}
+              disabled={isSubmitting}
+              placeholder={WITHDRAWAL_CONFIRMATION}
+              className="mt-2 w-full rounded-lg border border-[#eadfce] bg-white px-3 py-3 text-[15px] font-semibold text-[#2B1810] outline-none focus:border-[#8a5c3a]"
+            />
+          </label>
+        )}
+
+        {status.message && (
+          <p className="mt-3 text-[13px] font-medium text-[#a43d30]" aria-live="polite">
+            {status.message}
+          </p>
+        )}
+
+        <div className="mt-5 flex gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isSubmitting}
+            className="flex-1 rounded-full border border-[#dfd0bf] bg-white px-4 py-3 text-[14px] font-bold text-[#5a3a26] disabled:opacity-60"
+          >
+            취소
+          </button>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-[#a43d30] px-4 py-3 text-[14px] font-bold text-white disabled:opacity-60"
+          >
+            {isSubmitting && <Loader2 size={16} className="animate-spin" />}
+            탈퇴하기
+          </button>
+        </div>
+      </form>
     </div>
   )
 }
@@ -436,18 +571,6 @@ function resolveMediaUrl(path) {
 
 function onlySixDigits(value) {
   return value.replace(/\D/g, '').slice(0, 6)
-}
-
-function formatDate(value) {
-  if (!value) return '날짜 없음'
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '날짜 없음'
-
-  return new Intl.DateTimeFormat('ko-KR', {
-    month: 'short',
-    day: 'numeric',
-  }).format(date)
 }
 
 function getFriendlyError(error) {
