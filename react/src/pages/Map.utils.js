@@ -28,10 +28,6 @@ export const MAP_SEARCH_RESULTS_PANEL_CLASSES =
   'relative z-[45] mb-2 overflow-hidden rounded-[20px] border border-[#EDE4D8] bg-white/97 shadow-[0_10px_24px_rgba(61,36,21,0.12)] backdrop-blur-sm'
 export const MAP_SEARCH_RESULTS_LIST_CLASSES =
   'scrollbar-hide flex max-h-[min(320px,calc(100dvh-260px))] flex-col overflow-y-auto overscroll-contain'
-export const MAP_CATEGORY_FILTER_SCROLL_CLASSES =
-  'scrollbar-hide mt-3 flex w-full snap-x snap-proximity flex-nowrap gap-2 overflow-x-scroll overflow-y-hidden overscroll-x-contain scroll-smooth pb-1 whitespace-nowrap [touch-action:pan-x] [-webkit-overflow-scrolling:touch]'
-export const MAP_CATEGORY_FILTER_BUTTON_CLASSES =
-  'inline-flex min-h-10 shrink-0 snap-start items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] transition'
 export const MAP_CURRENT_LOCATION_LEVEL = 5
 export const MAP_RESULT_SINGLE_PLACE_LEVEL = 4
 export const MAP_SELECTED_PLACE_LEVEL = 4
@@ -278,22 +274,12 @@ export function buildPopularPlaceRequest({ latitude, longitude } = {}) {
 
 export function buildPoiSearchRequest({
   query,
-  latitude,
-  longitude,
-  selectedCategory = null,
 } = {}) {
   const safeQuery = String(query ?? '').trim()
-  const safeLatitude = toCoordinate(latitude)
-  const safeLongitude = toCoordinate(longitude)
-  if (!safeQuery || safeLatitude === null || safeLongitude === null) return null
+  if (!safeQuery) return null
 
-  const category = getSingleCategoryFilterCode(selectedCategory)
   return {
     query: safeQuery,
-    latitude: safeLatitude,
-    longitude: safeLongitude,
-    radius: NEARBY_RADIUS_METERS,
-    ...(category ? { category } : {}),
     page: 1,
     limit: NEARBY_LIMIT,
   }
@@ -493,17 +479,6 @@ export function getMapViewportPlan(places = [], currentPosition = null) {
   }
 }
 
-export function getCategorySelectionState(categoryLabel) {
-  return {
-    selectedCategory: categoryLabel,
-    categoryPlaces: [],
-    selectedPlaceId: null,
-    categoryPlacesStatus: 'loading',
-    categoryPlacesError: '',
-    boardError: '',
-  }
-}
-
 export function getPlaceSelectionTransitionState(kakaoPlaceId) {
   return {
     selectedPlaceId: null,
@@ -594,17 +569,6 @@ function getDisplayCategory(place) {
 
   const category = normalizeCategoryKey(place?.category)
   return CATEGORY_LABELS[category] ?? '장소'
-}
-
-function getSingleCategoryFilterCode(selectedCategory) {
-  if (!selectedCategory) return null
-
-  const filter = CATEGORY_FILTERS.find((item) => item.label === selectedCategory)
-  if (filter) {
-    return filter.categories.length === 1 ? normalizeCategoryKey(filter.categories[0]) : null
-  }
-
-  return normalizeCategoryKey(selectedCategory)
 }
 
 function normalizeCategoryKey(value) {
