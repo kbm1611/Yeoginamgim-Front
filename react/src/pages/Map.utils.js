@@ -30,7 +30,7 @@ export const MAP_SEARCH_RESULTS_PANEL_CLASSES =
 export const MAP_SEARCH_RESULTS_LIST_CLASSES =
   'scrollbar-hide flex max-h-[min(320px,calc(100dvh-260px))] flex-col overflow-y-auto overscroll-contain'
 export const MAP_CATEGORY_FILTER_SCROLL_CLASSES =
-  'scrollbar-hide mt-3 flex w-full snap-x snap-proximity flex-nowrap gap-2 overflow-x-scroll overflow-y-hidden overscroll-x-contain scroll-smooth pb-1 whitespace-nowrap [touch-action:pan-x] [-webkit-overflow-scrolling:touch]'
+  'scrollbar-hide mt-3 flex w-full snap-x snap-proximity flex-nowrap gap-2 overflow-x-scroll overflow-y-hidden overscroll-x-contain scroll-smooth pb-1 whitespace-nowrap select-none cursor-grab active:cursor-grabbing [touch-action:pan-x] [-webkit-overflow-scrolling:touch]'
 export const MAP_CATEGORY_FILTER_BUTTON_CLASSES =
   'inline-flex min-h-10 shrink-0 snap-start items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] transition'
 export const MAP_CURRENT_LOCATION_LEVEL = 5
@@ -434,6 +434,53 @@ export function getCurrentLocationViewPlan(position) {
   }
 }
 
+export function getHorizontalDragStartState({
+  pointerType = 'mouse',
+  button = 0,
+  clientX,
+  scrollLeft,
+  scrollWidth,
+  clientWidth,
+} = {}) {
+  if (pointerType === 'mouse' && button !== 0) return null
+  if (!['mouse', 'pen'].includes(pointerType)) return null
+
+  const maxScrollLeft = getMaxScrollLeft(scrollWidth, clientWidth)
+  if (maxScrollLeft <= 0) return null
+
+  const startX = toFiniteNumber(clientX)
+  const startScrollLeft = toFiniteNumber(scrollLeft)
+  if (startX === null || startScrollLeft === null) return null
+
+  return {
+    startX,
+    startScrollLeft: Math.max(0, Math.min(startScrollLeft, maxScrollLeft)),
+    isDragging: false,
+  }
+}
+
+export function getHorizontalDragScrollLeft(dragState, {
+  clientX,
+  scrollWidth,
+  clientWidth,
+} = {}) {
+  if (!dragState) return null
+
+  const currentX = toFiniteNumber(clientX)
+  const startX = toFiniteNumber(dragState.startX)
+  const startScrollLeft = toFiniteNumber(dragState.startScrollLeft)
+  if (currentX === null || startX === null || startScrollLeft === null) return null
+
+  const maxScrollLeft = getMaxScrollLeft(scrollWidth, clientWidth)
+  const deltaX = currentX - startX
+  const scrollLeft = Math.max(0, Math.min(startScrollLeft - deltaX, maxScrollLeft))
+
+  return {
+    scrollLeft,
+    isDragging: Boolean(dragState.isDragging || Math.abs(deltaX) >= 4),
+  }
+}
+
 export function getBottomSheetTransform(isOpen) {
   return isOpen ? 'translateY(0)' : MAP_BOTTOM_SHEET_CLOSED_TRANSFORM
 }
@@ -729,6 +776,19 @@ function getDistanceInMeters(startLatitude, startLongitude, endLatitude, endLong
 
 function toRadians(value) {
   return (value * Math.PI) / 180
+}
+
+function getMaxScrollLeft(scrollWidth, clientWidth) {
+  const safeScrollWidth = toFiniteNumber(scrollWidth)
+  const safeClientWidth = toFiniteNumber(clientWidth)
+  if (safeScrollWidth === null || safeClientWidth === null) return 0
+
+  return Math.max(0, safeScrollWidth - safeClientWidth)
+}
+
+function toFiniteNumber(value) {
+  const number = Number(value)
+  return Number.isFinite(number) ? number : null
 }
 
 function toCoordinate(value) {

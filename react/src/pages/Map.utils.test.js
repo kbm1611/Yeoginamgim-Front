@@ -28,6 +28,8 @@ import {
   getCategorySelectionState,
   getCurrentPositionMarkerTitle,
   getCurrentLocationViewPlan,
+  getHorizontalDragScrollLeft,
+  getHorizontalDragStartState,
   getFloatingControlsBottom,
   getMapBottomUiState,
   getMapViewportPlan,
@@ -645,6 +647,67 @@ test('category filter classes keep chips in one horizontal scroll row', () => {
   assert.match(MAP_CATEGORY_FILTER_SCROLL_CLASSES, /touch-action:pan-x/)
   assert.match(MAP_CATEGORY_FILTER_BUTTON_CLASSES, /shrink-0/)
   assert.match(MAP_CATEGORY_FILTER_BUTTON_CLASSES, /snap-start/)
+})
+
+test('horizontal drag helpers convert mouse drag distance into bounded scrollLeft', () => {
+  const dragState = getHorizontalDragStartState({
+    pointerType: 'mouse',
+    button: 0,
+    clientX: 240,
+    scrollLeft: 30,
+    scrollWidth: 900,
+    clientWidth: 320,
+  })
+
+  assert.deepEqual(dragState, {
+    startX: 240,
+    startScrollLeft: 30,
+    isDragging: false,
+  })
+
+  assert.deepEqual(
+    getHorizontalDragScrollLeft(dragState, {
+      clientX: 180,
+      scrollWidth: 900,
+      clientWidth: 320,
+    }),
+    {
+      scrollLeft: 90,
+      isDragging: true,
+    }
+  )
+
+  assert.deepEqual(
+    getHorizontalDragScrollLeft(dragState, {
+      clientX: 940,
+      scrollWidth: 900,
+      clientWidth: 320,
+    }),
+    {
+      scrollLeft: 0,
+      isDragging: true,
+    }
+  )
+})
+
+test('horizontal drag helpers ignore non-scrollable rows and non-primary mouse buttons', () => {
+  assert.equal(getHorizontalDragStartState({
+    pointerType: 'mouse',
+    button: 0,
+    clientX: 120,
+    scrollLeft: 0,
+    scrollWidth: 320,
+    clientWidth: 320,
+  }), null)
+
+  assert.equal(getHorizontalDragStartState({
+    pointerType: 'mouse',
+    button: 2,
+    clientX: 120,
+    scrollLeft: 0,
+    scrollWidth: 900,
+    clientWidth: 320,
+  }), null)
 })
 
 test('map viewport plan leaves the current view alone when no place markers exist', () => {
