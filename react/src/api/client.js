@@ -31,7 +31,21 @@ export function setAuthToken(token) {
 
 // 토큰 비우기(로그아웃)
 export function clearAuthToken() {
-  window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY)
+  try {
+    window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY)
+  } catch {
+    // Storage can be unavailable in restricted browser contexts.
+  }
+
+  try {
+    window.sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY)
+  } catch {
+    // Storage can be unavailable in restricted browser contexts.
+  }
+
+  if (typeof document !== 'undefined') {
+    document.cookie = `${AUTH_TOKEN_STORAGE_KEY}=; Max-Age=0; path=/`
+  }
 }
 
 // api url 생성, undefined, null, 빈문자열 query param은 제외

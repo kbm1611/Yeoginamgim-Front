@@ -10,6 +10,7 @@ import {
   MapPinned,
   Pencil,
   Save,
+  Trash2,
   User,
   X,
 } from 'lucide-react'
@@ -17,8 +18,10 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { fetchArchiveBoards, fetchMyTraces, fetchReceivedLikeTraces } from '../api/archive'
 import { logout } from '../api/auth'
 import { API_BASE_URL, clearAuthToken, getAuthToken } from '../api/client'
-import { fetchMyInfo, updateMyInfo } from '../api/users'
+import { deleteMyAccount, fetchMyInfo, updateMyInfo } from '../api/users'
 import { normalizeMyPageData } from './MyPage.utils'
+
+const WITHDRAWAL_CONFIRMATION = '회원탈퇴'
 
 const initialPageState = {
   status: 'loading',
@@ -37,6 +40,11 @@ function MyPage() {
   const [updateStatus, setUpdateStatus] = useState({ type: '', message: '' })
   const [isUpdating, setIsUpdating] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false)
+  const [withdrawPassword, setWithdrawPassword] = useState('')
+  const [withdrawConfirmation, setWithdrawConfirmation] = useState('')
+  const [withdrawStatus, setWithdrawStatus] = useState({ type: '', message: '' })
+  const [isWithdrawing, setIsWithdrawing] = useState(false)
   const fileInputRef = useRef(null)
 
   const loadMyPage = useCallback(async () => {
@@ -93,6 +101,7 @@ function MyPage() {
   const stats = pageState.data?.stats
   const recentTraces = pageState.data?.recentTraces ?? []
   const profileImageUrl = useMemo(() => resolveMediaUrl(profile?.profileImageUrl), [profile?.profileImageUrl])
+  const isLocalAccount = String(profile?.provider ?? 'LOCAL').toUpperCase() === 'LOCAL'
 
   const resetEditState = () => {
     setIsEditing(false)
@@ -103,6 +112,24 @@ function MyPage() {
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
+  }
+
+  const resetWithdrawState = () => {
+    setWithdrawPassword('')
+    setWithdrawConfirmation('')
+    setWithdrawStatus({ type: '', message: '' })
+  }
+
+  const openWithdrawModal = () => {
+    resetWithdrawState()
+    setIsWithdrawModalOpen(true)
+  }
+
+  const closeWithdrawModal = () => {
+    if (isWithdrawing) return
+
+    resetWithdrawState()
+    setIsWithdrawModalOpen(false)
   }
 
   const handleSubmitProfile = async (event) => {
@@ -161,6 +188,45 @@ function MyPage() {
     } finally {
       clearAuthToken()
       navigate('/login', { replace: true })
+    }
+  }
+
+  const handleWithdrawSubmit = async (event) => {
+    event.preventDefault()
+
+    if (isWithdrawing) return
+
+    if (isLocalAccount && !withdrawPassword.trim()) {
+      setWithdrawStatus({ type: 'error', message: '비밀번호를 입력해 주세요.' })
+      return
+    }
+
+    if (!isLocalAccount && withdrawConfirmation.trim() !== WITHDRAWAL_CONFIRMATION) {
+      setWithdrawStatus({ type: 'error', message: `확인 문구 ${WITHDRAWAL_CONFIRMATION}를 입력해 주세요.` })
+      return
+    }
+
+    setIsWithdrawing(true)
+    setWithdrawStatus({ type: '', message: '' })
+
+    try {
+      await deleteMyAccount(
+        isLocalAccount
+          ? { password: withdrawPassword }
+          : { confirmation: withdrawConfirmation.trim() }
+      )
+      clearAuthToken()
+      navigate('/login', { replace: true, state: { message: '회원 탈퇴가 완료되었습니다.' } })
+    } catch (error) {
+      if (error?.status === 401) {
+        clearAuthToken()
+        navigate('/login', { replace: true })
+        return
+      }
+
+      setWithdrawStatus({ type: 'error', message: getFriendlyError(error) })
+    } finally {
+      setIsWithdrawing(false)
     }
   }
 
@@ -375,6 +441,32 @@ function MyPage() {
               로그아웃
             </button>
           </section>
+
+          <section className="mt-3 pb-8">
+            <button
+              type="button"
+              onClick={openWithdrawModal}
+              disabled={isWithdrawing}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-[#e5c8bd] bg-[#fff7f4] px-4 py-3 text-[14px] font-bold text-[#a43d30] disabled:opacity-60"
+            >
+              <Trash2 size={17} />
+              회원 탈퇴
+            </button>
+          </section>
+
+          {isWithdrawModalOpen && (
+            <WithdrawModal
+              isLocalAccount={isLocalAccount}
+              password={withdrawPassword}
+              confirmation={withdrawConfirmation}
+              status={withdrawStatus}
+              isSubmitting={isWithdrawing}
+              onPasswordChange={setWithdrawPassword}
+              onConfirmationChange={setWithdrawConfirmation}
+              onCancel={closeWithdrawModal}
+              onSubmit={handleWithdrawSubmit}
+            />
+          )}
         </>
       )}
     </motion.div>
@@ -387,6 +479,104 @@ function StatItem({ icon: Icon, label, value }) {
       <Icon size={18} className="mx-auto text-[#5f412b]" />
       <p className="mt-2 text-[20px] font-bold text-[#2B1810]">{value}</p>
       <p className="mt-0.5 text-[12px] font-semibold text-[#776353]">{label}</p>
+    </div>
+  )
+}
+
+function WithdrawModal({
+  isLocalAccount,
+  password,
+  confirmation,
+  status,
+  isSubmitting,
+  onPasswordChange,
+  onConfirmationChange,
+  onCancel,
+  onSubmit,
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-5"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="withdraw-title"
+    >
+      <form
+        className="w-full max-w-sm rounded-lg border border-[#eadfce] bg-[#fffaf4] p-5 shadow-[0_18px_45px_rgba(43,24,16,0.22)]"
+        onSubmit={onSubmit}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 id="withdraw-title" className="text-[20px] font-bold text-[#2B1810]">
+              회원 탈퇴
+            </h2>
+            <p className="mt-2 text-[13px] font-medium leading-relaxed text-[#7A6857]">
+              탈퇴 후 현재 토큰은 사용할 수 없고, 작성한 흔적은 탈퇴한 사용자로 표시됩니다.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isSubmitting}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#EFE8DE] text-[#4B3120] disabled:opacity-60"
+            aria-label="닫기"
+            title="닫기"
+          >
+            <X size={17} />
+          </button>
+        </div>
+
+        {isLocalAccount ? (
+          <label className="mt-5 block">
+            <span className="text-[12px] font-semibold text-[#7b6a5d]">비밀번호 확인</span>
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => onPasswordChange(event.target.value)}
+              disabled={isSubmitting}
+              className="mt-2 w-full rounded-lg border border-[#eadfce] bg-white px-3 py-3 text-[15px] font-semibold text-[#2B1810] outline-none focus:border-[#8a5c3a]"
+            />
+          </label>
+        ) : (
+          <label className="mt-5 block">
+            <span className="text-[12px] font-semibold text-[#7b6a5d]">확인 문구</span>
+            <input
+              type="text"
+              value={confirmation}
+              onChange={(event) => onConfirmationChange(event.target.value)}
+              disabled={isSubmitting}
+              placeholder={WITHDRAWAL_CONFIRMATION}
+              className="mt-2 w-full rounded-lg border border-[#eadfce] bg-white px-3 py-3 text-[15px] font-semibold text-[#2B1810] outline-none focus:border-[#8a5c3a]"
+            />
+          </label>
+        )}
+
+        {status.message && (
+          <p className="mt-3 text-[13px] font-medium text-[#a43d30]" aria-live="polite">
+            {status.message}
+          </p>
+        )}
+
+        <div className="mt-5 flex gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isSubmitting}
+            className="flex-1 rounded-full border border-[#dfd0bf] bg-white px-4 py-3 text-[14px] font-bold text-[#5a3a26] disabled:opacity-60"
+          >
+            취소
+          </button>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-[#a43d30] px-4 py-3 text-[14px] font-bold text-white disabled:opacity-60"
+          >
+            {isSubmitting && <Loader2 size={16} className="animate-spin" />}
+            탈퇴하기
+          </button>
+        </div>
+      </form>
     </div>
   )
 }

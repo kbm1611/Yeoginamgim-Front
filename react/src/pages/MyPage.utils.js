@@ -15,6 +15,7 @@ export function normalizeMyPageData({
       nickname,
       profileImageUrl: user?.profileImageUrl ?? '',
       birthDate: user?.birthDate ?? '',
+      provider: String(user?.provider ?? 'LOCAL').toUpperCase(),
       initial: getInitial(nickname),
     },
     stats: {

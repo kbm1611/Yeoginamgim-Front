@@ -14,3 +14,8 @@ export function fetchMyInfo() {
 export function updateMyInfo(formData) {
   return apiClient.formData('/api/user/update', formData, { method: 'PATCH' })
 }
+
+// 회원 탈퇴
+export function deleteMyAccount(payload) {
+  return apiClient.delete('/api/user/me', undefined, { body: payload })
+}
