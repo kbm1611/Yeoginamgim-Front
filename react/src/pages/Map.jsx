@@ -26,13 +26,15 @@ import {
   School,
   SlidersHorizontal,
   ShoppingCart,
+  Star,
   Store,
   TrainFront,
   Utensils,
   X,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { fetchOrCreateBoardForPlace } from '../api/boards'
+import { addFavoritePlace, fetchFavoritePlaces, removeFavoritePlace } from '../api/archive'
+import { buildBoardRequestFromPlace, fetchOrCreateBoardForPlace } from '../api/boards'
 import { ensureKakaoMaps } from '../api/kakaoMaps'
 import { fetchNearbyPlaces, fetchPopularPlaces } from '../api/places'
 import mainLogo from '../assets/logo/image_12-removebg-preview.png'
@@ -131,10 +133,14 @@ function MapPage() {
   const [selectedPlaceId, setSelectedPlaceId] = useState(null)
   const [openingPlaceId, setOpeningPlaceId] = useState(null)
   const [boardError, setBoardError] = useState('')
+  const [favoritePlaceIds, setFavoritePlaceIds] = useState(() => new Set())
+  const [favoritePlaceIdInProgress, setFavoritePlaceIdInProgress] = useState(null)
+  const [favoriteError, setFavoriteError] = useState('')
   const [isSheetOpen, setIsSheetOpen] = useState(false)
 
   const knownPlaces = [...categoryPlaces, ...popularPlaces]
   const selectedPlace = knownPlaces.find((place) => place.kakaoPlaceId === selectedPlaceId) ?? null
+  const isSelectedPlaceFavorite = selectedPlace ? favoritePlaceIds.has(selectedPlace.kakaoPlaceId) : false
   const markerPlaces = useMemo(() => getMarkerPlaces({
     categoryPlaces,
     popularPlaces,
@@ -209,6 +215,7 @@ function MapPage() {
   const selectPlace = useCallback((kakaoPlaceId, { focusMap = false } = {}) => {
     setSelectedPlaceId(kakaoPlaceId)
     setBoardError('')
+    setFavoriteError('')
 
     if (focusMap) {
       focusMapOnPlace(placeLookupRef.current.get(kakaoPlaceId))
@@ -351,6 +358,26 @@ function MapPage() {
       setPopularPlacesError('주변 인기 공간을 불러오지 못했어요.')
     }
   }, [currentPosition, locationStatus])
+
+  const loadFavoritePlaces = useCallback(async () => {
+    try {
+      const response = await fetchFavoritePlaces()
+      if (!isMountedRef.current) return
+
+      const ids = new Set(
+        (Array.isArray(response?.places) ? response.places : [])
+          .map((place) => place?.kakaoPlaceId)
+          .filter(Boolean)
+      )
+      setFavoritePlaceIds(ids)
+      setFavoriteError('')
+    } catch {
+      if (isMountedRef.current) {
+        setFavoriteError('즐겨찾기 정보를 불러오지 못했어요.')
+      }
+    }
+  }, [])
+
   useEffect(() => {
     isMountedRef.current = true
     window.queueMicrotask(() => {
@@ -363,6 +390,14 @@ function MapPage() {
       isMountedRef.current = false
     }
   }, [requestCurrentLocation])
+
+  useEffect(() => {
+    window.queueMicrotask(() => {
+      if (isMountedRef.current) {
+        loadFavoritePlaces()
+      }
+    })
+  }, [loadFavoritePlaces])
 
   useEffect(() => {
     let cancelled = false
@@ -569,6 +604,44 @@ function MapPage() {
     }
   }
 
+  const handleToggleFavorite = async (place) => {
+    if (!place?.kakaoPlaceId) return
+
+    const kakaoPlaceId = place.kakaoPlaceId
+    const isFavorite = favoritePlaceIds.has(kakaoPlaceId)
+
+    setFavoriteError('')
+    setFavoritePlaceIdInProgress(kakaoPlaceId)
+    selectPlace(kakaoPlaceId, { focusMap: true })
+
+    try {
+      if (isFavorite) {
+        await removeFavoritePlace(kakaoPlaceId)
+        setFavoritePlaceIds((previousIds) => {
+          const nextIds = new Set(previousIds)
+          nextIds.delete(kakaoPlaceId)
+          return nextIds
+        })
+        return
+      }
+
+      await addFavoritePlace(kakaoPlaceId, buildBoardRequestFromPlace(place))
+      setFavoritePlaceIds((previousIds) => {
+        const nextIds = new Set(previousIds)
+        nextIds.add(kakaoPlaceId)
+        return nextIds
+      })
+    } catch {
+      if (isMountedRef.current) {
+        setFavoriteError(isFavorite ? '즐겨찾기를 해제하지 못했어요.' : '즐겨찾기에 저장하지 못했어요.')
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setFavoritePlaceIdInProgress(null)
+      }
+    }
+  }
+
   return (
     <main
       ref={containerRef}
@@ -681,11 +754,16 @@ function MapPage() {
         <SelectedPlacePanel
           place={selectedPlace}
           isOpening={selectedPlace.kakaoPlaceId === openingPlaceId}
+          isFavorite={isSelectedPlaceFavorite}
+          isFavoriteLoading={selectedPlace.kakaoPlaceId === favoritePlaceIdInProgress}
           error={boardError}
+          favoriteError={favoriteError}
           onClose={() => {
             setSelectedPlaceId(null)
             setBoardError('')
+            setFavoriteError('')
           }}
+          onToggleFavorite={() => handleToggleFavorite(selectedPlace)}
           onOpenBoard={() => handleOpenBoard(selectedPlace)}
         />
       ) : null}
@@ -827,8 +905,12 @@ function MapActionButton({ icon: Icon, label, disabled = false, isLoading = fals
 function SelectedPlacePanel({
   place,
   isOpening,
+  isFavorite,
+  isFavoriteLoading,
   error,
+  favoriteError,
   onClose,
+  onToggleFavorite,
   onOpenBoard,
 }) {
   const rows = getPlaceInfoRows(place)
@@ -856,6 +938,23 @@ function SelectedPlacePanel({
         <div className="flex shrink-0 items-center">
           <button
             type="button"
+            onClick={onToggleFavorite}
+            disabled={isFavoriteLoading}
+            className={`mr-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition disabled:opacity-60 ${
+              isFavorite ? 'bg-[#FCE9E5] text-[#C94A36]' : 'bg-[#F7F2EA] text-[#7A6558] hover:bg-[#F0E7DC]'
+            }`}
+            aria-label={isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
+            title={isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
+          >
+            {isFavoriteLoading ? (
+              <Loader2 size={17} strokeWidth={1.8} className="animate-spin" />
+            ) : (
+              <Star size={18} strokeWidth={1.8} fill={isFavorite ? 'currentColor' : 'none'} />
+            )}
+          </button>
+
+          <button
+            type="button"
             onClick={onClose}
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F7F2EA] text-[#7A6558] transition hover:bg-[#F0E7DC]"
             aria-label="선택 장소 정보 닫기"
@@ -878,6 +977,7 @@ function SelectedPlacePanel({
         ) : null}
 
         {error ? <p className="mt-2 text-[12px] font-medium text-[#A74831]">{error}</p> : null}
+        {favoriteError ? <p className="mt-2 text-[12px] font-medium text-[#A74831]">{favoriteError}</p> : null}
       </div>
 
       <button

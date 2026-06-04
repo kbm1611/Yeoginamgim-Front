@@ -3,18 +3,16 @@ import { motion } from 'framer-motion'
 import {
   AlertCircle,
   Archive,
-  ChevronRight,
   Heart,
   Loader2,
   LogOut,
-  MapPinned,
   Pencil,
   Save,
   User,
   X,
 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { fetchArchiveBoards, fetchMyTraces, fetchReceivedLikeTraces } from '../api/archive'
+import { fetchArchiveBoards, fetchMyTraces } from '../api/archive'
 import { logout } from '../api/auth'
 import { API_BASE_URL, clearAuthToken, getAuthToken } from '../api/client'
 import { fetchMyInfo, updateMyInfo } from '../api/users'
@@ -48,17 +46,15 @@ function MyPage() {
     setPageState({ status: 'loading', data: null, error: '' })
 
     try {
-      const [user, myTracesResponse, archiveBoardsResponse, receivedLikesResponse] = await Promise.all([
+      const [user, myTracesResponse, archiveBoardsResponse] = await Promise.all([
         fetchMyInfo(),
         fetchMyTraces(),
         fetchArchiveBoards(),
-        fetchReceivedLikeTraces(),
       ])
       const data = normalizeMyPageData({
         user,
         myTracesResponse,
         archiveBoardsResponse,
-        receivedLikesResponse,
       })
 
       setPageState({ status: 'ready', data, error: '' })
@@ -91,7 +87,6 @@ function MyPage() {
 
   const profile = pageState.data?.profile
   const stats = pageState.data?.stats
-  const recentTraces = pageState.data?.recentTraces ?? []
   const profileImageUrl = useMemo(() => resolveMediaUrl(profile?.profileImageUrl), [profile?.profileImageUrl])
 
   const resetEditState = () => {
@@ -161,12 +156,6 @@ function MyPage() {
     } finally {
       clearAuthToken()
       navigate('/login', { replace: true })
-    }
-  }
-
-  const handleTraceClick = (trace) => {
-    if (trace.boardId) {
-      navigate(`/board/${trace.boardId}`)
     }
   }
 
@@ -310,58 +299,14 @@ function MyPage() {
               <StatItem icon={Archive} label="장소" value={stats.archiveBoardCount} />
               <StatItem icon={Heart} label="받은 좋아요" value={stats.receivedLikeCount} />
             </div>
-            <p className="mt-2 text-right text-[12px] font-medium text-[#8a7767]">
-              좋아요 받은 흔적 {stats.likedTraceCount}개
-            </p>
-          </section>
-
-          <section className="mt-5">
-            <div className="mb-3 flex items-center justify-between">
-              <h1 className="text-[22px] font-bold text-[#2B1810]">내 흔적</h1>
-            </div>
-
-            {recentTraces.length > 0 ? (
-              <div className="space-y-2">
-                {recentTraces.map((trace) => (
-                  <button
-                    key={trace.id}
-                    type="button"
-                    onClick={() => handleTraceClick(trace)}
-                    className="flex w-full items-center gap-3 rounded-lg border border-[#eee3d6] bg-white/80 p-3 text-left shadow-[0_5px_12px_rgba(78,52,32,0.05)]"
-                  >
-                    {trace.imageUrl ? (
-                      <img
-                        src={resolveMediaUrl(trace.imageUrl)}
-                        alt=""
-                        className="h-13 w-13 rounded-lg object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-13 w-13 items-center justify-center rounded-lg bg-[#EFE3D4] text-[#6d503a]">
-                        <MapPinned size={20} />
-                      </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[15px] font-bold text-[#2F2118]">{trace.previewText}</p>
-                      <p className="mt-1 text-[12px] font-medium text-[#8A7A6E]">
-                        {formatDate(trace.createdAt)} · 좋아요 {trace.likeCount}
-                      </p>
-                    </div>
-                    <ChevronRight size={18} className="shrink-0 text-[#9a8877]" />
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-lg border border-dashed border-[#d9caba] bg-[#fbf6ef] px-4 py-8 text-center">
-                <p className="text-[17px] font-bold text-[#3D2415]">아직 남긴 흔적이 없어요</p>
-                <button
-                  type="button"
-                  onClick={() => navigate('/map')}
-                  className="mt-4 rounded-full bg-[#3D2415] px-5 py-3 text-[14px] font-bold text-white"
-                >
-                  지도에서 시작하기
-                </button>
-              </div>
-            )}
+            <button
+              type="button"
+              onClick={() => navigate('/archive')}
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#3D2415] px-4 py-3 text-[14px] font-bold text-white"
+            >
+              <Archive size={17} />
+              내 흔적 보관함 보기
+            </button>
           </section>
 
           <section className="mt-6 pb-2">
@@ -436,18 +381,6 @@ function resolveMediaUrl(path) {
 
 function onlySixDigits(value) {
   return value.replace(/\D/g, '').slice(0, 6)
-}
-
-function formatDate(value) {
-  if (!value) return '날짜 없음'
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '날짜 없음'
-
-  return new Intl.DateTimeFormat('ko-KR', {
-    month: 'short',
-    day: 'numeric',
-  }).format(date)
 }
 
 function getFriendlyError(error) {

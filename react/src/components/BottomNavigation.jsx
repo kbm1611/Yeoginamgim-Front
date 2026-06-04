@@ -5,7 +5,7 @@ const navItems = [
   { key: 'home', label: '홈', icon: Home, path: '/home' },
   { key: 'map', label: '지도', icon: MapPinned, path: '/map' },
   { key: 'add', label: '추가', icon: Plus },
-  { key: 'archive', label: '보관함', icon: Archive },
+  { key: 'archive', label: '보관함', icon: Archive, path: '/archive' },
   { key: 'my', label: '마이', icon: User, path: '/my' },
 ]
 

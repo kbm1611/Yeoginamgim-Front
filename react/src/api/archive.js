@@ -24,3 +24,18 @@ export function fetchArchiveBoards() {
 export function fetchReceivedLikeTraces() {
   return apiClient.get('/api/me/received-likes')
 }
+
+// 내가 즐겨찾기한 장소 목록 조회
+export function fetchFavoritePlaces() {
+  return apiClient.get('/api/me/archive/favorite-places')
+}
+
+// 장소 즐겨찾기 등록
+export function addFavoritePlace(kakaoPlaceId, placeRequest = {}) {
+  return apiClient.post(`/api/me/archive/favorite-places/${pathSegment(kakaoPlaceId)}`, placeRequest)
+}
+
+// 장소 즐겨찾기 취소
+export function removeFavoritePlace(kakaoPlaceId) {
+  return apiClient.delete(`/api/me/archive/favorite-places/${pathSegment(kakaoPlaceId)}`)
+}
