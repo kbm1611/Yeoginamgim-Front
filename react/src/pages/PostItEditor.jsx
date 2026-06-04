@@ -2,96 +2,30 @@ import { motion } from 'framer-motion'
 import { X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { createTrace, uploadTraceImage } from '../api/traces'
 import postitYellow from '../assets/postit/yellow.png'
 
-const tabs = [
-  { key: 'polaroid', label: '포토카드', Icon: Camera },
-  { key: 'postit', label: '포스트잇', Icon: StickyNote },
+// ─── Mock ─────────────────────────────────────────────────────────────────────
+
+const MOCK_PHOTOS = [
+  'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80',
+  'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=800&q=80',
+  'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=800&q=80',
 ]
 
-const postitPalette = [
-  { key: 'yellow', label: '노랑', hex: '#F3D98E', texture: postitYellow },
-  { key: 'pink', label: '분홍', hex: '#EEB7C6', texture: null },
-  { key: 'green', label: '초록', hex: '#D2D4A2', texture: null },
-  { key: 'cream', label: '크림', hex: '#F0EAD6', texture: null },
-  { key: 'white', label: '흰색', hex: '#F8F6F0', texture: null },
+const FRAMES = [
+  { key: 'classic', label: '클래식' },
+  { key: 'tape',    label: '테이프' },
+  { key: 'black',   label: '블랙' },
+  { key: 'vintage', label: '빈티지' },
 ]
 
-const polaroidBackgroundPalette = [
-  { key: 'white', label: '흰색', hex: '#FFFFFF' },
-  { key: 'cream', label: '크림', hex: '#F6EFE2' },
-  { key: 'pink', label: '분홍', hex: '#F8E4EA' },
-  { key: 'green', label: '초록', hex: '#E7E8CF' },
+const PEN_COLORS = ['#2C1A0E','#6B3A2A','#B09070','#E89090','#F5C842','#4D96FF','#6BCB77']
+
+const POSTIT_BG_COLORS = [
+  '#F5EDD5','#F5D5D5','#D5EDD5','#D5E5F5','#E8D5F5','#F5E0D0',
 ]
 
-const textColorPalette = [
-  { key: 'brown', label: '갈색', hex: '#2D2218' },
-  { key: 'red', label: '빨강', hex: '#9B2F2F' },
-  { key: 'blue', label: '파랑', hex: '#315D8A' },
-  { key: 'green', label: '초록', hex: '#3F6F4B' },
-  { key: 'black', label: '검정', hex: '#19130F' },
-]
-
-const fontOptions = [
-  { key: 'pen', label: '손글씨', family: "'Nanum Pen Script', 'Gaegu', cursive" },
-  { key: 'round', label: '둥근글씨', family: "'Gaegu', 'Nanum Pen Script', cursive" },
-  { key: 'serif', label: '명조', family: "'Noto Serif KR', serif" },
-  { key: 'sans', label: '고딕', family: "'Pretendard', 'Noto Sans KR', sans-serif" },
-]
-
-const fontSizeOptions = [
-  { key: 'small', label: '작게', polaroid: 22, postit: 24 },
-  { key: 'medium', label: '보통', polaroid: 26, postit: 28 },
-  { key: 'large', label: '크게', polaroid: 30, postit: 32 },
-]
-
-const photos = [
-  'https://images.unsplash.com/photo-1504471564428-672a69d02601?auto=format&fit=crop&w=1200&q=80',
-  'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1200&q=80',
-  'https://images.unsplash.com/photo-1501908734255-16579c18c25f?auto=format&fit=crop&w=1200&q=80',
-]
-
-function extractImageUrl(uploadResult) {
-  if (typeof uploadResult === 'string') return uploadResult
-
-  return uploadResult?.imageUrl ?? ''
-}
-
-function createDefaultPosition() {
-  return {
-    traceX: 40 + Math.floor(Math.random() * 21),
-    traceY: 40 + Math.floor(Math.random() * 21),
-  }
-}
-
-function SelectionBox({ children }) {
-  return (
-    <div className="relative inline-block w-full">
-      <div className="relative rounded-[3px]" style={{ border: '1.5px dashed rgba(0,0,0,0.32)', padding: '8px 10px' }}>
-        {children}
-        <div className="absolute -left-4 -top-4 flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-md">
-          <X size={13} strokeWidth={2.5} className="text-[#333]" />
-        </div>
-        {[
-          { top: -5, left: '50%', marginLeft: -5 },
-          { top: -5, right: -5 },
-          { top: '50%', left: -5, marginTop: -5 },
-          { top: '50%', right: -5, marginTop: -5 },
-          { bottom: -5, left: -5 },
-          { bottom: -5, left: '50%', marginLeft: -5 },
-        ].map((pos, i) => (
-          <div key={i} className="absolute h-[10px] w-[10px] rounded-full border-[1.5px] border-[#bbb] bg-white shadow-sm" style={pos} />
-        ))}
-        <div className="absolute -bottom-4 -right-4 flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-md">
-          <span className="text-[13px] font-bold text-[#555]">Q</span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── PostIt Preview ───────────────────────────────────────────────────────────
+const STICKERS = ['🌸','💗','⭐','🌙','🍀','🎀','🦋','🌈','☀️','🌊','🍃','✨']
 
 // 색상별 hue-rotate 필터 (yellow.png 기준)
 const COLOR_FILTER = {
@@ -101,6 +35,83 @@ const COLOR_FILTER = {
   '#D5E5F5': 'hue-rotate(148deg) saturate(0.8)',
   '#E8D5F5': 'hue-rotate(218deg) saturate(0.85)',
   '#F5E0D0': 'hue-rotate(-22deg) saturate(0.9)',
+}
+
+function today() {
+  const d = new Date()
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`
+}
+
+// ─── Icons ────────────────────────────────────────────────────────────────────
+
+const IconPhoto = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>
+  </svg>
+)
+const IconSticker = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="9"/><path d="M8 13s1.5 2 4 2 4-2 4-2"/>
+    <line x1="9" y1="9" x2="9.01" y2="9" strokeWidth="3"/>
+    <line x1="15" y1="9" x2="15.01" y2="9" strokeWidth="3"/>
+  </svg>
+)
+const IconText = () => <span className="text-[18px] font-semibold" style={{ fontFamily: 'serif' }}>Aa</span>
+const IconPen = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+  </svg>
+)
+const IconFrame = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10" rx="1"/>
+  </svg>
+)
+const IconFont = () => <span className="text-[17px] font-bold">가</span>
+const IconColor = () => (
+  <div className="h-[22px] w-[22px] rounded-full" style={{ background: 'conic-gradient(#FF6B6B,#FFD93D,#6BCB77,#4D96FF,#CC77FF,#FF6B6B)' }} />
+)
+
+// ─── Tool definitions ─────────────────────────────────────────────────────────
+
+const PHOTO_TOOLS = [
+  { key: 'photo',   label: '사진',   Icon: IconPhoto },
+  { key: 'sticker', label: '스티커', Icon: IconSticker },
+  { key: 'text',    label: '텍스트', Icon: IconText },
+  { key: 'pen',     label: '펜',     Icon: IconPen },
+  { key: 'frame',   label: '프레임', Icon: IconFrame },
+]
+
+const POSTIT_TOOLS = [
+  { key: 'text',    label: '텍스트', Icon: IconText },
+  { key: 'font',    label: '폰트',   Icon: IconFont },
+  { key: 'sticker', label: '스티커', Icon: IconSticker },
+  { key: 'pen',     label: '펜',     Icon: IconPen },
+  { key: 'color',   label: '색상',   Icon: IconColor },
+]
+
+// ─── Previews ────────────────────────────────────────────────────────────────
+
+function PolaroidPreview({ photoIdx, captionText, onCaptionChange }) {
+  return (
+    <div style={{ transform: 'rotate(-2deg)' }}>
+      <div className="relative bg-white" style={{ width: 260, borderRadius: 3, padding: '10px 10px 48px', boxShadow: '0 8px 24px rgba(0,0,0,0.14)' }}>
+        <div className="absolute -top-2.5 left-[20%] z-10 h-[18px] w-[100px] rotate-[-2deg] rounded-sm opacity-75"
+          style={{ background: 'linear-gradient(90deg,#D4B896,#C8AA82,#D4B896)' }} />
+        <img src={MOCK_PHOTOS[photoIdx]} alt="preview" className="w-full rounded-[2px] object-cover" style={{ height: 210 }} />
+        <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center px-3 pb-2 pt-1">
+          <textarea
+            value={captionText}
+            onChange={(e) => onCaptionChange(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full resize-none border-none bg-transparent text-center leading-[1.4] text-[#1E1410] outline-none"
+            style={{ fontFamily: "'Nanum Pen Script','Gaegu',cursive", fontSize: 22, height: 36 }}
+            rows={1}
+          />
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function PostItPreview({ text, onText, bg, textActive }) {
@@ -118,7 +129,6 @@ function PostItPreview({ text, onText, bg, textActive }) {
 
   return (
     <div className="relative w-full" style={{ transform: 'scale(1.12)', transformOrigin: 'center center' }}>
-      {/* hue-rotate 필터로 포스트잇 색상 변경 */}
       <img
         src={postitYellow}
         alt="포스트잇"
@@ -126,7 +136,6 @@ function PostItPreview({ text, onText, bg, textActive }) {
         draggable={false}
         style={{ filter: imgFilter, transition: 'filter 0.2s' }}
       />
-      {/* textarea — 클릭 시 캔버스로 버블링 차단해서 커서 유지 */}
       <textarea
         ref={textareaRef}
         value={text}
@@ -151,21 +160,14 @@ function PostItPreview({ text, onText, bg, textActive }) {
 
 function BottomSheet({ open, children }) {
   if (!open) return null
-  return (
-    <div className="bg-white">
-      {children}
-    </div>
-  )
+  return <div className="bg-white">{children}</div>
 }
 
 // ─── Panels ───────────────────────────────────────────────────────────────────
 
 function PhotoPanel({ onSelect }) {
   const items = [
-    {
-      label: '앨범',
-      icon: <span className="text-[26px] font-light text-[#8B7A6B]">+</span>,
-    },
+    { label: '앨범', icon: <span className="text-[26px] font-light text-[#8B7A6B]">+</span> },
     {
       label: '카메라',
       icon: (
@@ -179,10 +181,8 @@ function PhotoPanel({ onSelect }) {
       label: '최근 사진',
       icon: (
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <rect x="3" y="3" width="7" height="7" rx="1"/>
-          <rect x="14" y="3" width="7" height="7" rx="1"/>
-          <rect x="3" y="14" width="7" height="7" rx="1"/>
-          <rect x="14" y="14" width="7" height="7" rx="1"/>
+          <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+          <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
         </svg>
       ),
     },
@@ -200,187 +200,182 @@ function PhotoPanel({ onSelect }) {
           </button>
         ))}
       </div>
-      <span className="text-[12px] font-medium text-[#3A2E26]">{label}</span>
-    </button>
-  )
-}
-
-function OptionPanel({ title, children }) {
-  return (
-    <div className="mt-3 rounded-[16px] bg-white/85 p-3 shadow-[0_8px_24px_rgba(35,24,16,0.08)]">
-      <p className="text-[13px] font-bold text-[#3A2E26]">{title}</p>
-      <div className="mt-3 space-y-3">{children}</div>
     </div>
   )
 }
 
-function PanelGroup({ label, children }) {
+function StickerPanel() {
   return (
-    <div>
-      <p className="mb-2 text-[12px] font-semibold text-[#7A6357]">{label}</p>
-      {children}
+    <div className="px-4 pb-5 pt-4">
+      <p className="mb-3 text-[13px] font-semibold text-[#3B2A1E]">스티커</p>
+      <div className="grid grid-cols-6 gap-2">
+        {STICKERS.map((s) => (
+          <button key={s} type="button" className="flex h-12 items-center justify-center rounded-xl border border-[#EDE5DA] bg-[#F8F4EE] text-[24px]">
+            {s}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
 
-function TextOptionButton({ option, active, onClick }) {
+function TextPanel() {
+  const fonts = [
+    { label: '손글씨', family: "'Nanum Pen Script',cursive", sample: '안녕' },
+    { label: '고딕',   family: 'sans-serif',                  sample: '안녕' },
+    { label: '명조',   family: 'serif',                       sample: '안녕' },
+    { label: '둥근체', family: "'Nanum Gothic',sans-serif",   sample: '안녕' },
+  ]
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`h-9 rounded-[9px] px-3 text-[13px] font-semibold ${
-        active ? 'bg-[#3A2E26] text-white' : 'bg-[#EFE8DE] text-[#3A2E26]'
-      }`}
-      style={{ fontFamily: option.family }}
-    >
-      {option.label}
-    </button>
+    <div className="px-4 pb-5 pt-4">
+      <p className="mb-3 text-[13px] font-semibold text-[#3B2A1E]">글꼴</p>
+      <div className="grid grid-cols-2 gap-2">
+        {fonts.map((f) => (
+          <button key={f.label} type="button"
+            className="flex h-14 flex-col items-center justify-center gap-0.5 rounded-2xl border border-[#EDE5DA] bg-[#F8F4EE]"
+          >
+            <span className="text-[18px] text-[#3B2A1E]" style={{ fontFamily: f.family }}>{f.sample}</span>
+            <span className="text-[11px] text-[#8B7A6B]">{f.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }
 
-function ColorOptionButton({ option, active, onClick }) {
+function PenPanel({ penColor, onColor, penSize, onSize }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={option.label}
-      className={`flex h-9 w-9 items-center justify-center rounded-full ${
-        active ? 'ring-2 ring-[#3A2E26] ring-offset-2' : ''
-      }`}
-      style={{ backgroundColor: option.hex }}
-    >
-      {active ? <span className="h-2 w-2 rounded-full bg-white shadow" /> : null}
-    </button>
+    <div className="px-4 pb-5 pt-4">
+      <div className="mb-4">
+        <p className="mb-2.5 text-[13px] font-semibold text-[#3B2A1E]">색상</p>
+        <div className="flex gap-2.5">
+          {PEN_COLORS.map((c) => (
+            <button key={c} type="button" onClick={() => onColor(c)}
+              className="h-9 w-9 rounded-full transition"
+              style={{ backgroundColor: c, outline: penColor === c ? '3px solid #3B2A1E' : '3px solid transparent', outlineOffset: 2 }}
+            />
+          ))}
+        </div>
+      </div>
+      <div>
+        <p className="mb-2.5 text-[13px] font-semibold text-[#3B2A1E]">굵기</p>
+        <div className="flex gap-2">
+          {['thin','medium','thick'].map((s, i) => (
+            <button key={s} type="button" onClick={() => onSize(s)}
+              className={`flex h-11 flex-1 items-center justify-center rounded-xl border transition ${penSize === s ? 'border-[#3B2A1E] bg-[#F5EDD5]' : 'border-[#E8DDD1] bg-white'}`}
+            >
+              <div className="rounded-full bg-[#3B2A1E]"
+                style={{ width: i===0?18:i===1?26:34, height: i===0?2:i===1?3.5:5 }} />
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
+
+function FramePanel() {
+  const [sel, setSel] = useState('classic')
+  return (
+    <div className="px-4 pb-5 pt-4">
+      <p className="mb-3 text-[13px] font-semibold text-[#3B2A1E]">프레임</p>
+      <div className="flex gap-3 overflow-x-auto pb-1">
+        {FRAMES.map((f) => (
+          <button key={f.key} type="button" onClick={() => setSel(f.key)} className="flex shrink-0 flex-col items-center gap-1.5">
+            <div className={`h-16 w-12 rounded-xl border-2 transition ${sel===f.key?'border-[#3B2A1E]':'border-[#E0D5C8]'} ${f.key==='black'?'bg-[#1A1A1A]':'bg-white'}`} />
+            <span className="text-[11px] text-[#8B7A6B]">{f.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ColorPanel({ selected, onSelect }) {
+  return (
+    <div className="px-4 pb-5 pt-4">
+      <p className="mb-3 text-[13px] font-semibold text-[#3B2A1E]">배경색</p>
+      <div className="flex gap-3">
+        {POSTIT_BG_COLORS.map((c) => (
+          <button key={c} type="button" onClick={() => onSelect(c)}
+            className="h-10 w-10 rounded-full transition"
+            style={{ backgroundColor: c, outline: selected===c?'3px solid #3B2A1E':'3px solid transparent', outlineOffset: 2 }}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Tool Tab Bar ─────────────────────────────────────────────────────────────
+
+function ToolTabBar({ tools, activeTool, onTool }) {
+  return (
+    <div className="mx-4 flex items-center justify-around rounded-2xl bg-white px-2 py-1.5 shadow-[0_4px_20px_rgba(0,0,0,0.10)]">
+      {tools.map(({ key, label, Icon }) => {
+        const active = activeTool === key
+        return (
+          <button key={key} type="button" onClick={() => onTool(key)} className="flex flex-col items-center gap-0.5 py-1.5">
+            <div className={`flex h-11 w-11 items-center justify-center rounded-xl transition-colors ${active?'bg-[#F5EDD5]':''} text-[#3B2A1E]`}>
+              <Icon />
+            </div>
+            <span className={`text-[11px] ${active?'font-semibold text-[#3B2A1E]':'font-medium text-[#9B8A7B]'}`}>{label}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
 
 function PostItEditor() {
   const navigate = useNavigate()
   const location = useLocation()
   const { id } = useParams()
   const boardId = id ?? 'default'
-  const photoInputRef = useRef(null)
 
-  const [tab, setTab] = useState(location.state?.initialTab === 'polaroid' ? 'polaroid' : 'postit')
+  const [type, setType] = useState(location.state?.initialTab === 'postit' ? 'postit' : 'polaroid')
   const [photoIdx, setPhotoIdx] = useState(0)
-  const [selectedPhotoFile, setSelectedPhotoFile] = useState(null)
-  const [selectedPhotoPreview, setSelectedPhotoPreview] = useState('')
-  const [text, setText] = useState('오늘 행복했다 ♡')
-  const [postitColor, setPostitColor] = useState('yellow')
-  const [polaroidBackgroundColor, setPolaroidBackgroundColor] = useState('#FFFFFF')
-  const [textColor, setTextColor] = useState('#2D2218')
-  const [fontKey, setFontKey] = useState('pen')
-  const [fontSizeKey, setFontSizeKey] = useState('medium')
-  const [activePanel, setActivePanel] = useState(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState('')
+  const [captionText, setCaptionText] = useState('')
+  const [postitText, setPostitText] = useState('')
+  const [activeTool, setActiveTool] = useState(null)
+  const [penColor, setPenColor] = useState('#2C1A0E')
+  const [penSize, setPenSize] = useState('medium')
+  const [postitBg, setPostitBg] = useState('#F5EDD5')
 
-  const activePalette = useMemo(() => postitPalette.find((p) => p.key === postitColor) ?? postitPalette[0], [postitColor])
-  const activeFont = useMemo(() => fontOptions.find((item) => item.key === fontKey) ?? fontOptions[0], [fontKey])
-  const activeFontSize = useMemo(
-    () => fontSizeOptions.find((item) => item.key === fontSizeKey) ?? fontSizeOptions[1],
-    [fontSizeKey],
-  )
-  const currentPhoto = selectedPhotoPreview || photos[photoIdx]
-  const editorFontSize = tab === 'polaroid' ? activeFontSize.polaroid : activeFontSize.postit
+  const tools = type === 'polaroid' ? PHOTO_TOOLS : POSTIT_TOOLS
 
-  useEffect(() => {
-    return () => {
-      if (selectedPhotoPreview) {
-        URL.revokeObjectURL(selectedPhotoPreview)
-      }
-    }
-  }, [selectedPhotoPreview])
+  const handleTool = (key) => setActiveTool((prev) => (prev === key ? null : key))
 
-  const handlePhotoFileChange = (event) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    setSelectedPhotoFile(file)
-    setSelectedPhotoPreview(URL.createObjectURL(file))
-    setSubmitError('')
-    event.target.value = ''
+  const handleComplete = () => {
+    const baseId = Date.now()
+    navigate(`/board/${boardId}`, {
+      state: {
+        placementDraft:
+          type === 'polaroid'
+            ? { id:`polaroid-${baseId}`, type:'polaroid', content:captionText, media:{ image:MOCK_PHOTOS[photoIdx], dateLabel:today() }, style:{}, position:{x:50,y:50}, createdAt:new Date().toISOString() }
+            : { id:`postit-${baseId}`, type:'postit', content:postitText, style:{ paperColor:'yellow' }, position:{x:50,y:50}, createdAt:new Date().toISOString() },
+      },
+    })
   }
 
-  const handleSamplePhotoChange = () => {
-    setSelectedPhotoFile(null)
-    setSelectedPhotoPreview('')
-    setPhotoIdx((p) => (p + 1) % photos.length)
-  }
-
-  const togglePanel = (panelName) => {
-    setActivePanel((current) => (current === panelName ? null : panelName))
-  }
-
-  const handleComplete = async () => {
-    if (isSubmitting) return
-
-    const trimmedText = text.trim()
-    if (!trimmedText) {
-      setSubmitError('내용을 입력해주세요.')
-      return
+  const renderPanel = () => {
+    if (!activeTool) return null
+    if (type === 'polaroid') {
+      if (activeTool === 'photo')   return <PhotoPanel onSelect={() => setPhotoIdx((p) => (p+1) % MOCK_PHOTOS.length)} />
+      if (activeTool === 'sticker') return <StickerPanel />
+      if (activeTool === 'text')    return <TextPanel />
+      if (activeTool === 'pen')     return <PenPanel penColor={penColor} onColor={setPenColor} penSize={penSize} onSize={setPenSize} />
+      if (activeTool === 'frame')   return <FramePanel />
+    } else {
+      if (activeTool === 'text')    return <TextPanel />
+      if (activeTool === 'font')    return <TextPanel />
+      if (activeTool === 'sticker') return <StickerPanel />
+      if (activeTool === 'pen')     return <PenPanel penColor={penColor} onColor={setPenColor} penSize={penSize} onSize={setPenSize} />
+      if (activeTool === 'color')   return <ColorPanel selected={postitBg} onSelect={setPostitBg} />
     }
-
-    setIsSubmitting(true)
-    setSubmitError('')
-
-    try {
-      const isPolaroid = tab === 'polaroid'
-      let imageUrl = null
-
-      if (isPolaroid) {
-        if (selectedPhotoFile) {
-          const uploadResult = await uploadTraceImage(selectedPhotoFile)
-          imageUrl = extractImageUrl(uploadResult)
-
-          if (!imageUrl) {
-            throw new Error('이미지 업로드 응답에 imageUrl이 없습니다.')
-          }
-        } else {
-          imageUrl = photos[photoIdx]
-        }
-      }
-
-      const { traceX, traceY } = createDefaultPosition()
-      await createTrace(boardId, {
-        traceX,
-        traceY,
-        elements: [
-          {
-            contentType: isPolaroid ? 'POLAROID' : 'POST_IT',
-            textContent: trimmedText,
-            imageUrl,
-            elementX: traceX,
-            elementY: traceY,
-            styleJson: JSON.stringify(
-              isPolaroid
-                ? {
-                    font: fontKey,
-                    fontFamily: activeFont.family,
-                    fontSize: activeFontSize.polaroid,
-                    paperColor: polaroidBackgroundColor,
-                    backgroundColor: polaroidBackgroundColor,
-                    textColor,
-                  }
-                : {
-                    paperColor: postitColor,
-                    backgroundColor: activePalette.hex,
-                    textColor,
-                    font: fontKey,
-                    fontFamily: activeFont.family,
-                    fontSize: activeFontSize.postit,
-                  },
-            ),
-          },
-        ],
-      })
-
-      navigate(`/board/${boardId}`, { replace: true })
-    } catch (error) {
-      setSubmitError(error.message ?? '흔적 저장에 실패했습니다.')
-    } finally {
-      setIsSubmitting(false)
-    }
+    return null
   }
 
   return (
@@ -423,30 +418,22 @@ function PostItEditor() {
         })}
       </div>
 
-      {/* ── 캔버스 (흰 종이 배경 + 포스트잇) ── */}
+      {/* ── 캔버스 ── */}
       <div
         className="relative mx-3 flex-1 overflow-hidden rounded-[24px] bg-white shadow-[0_4px_24px_rgba(0,0,0,0.10)]"
         onClick={(e) => { e.stopPropagation(); setActiveTool(null) }}
       >
-        {/* 배경 격자 패턴 */}
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{
-            backgroundImage: `
-              linear-gradient(rgba(180,160,140,0.08) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(180,160,140,0.08) 1px, transparent 1px)
-            `,
-            backgroundSize: '28px 28px',
-          }}
-        />
-
-        {/* 은은한 배경 장식 */}
+        {/* 격자 배경 */}
+        <div className="pointer-events-none absolute inset-0" style={{
+          backgroundImage: `linear-gradient(rgba(180,160,140,0.08) 1px,transparent 1px),linear-gradient(90deg,rgba(180,160,140,0.08) 1px,transparent 1px)`,
+          backgroundSize: '28px 28px',
+        }} />
+        {/* 배경 장식 */}
         <span className="pointer-events-none absolute left-4 top-6 select-none text-[22px] opacity-20">✿</span>
         <span className="pointer-events-none absolute right-5 top-10 select-none text-[18px] opacity-15">♡</span>
         <span className="pointer-events-none absolute bottom-8 left-5 select-none text-[16px] opacity-15">✦</span>
         <span className="pointer-events-none absolute bottom-10 right-4 select-none text-[20px] opacity-20">✿</span>
 
-        {/* 콘텐츠 — 포스트잇이 흰 카드를 꽉 채우게 */}
         <div className="relative flex h-full items-center justify-center py-4">
           {type === 'polaroid' ? (
             <PolaroidPreview photoIdx={photoIdx} captionText={captionText} onCaptionChange={setCaptionText} />
@@ -463,15 +450,12 @@ function PostItEditor() {
 
       {/* ── 하단 영역 ── */}
       <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-        {/* BottomSheet */}
         <BottomSheet open={activeTool !== null}>
           <div className="border-t border-[#EDE5DA] bg-white pb-2">
             {renderPanel()}
           </div>
         </BottomSheet>
-
-        {/* Floating Toolbar */}
-        <div className="px-0 pb-6 pt-3">
+        <div className="pb-6 pt-3">
           <ToolTabBar tools={tools} activeTool={activeTool} onTool={handleTool} />
         </div>
       </div>
