@@ -39,7 +39,11 @@ export const SEOUL_DISTRICTS = [
 
 export function normalizeHomeDistrict(districtInfo) {
   const district = String(districtInfo?.district ?? '').trim()
-  return SEOUL_DISTRICTS.includes(district) ? district : ALL_DISTRICTS_LABEL
+  return isSeoulDistrict(district) ? district : ALL_DISTRICTS_LABEL
+}
+
+export function isSeoulDistrict(value) {
+  return SEOUL_DISTRICTS.includes(String(value ?? '').trim())
 }
 
 export function filterSeoulDistricts(query) {

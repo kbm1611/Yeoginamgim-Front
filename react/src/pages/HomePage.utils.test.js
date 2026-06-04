@@ -10,11 +10,15 @@ import {
   SEOUL_DISTRICTS,
 } from './HomePage.utils.js'
 
-test('home period options default to today and expose four filters', () => {
+test('home period options default to today and expose four Korean filters', () => {
   assert.equal(DEFAULT_HOME_PERIOD, 'today')
   assert.deepEqual(
     HOME_PERIOD_OPTIONS.map((option) => option.value),
     ['today', 'week', 'month', 'year']
+  )
+  assert.deepEqual(
+    HOME_PERIOD_OPTIONS.map((option) => option.label),
+    ['오늘', '주간', '월간', '년간']
   )
 })
 
@@ -43,4 +47,5 @@ test('home API params include period and omit all-district filters', () => {
     district: '성동구',
     limit: 5,
   })
-})
+}
+)
