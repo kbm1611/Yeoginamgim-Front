@@ -4,14 +4,22 @@ export const HOME_PERIOD_OPTIONS = [
   { value: 'today', label: '오늘' },
   { value: 'week', label: '주간' },
   { value: 'month', label: '월간' },
-  { value: 'year', label: '년간' },
+  { value: 'year', label: '연간' },
 ]
 
 export const ALL_DISTRICTS_LABEL = '전체'
 
-export const AREA_REGIONS = {
-  수도권: {
-    서울특별시: [
+export const REGION_GROUPS = [
+  {
+    id: 'all',
+    label: '전체',
+    districts: [ALL_DISTRICTS_LABEL],
+  },
+  {
+    id: 'seoul',
+    label: '서울',
+    districts: [
+      ALL_DISTRICTS_LABEL,
       '강남구',
       '강동구',
       '강북구',
@@ -38,7 +46,12 @@ export const AREA_REGIONS = {
       '중구',
       '중랑구',
     ],
-    경기도: [
+  },
+  {
+    id: 'gyeonggi',
+    label: '경기',
+    districts: [
+      ALL_DISTRICTS_LABEL,
       '수원시 장안구',
       '수원시 권선구',
       '수원시 팔달구',
@@ -82,10 +95,35 @@ export const AREA_REGIONS = {
       '가평군',
       '양평군',
     ],
-    인천광역시: ['계양구', '미추홀구', '남동구', '동구', '부평구', '서구', '연수구', '중구', '강화군', '옹진군'],
   },
-  강원권: {
-    강원도: [
+  {
+    id: 'busan',
+    label: '부산',
+    districts: [
+      ALL_DISTRICTS_LABEL,
+      '강서구',
+      '금정구',
+      '남구',
+      '동구',
+      '동래구',
+      '부산진구',
+      '북구',
+      '사상구',
+      '사하구',
+      '서구',
+      '수영구',
+      '연제구',
+      '영도구',
+      '중구',
+      '해운대구',
+      '기장군',
+    ],
+  },
+  {
+    id: 'gangwon',
+    label: '강원',
+    districts: [
+      ALL_DISTRICTS_LABEL,
       '춘천시',
       '원주시',
       '강릉시',
@@ -106,8 +144,11 @@ export const AREA_REGIONS = {
       '양양군',
     ],
   },
-  충청권: {
-    충청북도: [
+  {
+    id: 'chungcheong',
+    label: '충청',
+    districts: [
+      ALL_DISTRICTS_LABEL,
       '청주시 상당구',
       '청주시 서원구',
       '청주시 흥덕구',
@@ -122,8 +163,6 @@ export const AREA_REGIONS = {
       '괴산군',
       '음성군',
       '단양군',
-    ],
-    충청남도: [
       '천안시 동남구',
       '천안시 서북구',
       '공주시',
@@ -140,12 +179,19 @@ export const AREA_REGIONS = {
       '홍성군',
       '예산군',
       '태안군',
+      '대전 동구',
+      '대전 중구',
+      '대전 서구',
+      '대전 유성구',
+      '대전 대덕구',
+      '세종시',
     ],
-    대전광역시: ['대덕구', '동구', '서구', '유성구', '중구'],
-    세종특별자치시: ['세종특별자치시'],
   },
-  전라권: {
-    전라북도: [
+  {
+    id: 'jeolla',
+    label: '전라',
+    districts: [
+      ALL_DISTRICTS_LABEL,
       '전주시 완산구',
       '전주시 덕진구',
       '군산시',
@@ -161,8 +207,6 @@ export const AREA_REGIONS = {
       '순창군',
       '고창군',
       '부안군',
-    ],
-    전라남도: [
       '목포시',
       '여수시',
       '순천시',
@@ -185,11 +229,18 @@ export const AREA_REGIONS = {
       '완도군',
       '진도군',
       '신안군',
+      '광주 동구',
+      '광주 서구',
+      '광주 남구',
+      '광주 북구',
+      '광주 광산구',
     ],
-    광주광역시: ['광산구', '남구', '동구', '북구', '서구'],
   },
-  경상권: {
-    경상북도: [
+  {
+    id: 'gyeongsang',
+    label: '경상',
+    districts: [
+      ALL_DISTRICTS_LABEL,
       '포항시 남구',
       '포항시 북구',
       '경주시',
@@ -214,8 +265,6 @@ export const AREA_REGIONS = {
       '봉화군',
       '울진군',
       '울릉군',
-    ],
-    경상남도: [
       '창원시 의창구',
       '창원시 성산구',
       '창원시 마산합포구',
@@ -238,38 +287,33 @@ export const AREA_REGIONS = {
       '함양군',
       '거창군',
       '합천군',
+      '대구 중구',
+      '대구 동구',
+      '대구 서구',
+      '대구 남구',
+      '대구 북구',
+      '대구 수성구',
+      '대구 달서구',
+      '대구 달성군',
+      '울산 중구',
+      '울산 남구',
+      '울산 동구',
+      '울산 북구',
+      '울산 울주군',
     ],
-    부산광역시: [
-      '강서구',
-      '금정구',
-      '남구',
-      '동구',
-      '동래구',
-      '부산진구',
-      '북구',
-      '사상구',
-      '사하구',
-      '서구',
-      '수영구',
-      '연제구',
-      '영도구',
-      '중구',
-      '해운대구',
-      '기장군',
-    ],
-    대구광역시: ['남구', '달서구', '동구', '북구', '서구', '수성구', '중구', '달성군'],
-    울산광역시: ['남구', '동구', '북구', '중구', '울주군'],
   },
-  제주권: {
-    제주특별자치도: ['서귀포시', '제주시'],
+  {
+    id: 'jeju',
+    label: '제주',
+    districts: [ALL_DISTRICTS_LABEL, '제주시', '서귀포시'],
   },
-}
+]
 
-export const SEOUL_DISTRICTS = AREA_REGIONS.수도권.서울특별시
-export const GYEONGGI_DISTRICTS = AREA_REGIONS.수도권.경기도
+export const SEOUL_DISTRICTS = REGION_GROUPS.find((group) => group.id === 'seoul').districts
+export const GYEONGGI_DISTRICTS = REGION_GROUPS.find((group) => group.id === 'gyeonggi').districts
 
 export const SUPPORTED_DISTRICTS = [
-  ...new Set(Object.values(AREA_REGIONS).flatMap((region) => Object.values(region).flat())),
+  ...new Set(REGION_GROUPS.flatMap((group) => group.districts).filter((district) => district !== ALL_DISTRICTS_LABEL)),
 ]
 
 export function normalizeHomeDistrict(districtInfo) {
@@ -281,11 +325,35 @@ export function isSupportedDistrict(value) {
   return SUPPORTED_DISTRICTS.includes(String(value ?? '').trim())
 }
 
+export function findRegionIdByDistrict(value) {
+  const district = String(value ?? '').trim()
+  if (!district || district === ALL_DISTRICTS_LABEL) return 'all'
+
+  return REGION_GROUPS.find((group) => group.districts.includes(district))?.id ?? 'all'
+}
+
 export function filterSupportedDistricts(query) {
   const normalizedQuery = String(query ?? '').trim()
   if (!normalizedQuery) return SUPPORTED_DISTRICTS
 
   return SUPPORTED_DISTRICTS.filter((district) => district.includes(normalizedQuery))
+}
+
+export function filterRegionDistricts({ activeRegionId = 'all', query = '' } = {}) {
+  const normalizedQuery = String(query ?? '').trim()
+  if (normalizedQuery) {
+    const matchedDistricts = filterSupportedDistricts(normalizedQuery)
+    return ALL_DISTRICTS_LABEL.includes(normalizedQuery)
+      ? [ALL_DISTRICTS_LABEL, ...matchedDistricts]
+      : matchedDistricts
+  }
+
+  const activeRegion = REGION_GROUPS.find((group) => group.id === activeRegionId)
+  if (!activeRegion || activeRegion.id === 'all') {
+    return [ALL_DISTRICTS_LABEL, ...SUPPORTED_DISTRICTS]
+  }
+
+  return activeRegion.districts
 }
 
 export function buildHomePlaceParams({ period = DEFAULT_HOME_PERIOD, district, limit = 5 } = {}) {

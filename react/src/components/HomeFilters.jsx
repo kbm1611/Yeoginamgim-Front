@@ -1,6 +1,12 @@
 import { useState } from 'react'
 import { ChevronDown, LocateFixed, MapPin, Search, X } from 'lucide-react'
-import { ALL_DISTRICTS_LABEL, HOME_PERIOD_OPTIONS, filterSupportedDistricts } from '../pages/HomePage.utils'
+import {
+  ALL_DISTRICTS_LABEL,
+  HOME_PERIOD_OPTIONS,
+  REGION_GROUPS,
+  filterRegionDistricts,
+  findRegionIdByDistrict,
+} from '../pages/HomePage.utils'
 
 function HomeFilters({
   period,
@@ -13,10 +19,15 @@ function HomeFilters({
 }) {
   const [isDistrictSheetOpen, setDistrictSheetOpen] = useState(false)
   const [districtSearchQuery, setDistrictSearchQuery] = useState('')
-  const filteredDistricts = filterSupportedDistricts(districtSearchQuery)
+  const [activeRegionId, setActiveRegionId] = useState('all')
+  const filteredDistricts = filterRegionDistricts({
+    activeRegionId,
+    query: districtSearchQuery,
+  })
 
   const openDistrictSheet = () => {
     setDistrictSearchQuery('')
+    setActiveRegionId(findRegionIdByDistrict(selectedDistrict))
     setDistrictSheetOpen(true)
   }
 
@@ -79,63 +90,74 @@ function HomeFilters({
       ) : null}
 
       {isDistrictSheetOpen ? (
-        <div className="absolute inset-0 z-40 flex items-end bg-black/20 px-3 pb-3">
-          <div className="flex h-[76%] max-h-[560px] w-full flex-col overflow-hidden rounded-[24px] bg-[#FFFDF9] shadow-[0_12px_28px_rgba(0,0,0,0.18)]">
-            <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[#EFE7DD] px-5 py-4">
-              <div className="min-w-[96px]">
-                <p className="text-[12px] font-bold text-[#8B63F7]">전국</p>
-                <h2 className="text-[20px] font-bold text-[#2B1810]">구 선택</h2>
-              </div>
-              <label className="flex min-w-0 flex-1 items-center gap-2 rounded-[14px] bg-[#F5EFE7] px-3 py-2 text-[#5F5146]">
-                <Search size={16} className="shrink-0 text-[#8B63F7]" />
-                <input
-                  type="search"
-                  value={districtSearchQuery}
-                  onChange={(event) => setDistrictSearchQuery(event.target.value)}
-                  placeholder="자치구 검색"
-                  className="min-w-0 flex-1 bg-transparent text-[14px] font-medium text-[#3B2A1E] outline-none placeholder:text-[#9B8B7D]"
-                />
-              </label>
-              <div className="shrink-0">
+        <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/20 px-3 pb-3 sm:items-center sm:p-6">
+          <div className="flex h-[82%] max-h-[640px] w-full max-w-[520px] flex-col overflow-hidden rounded-[24px] bg-[#FFFDF9] shadow-[0_12px_28px_rgba(0,0,0,0.18)] sm:h-[78vh] sm:min-h-[560px] sm:max-h-[720px]">
+            <div className="shrink-0 border-b border-[#EFE7DD] px-5 pb-4 pt-5">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-[20px] font-bold text-[#2B1810]">지역 선택</h2>
                 <button
                   type="button"
                   onClick={closeDistrictSheet}
                   aria-label="지역 선택 닫기"
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F4EEE6] text-[#5F5146]"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F4EEE6] text-[#5F5146]"
                 >
                   <X size={18} />
                 </button>
               </div>
+
+              <label className="mt-4 flex min-h-[48px] items-center gap-2 rounded-[15px] bg-[#F5EFE7] px-4 text-[#5F5146]">
+                <Search size={17} className="shrink-0 text-[#8B63F7]" />
+                <input
+                  type="search"
+                  value={districtSearchQuery}
+                  onChange={(event) => setDistrictSearchQuery(event.target.value)}
+                  placeholder="지역명 검색"
+                  className="min-w-0 flex-1 bg-transparent text-[15px] font-semibold text-[#3B2A1E] outline-none placeholder:text-[#9B8B7D]"
+                />
+              </label>
+
+              <div className="-mx-5 mt-4 overflow-x-auto px-5 scrollbar-hide sm:mx-0 sm:overflow-visible sm:px-0">
+                <div className="flex w-max gap-2 sm:grid sm:w-full sm:grid-cols-5">
+                  {REGION_GROUPS.map((region) => {
+                    const isActive = activeRegionId === region.id
+
+                    return (
+                      <button
+                        key={region.id}
+                        type="button"
+                        onClick={() => setActiveRegionId(region.id)}
+                        className={`h-10 shrink-0 rounded-full px-4 text-[14px] font-bold transition ${
+                          isActive
+                            ? 'bg-[#8B63F7] text-white shadow-[0_5px_12px_rgba(139,99,247,0.24)]'
+                            : 'bg-white text-[#6F6258] shadow-[0_3px_10px_rgba(0,0,0,0.04)]'
+                        }`}
+                      >
+                        {region.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
             </div>
-            <div className="flex-1 overflow-y-auto px-4 py-4">
-              {!districtSearchQuery.trim() ? (
-                <button
-                  type="button"
-                  onClick={() => handleDistrictSelect(ALL_DISTRICTS_LABEL)}
-                  className={`mb-3 w-full rounded-[14px] px-4 py-3 text-left text-[15px] font-bold ${
-                    selectedDistrict === ALL_DISTRICTS_LABEL ? 'bg-[#3E2A1E] text-white' : 'bg-[#F3EEE7] text-[#3B2A1E]'
-                  }`}
-                >
-                  전체
-                </button>
-              ) : null}
+
+            <div className="flex-1 overflow-y-auto px-5 py-4">
               {filteredDistricts.length > 0 ? (
-                <div className="grid grid-cols-2 gap-2">
-                  {filteredDistricts.map((district) => {
+                <div className="grid auto-rows-[58px] grid-cols-2 gap-2 sm:grid-cols-3">
+                  {filteredDistricts.map((district, index) => {
                     const isActive = selectedDistrict === district
 
                     return (
                       <button
-                        key={district}
+                        key={`${district}-${index}`}
                         type="button"
                         onClick={() => handleDistrictSelect(district)}
-                        className={`rounded-[14px] px-4 py-3 text-left text-[14px] font-bold ${
+                        className={`flex h-full items-center rounded-[14px] px-4 py-3 text-left text-[14px] font-bold leading-snug transition ${
                           isActive
-                            ? 'bg-[#8B63F7] text-white'
+                            ? 'bg-[#8B63F7] text-white shadow-[0_5px_12px_rgba(139,99,247,0.24)]'
                             : 'bg-white text-[#3B2A1E] shadow-[0_3px_10px_rgba(0,0,0,0.04)]'
                         }`}
                       >
-                        {district}
+                        <span className="whitespace-normal break-keep">{district}</span>
                       </button>
                     )
                   })}
