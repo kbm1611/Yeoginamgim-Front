@@ -4,19 +4,19 @@ import HomeFilters from '../components/HomeFilters'
 import TopPlacesSection from '../components/TopPlacesSection'
 import RecentTracesSection from '../components/RecentTracesSection'
 import { resolveCurrentDistrict } from '../api/locationDistrict'
-import { DEFAULT_HOME_PERIOD, normalizeHomeDistrict } from './HomePage.utils'
+import { ALL_DISTRICTS_LABEL, DEFAULT_HOME_PERIOD, normalizeHomeDistrict } from './HomePage.utils'
 
 function HomePage() {
   const [period, setPeriod] = useState(DEFAULT_HOME_PERIOD)
-  const [selectedDistrict, setSelectedDistrict] = useState('전체')
-  const [currentDistrict, setCurrentDistrict] = useState('전체')
+  const [selectedDistrict, setSelectedDistrict] = useState(ALL_DISTRICTS_LABEL)
+  const [currentDistrict, setCurrentDistrict] = useState(ALL_DISTRICTS_LABEL)
   const [locationStatus, setLocationStatus] = useState('loading')
 
   const applyDistrictInfo = useCallback((nextDistrictInfo) => {
     const district = normalizeHomeDistrict(nextDistrictInfo)
     setCurrentDistrict(district)
     setSelectedDistrict(district)
-    setLocationStatus(district === '전체' ? 'unavailable' : 'ready')
+    setLocationStatus(district === ALL_DISTRICTS_LABEL ? 'unavailable' : 'ready')
     return district
   }, [])
 
