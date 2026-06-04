@@ -25,13 +25,9 @@ export async function fetchNearbyPlaces({ latitude, longitude, radius, category,
 }
 
 // 키워드 기반 POI 검색
-export async function fetchPoiPlaces({ query, latitude, longitude, radius, category, page, limit } = {}) {
+export async function fetchPoiPlaces({ query, page, limit } = {}) {
   return apiClient.get('/api/places/search', {
     query,
-    latitude,
-    longitude,
-    radius,
-    category,
     page,
     limit,
   })
