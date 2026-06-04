@@ -3,217 +3,388 @@ import {
   Bookmark,
   ChevronLeft,
   ChevronRight,
-  Clock3,
+  ClipboardList,
   Heart,
+  Home,
   MapPin,
-  Share2,
-  Store,
-  UserRound,
+  MoreHorizontal,
+  Share,
+  Star,
+  User,
+  Users,
 } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 
-const placeData = {
-  onion: {
-    name: '어니언 성수',
-    distance: '450m',
-    image: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=1200&q=80',
-    category: '카페',
-    address: '서울 성동구 아차산로9길 8',
-    hours: '매일 10:00 - 22:00',
-    tag: '#성수동',
-    intro: '붉은 벽돌 창고를 개조한 감성 카페.\n커피와 디저트가 모두 맛있기로 유명한 곳.',
-  },
-  yeonbang: {
-    name: '성수연방',
-    distance: '650m',
-    image: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=1200&q=80',
-    category: '문화',
-    address: '서울 성동구 성수이로14길 14',
-    hours: '매일 11:00 - 21:00',
-    tag: '#성수동',
-    intro: '감각적인 셀렉트숍과 카페가 모인 복합 문화 공간.',
-  },
-  mildo: {
-    name: '밀도 성수',
-    distance: '800m',
-    image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80',
-    category: '베이커리',
-    address: '서울 성동구 연무장길 33',
-    hours: '매일 09:00 - 21:00',
-    tag: '#성수동',
-    intro: '고소한 빵 향과 따뜻한 분위기가 매력적인 베이커리.',
-  },
-  daelim: {
-    name: '대림창고',
-    distance: '1.2km',
-    image: 'https://images.unsplash.com/photo-1463797221720-6b07e6426c24?auto=format&fit=crop&w=1200&q=80',
-    category: '편집샵',
-    address: '서울 성동구 성수이로78',
-    hours: '매일 11:00 - 22:00',
-    tag: '#성수동',
-    intro: '전시, 음악, 카페 감성을 동시에 즐길 수 있는 명소.',
-  },
-  forest: {
-    name: '서울숲',
-    distance: '1.2km',
-    image: 'https://images.unsplash.com/photo-1445116572660-236099ec97a0?auto=format&fit=crop&w=1200&q=80',
-    category: '공원',
-    address: '서울 성동구 뚝섬로 273',
-    hours: '매일 24시간',
-    tag: '#서울숲',
-    intro: '산책과 피크닉을 즐기기 좋은 도심 속 휴식 공간.',
-  },
+// ─── Mock Data ────────────────────────────────────────────────────────────────
+
+const mockPlace = {
+  name: '메가커피 성수점',
+  address: '서울 성동구 연무장7길 13',
+  category: '카페',
+  savedCount: 85,
+  stats: { traces: 124, todayVisit: 37, likes: '2.4k' },
+  intro: '창가 좌석이 많고 햇살이 잘 들어오는 공간이에요.\n조용해서 공부하거나 책 읽기에도 좋아요.',
+  tags: [
+    { label: '#카페', emoji: '☕', bg: '#F2EBE0', text: '#5C4230', border: '#E4D5C4' },
+    { label: '#조용해요', emoji: '🌿', bg: '#E5EFE2', text: '#3D5C38', border: '#C8DEC4' },
+    { label: '#공부하기 좋아요', emoji: '📖', bg: '#DDE8F5', text: '#2B4D73', border: '#BACEEA' },
+    { label: '#감성적', emoji: '✨', bg: '#FAF0D5', text: '#7A5A1A', border: '#EDD9A0' },
+    { label: '#창가자리', emoji: '🌤', bg: '#FDF3DC', text: '#7A5A1A', border: '#EDD9A0' },
+  ],
+  images: [
+    'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=800&q=80',
+  ],
+  totalImages: 8,
 }
 
-const traceCards = [
-  { id: 1, type: 'note', color: 'bg-[#F5EBB8]', text: '창가 자리에 앉으면\n시간이 천천히\n흘러가는 기분 ☀️', date: '24.05.12' },
-  { id: 2, type: 'photo', image: 'https://images.unsplash.com/photo-1521017432531-fbd92d768814?auto=format&fit=crop&w=500&q=80', text: '비 오는 날\n여기만 생각나요 ☔', date: '24.05.11' },
-  { id: 3, type: 'note', color: 'bg-[#F7DBDB]', text: '라떼랑 스콘\n조합 최고!\n또 올게요 : )', date: '24.05.10' },
-  { id: 4, type: 'photo', image: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=500&q=80', text: '햇살 가득한 오후\n너무 좋았던 곳.', date: '' },
-  { id: 5, type: 'photo', image: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=500&q=80', text: '혼자 책 읽기\n좋은 공간 📖', date: '' },
-  { id: 6, type: 'note', color: 'bg-[#DDEAF4]', text: '분위기가 정말\n차분하고 편안해요.\n마음이 정리되는 느낌 ☁️', date: '24.05.09' },
+const mockTraces = [
+  {
+    id: 1,
+    type: 'photo',
+    image: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=400&q=80',
+    text: '아침 햇살 맞집 🌤',
+    user: 'daily_sun',
+    time: '2시간 전',
+    likes: 23,
+  },
+  {
+    id: 2,
+    type: 'photo',
+    image: 'https://images.unsplash.com/photo-1521017432531-fbd92d768814?auto=format&fit=crop&w=400&q=80',
+    text: '창가 자리 최고 ♡',
+    user: 'window_lover',
+    time: '5시간 전',
+    likes: 17,
+  },
+  {
+    id: 3,
+    type: 'note',
+    noteBg: '#F5EDD5',
+    text: '테라스 너무 예뻐요\n또 올게요! :)',
+    date: '2024.06.09',
+    user: 'mood_yeon',
+    time: '6시간 전',
+    likes: 12,
+  },
+  {
+    id: 4,
+    type: 'photo',
+    image: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=400&q=80',
+    text: '역시 메가커피 👍',
+    user: 'happy_day',
+    time: '1일 전',
+    likes: 15,
+  },
 ]
 
-function TraceCard({ card }) {
-  if (card.type === 'photo') {
-    return (
-      <article className="relative rounded-[4px] bg-white p-2 shadow-[0_6px_16px_rgba(50,33,20,0.14)]">
-        <span className="absolute left-1/2 top-0 h-2 w-14 -translate-x-1/2 -translate-y-1 rotate-6 bg-[#EFE2D4]/85" />
-        <img src={card.image} alt="" className="h-[130px] w-full rounded-[2px] object-cover" />
-        <p
-          className="mt-2 whitespace-pre-line text-[13px] leading-5 text-[#3E2A1E]"
-          style={{ fontFamily: "'Nanum Pen Script', cursive" }}
+// ─── Components ───────────────────────────────────────────────────────────────
+
+function HeroImage({ src, totalImages }) {
+  return (
+    <div className="relative h-[260px] w-full overflow-hidden">
+      <img src={src} alt="장소 이미지" className="h-full w-full object-cover" />
+      {/* 이미지 카운터 배지 — 이미지 우측 하단, 겹침 영역 위 */}
+      <div className="absolute bottom-8 right-3 rounded-full bg-black/45 px-2.5 py-[3px] text-[12px] font-medium text-white backdrop-blur-sm">
+        1/{totalImages}
+      </div>
+    </div>
+  )
+}
+
+function PlaceInfo({ place }) {
+  return (
+    <div className="px-5 pb-1 pt-5">
+      {/* 제목 + 별 아이콘 */}
+      <div className="flex items-center gap-2">
+        <h1 className="text-[26px] font-bold leading-tight text-[#3B2A1E]">{place.name}</h1>
+        <Star size={20} className="shrink-0 fill-[#F5C842] text-[#F5C842]" />
+      </div>
+
+      {/* 주소 + 카테고리 + 저장 버튼 */}
+      <div className="mt-2.5 flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-1.5 text-[13px] text-[#8B7A6B]">
+          <MapPin size={13} className="shrink-0 text-[#B0957C]" />
+          <span className="truncate">{place.address}</span>
+          <span className="shrink-0 text-[#D0C4B6]">·</span>
+          <span className="shrink-0">{place.category}</span>
+        </div>
+        <button
+          type="button"
+          className="flex shrink-0 items-center gap-1.5 rounded-xl border border-[#E0D4C5] bg-[#F5F0EA] px-3 py-1.5 text-[13px] font-medium text-[#5C4A3B]"
         >
-          {card.text}
-        </p>
-        <div className="mt-1 flex items-center justify-end text-[#B0927A]">
-          <Heart size={13} />
+          <Bookmark size={13} strokeWidth={1.8} />
+          저장 {place.savedCount}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function StatsCard({ stats }) {
+  return (
+    <div className="mx-5 mt-4 rounded-2xl border border-[#EBE1D6] bg-white px-3 py-3.5 shadow-[0_2px_8px_rgba(60,42,30,0.07)]">
+      <div className="grid grid-cols-3">
+        {/* 흔적 */}
+        <div className="flex flex-col items-center gap-0.5 border-r border-[#EBE1D6]">
+          <div className="flex items-center gap-1 text-[12px] text-[#8B7A6B]">
+            <ClipboardList size={13} strokeWidth={1.5} className="text-[#B0957C]" />
+            흔적
+          </div>
+          <span className="text-[20px] font-bold leading-tight text-[#3B2A1E]">{stats.traces}개</span>
+        </div>
+        {/* 오늘 방문 */}
+        <div className="flex flex-col items-center gap-0.5 border-r border-[#EBE1D6]">
+          <div className="flex items-center gap-1 text-[12px] text-[#8B7A6B]">
+            <Users size={13} strokeWidth={1.5} className="text-[#B0957C]" />
+            오늘 방문
+          </div>
+          <span className="text-[20px] font-bold leading-tight text-[#3B2A1E]">{stats.todayVisit}명</span>
+        </div>
+        {/* 좋아요 */}
+        <div className="flex flex-col items-center gap-0.5">
+          <div className="flex items-center gap-1 text-[12px] text-[#8B7A6B]">
+            <Heart size={13} strokeWidth={1.5} className="text-[#B0957C]" />
+            좋아요
+          </div>
+          <span className="text-[20px] font-bold leading-tight text-[#3B2A1E]">{stats.likes}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function IntroBox({ intro }) {
+  return (
+    <div className="relative mx-5 mt-4 overflow-hidden rounded-2xl border border-[#EBE1D6] bg-white px-4 py-4 shadow-[0_2px_8px_rgba(60,42,30,0.05)]">
+      <p className="whitespace-pre-line text-[14px] leading-[1.85] text-[#4A3728]">{intro}</p>
+      {/* 꽃 장식 */}
+      <div className="pointer-events-none absolute bottom-3 right-3 select-none text-[28px] opacity-20">
+        ✿
+      </div>
+    </div>
+  )
+}
+
+function MoodTags({ tags }) {
+  return (
+    <div className="mt-5 px-5">
+      <h2 className="mb-3 text-[16px] font-bold text-[#3B2A1E]">분위기 태그</h2>
+      <div className="flex flex-wrap gap-2">
+        {tags.map((tag) => (
+          <span
+            key={tag.label}
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium"
+            style={{
+              backgroundColor: tag.bg,
+              color: tag.text,
+              border: `1px solid ${tag.border}`,
+            }}
+          >
+            <span className="text-[14px]">{tag.emoji}</span>
+            {tag.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function RecentTraceCard({ trace }) {
+  if (trace.type === 'photo') {
+    return (
+      <article className="w-[148px] shrink-0 overflow-hidden rounded-2xl bg-white shadow-[0_2px_10px_rgba(60,42,30,0.10)]">
+        <img src={trace.image} alt="" className="h-[120px] w-full object-cover" />
+        <div className="px-2.5 py-2">
+          <p className="truncate text-[12px] font-medium text-[#3B2A1E]">{trace.text}</p>
+          <p className="mt-0.5 text-[11px] text-[#8B7A6B]">{trace.user}</p>
+          <div className="mt-1 flex items-center justify-between text-[11px] text-[#8B7A6B]">
+            <span>{trace.time}</span>
+            <span className="flex items-center gap-0.5">
+              <Heart size={10} strokeWidth={1.5} />
+              {trace.likes}
+            </span>
+          </div>
         </div>
       </article>
     )
   }
 
   return (
-    <article className={`relative min-h-[160px] rounded-[3px] p-4 shadow-[0_6px_16px_rgba(50,33,20,0.10)] ${card.color}`}>
-      <span className="absolute left-1/2 top-0 h-5 w-5 -translate-x-1/2 -translate-y-1 rounded-full bg-gradient-to-b from-[#D8B98E] to-[#A8784A] shadow" />
-      <p
-        className="whitespace-pre-line text-[14px] leading-7 text-[#3E2A1E]"
-        style={{ fontFamily: "'Nanum Pen Script', cursive" }}
-      >
-        {card.text}
-      </p>
-      {card.date ? (
-        <p className="mt-2 text-right text-[12px] text-[#6E5A4C]">- {card.date}</p>
-      ) : null}
+    <article
+      className="w-[148px] shrink-0 overflow-hidden rounded-2xl shadow-[0_2px_10px_rgba(60,42,30,0.10)]"
+      style={{ backgroundColor: trace.noteBg }}
+    >
+      <div className="min-h-[120px] px-3 pb-2 pt-3">
+        {trace.date && (
+          <p className="mb-2 text-[11px] text-[#8B7A6B]">{trace.date}</p>
+        )}
+        <p
+          className="whitespace-pre-line text-[14px] leading-[1.7] text-[#3B2A1E]"
+          style={{ fontFamily: "'Nanum Pen Script', cursive" }}
+        >
+          {trace.text}
+        </p>
+      </div>
+      <div className="px-3 pb-2">
+        <p className="text-[11px] text-[#8B7A6B]">{trace.user}</p>
+        <div className="mt-0.5 flex items-center justify-between text-[11px] text-[#8B7A6B]">
+          <span>{trace.time}</span>
+          <span className="flex items-center gap-0.5">
+            <Heart size={10} strokeWidth={1.5} />
+            {trace.likes}
+          </span>
+        </div>
+      </div>
     </article>
   )
 }
 
-function PlaceDetail() {
-  const navigate = useNavigate()
-  const { id } = useParams()
-  const place = placeData[id] ?? placeData.onion
-
+function RecentTraceList({ traces, onMore }) {
   return (
-    <motion.main
-      className="app-device h-full w-full overflow-hidden bg-white"
-      initial={{ y: '100%' }}
-      animate={{ y: 0 }}
-      exit={{ y: '100%' }}
-      transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-    >
-      <div className="relative h-full overflow-y-auto bg-[#FBF9F6] pb-36">
-        <section className="relative">
-          <img src={place.image} alt={place.name} className="h-[280px] w-full object-cover" />
-
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="absolute left-4 top-6 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-[#3E2A1E] shadow"
-            aria-label="뒤로가기"
-          >
-            <ChevronLeft size={22} />
-          </button>
-
-          <div className="absolute right-4 top-6 flex gap-2">
-            <button type="button" className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-[#3E2A1E] shadow" aria-label="북마크">
-              <Bookmark size={18} />
-            </button>
-            <button type="button" className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-[#3E2A1E] shadow" aria-label="공유">
-              <Share2 size={18} />
-            </button>
-          </div>
-        </section>
-
-        <section className="-mt-5 rounded-t-[26px] bg-white px-5 pb-6 pt-5">
-          <span className="inline-block rounded-full bg-[#EFE7DB] px-3 py-1 text-[12px] text-[#6F5D4F]">{place.category}</span>
-          <h1 className="mt-2 font-brand-serif text-[34px] leading-tight tracking-[-0.01em] text-[#2F2118]">{place.name}</h1>
-
-          <div className="mt-3 space-y-1.5 text-[#5A4739]">
-            <div className="flex items-center gap-2 text-[14px]">
-              <MapPin size={14} className="shrink-0 text-[#B0957C]" />
-              <span>{place.address}</span>
-              <span className="text-[#D8CCBF]">|</span>
-              <span className="inline-flex items-center gap-1 text-[#7A6558]">
-                <UserRound size={13} className="text-[#B0957C]" />
-                {place.distance}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 text-[14px]">
-              <Clock3 size={14} className="shrink-0 text-[#B0957C]" />
-              <span>{place.hours}</span>
-              <span className="text-[#D8CCBF]">|</span>
-              <span className="rounded-full bg-[#F1E9DF] px-2.5 py-0.5 text-[12px] text-[#6A5748]">{place.tag}</span>
-            </div>
-          </div>
-
-          <p className="mt-3 whitespace-pre-line text-[14px] leading-7 text-[#4A392C]">{place.intro}</p>
-
-          <hr className="my-5 border-[#EFE8DE]" />
-
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-[17px] font-bold text-[#3A2A1F]">최근 남겨진 흔적</h2>
-            <button type="button" className="inline-flex items-center text-[13px] font-medium text-[#5E4A3C]">
-              더보기 <ChevronRight size={14} />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            {traceCards.map((card) => (
-              <TraceCard key={card.id} card={card} />
-            ))}
-          </div>
-
-          <div className="mt-5 rounded-2xl bg-[#F6F1EA] px-4 py-4">
-            <div className="flex items-center gap-3">
-              <div className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#E9D7C2] text-[#6A4B33]">
-                <Store size={22} />
-              </div>
-              <div>
-                <p className="text-[15px] font-semibold text-[#3A2A1F]">아직 남긴 흔적이 없나요?</p>
-                <p className="text-[13px] text-[#6F5D4F]">이 장소의 첫 번째 흔적을 남겨보세요.</p>
-              </div>
-            </div>
-          </div>
-        </section>
+    <div className="mt-6">
+      <div className="mb-3 flex items-center justify-between px-5">
+        <h2 className="text-[16px] font-bold text-[#3B2A1E]">최근 흔적</h2>
+        <button
+          type="button"
+          onClick={onMore}
+          className="flex items-center gap-0.5 text-[13px] font-medium text-[#6B5A4C]"
+        >
+          더보기
+          <ChevronRight size={14} strokeWidth={2} />
+        </button>
       </div>
-
-      <footer className="absolute inset-x-0 bottom-0 bg-white px-5 pb-6 pt-3 shadow-[0_-8px_24px_rgba(35,24,16,0.08)]">
-        <div className="grid grid-cols-2 gap-3">
-          <button type="button" className="h-14 rounded-2xl border border-[#EADFD1] bg-[#F4EEE5] text-[15px] font-semibold text-[#3E2A1E]">
-            📝 흔적 남기기
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate(`/board/${id ?? 'onion'}`)}
-            className="h-14 rounded-2xl bg-[#3E2A1E] text-[15px] font-semibold text-white"
-          >
-            📖 보드 구경하기
-          </button>
-        </div>
-      </footer>
-    </motion.main>
+      {/* 가로 스크롤 */}
+      <div
+        className="flex gap-3 overflow-x-auto px-5 pb-2"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      >
+        {traces.map((trace) => (
+          <RecentTraceCard key={trace.id} trace={trace} />
+        ))}
+      </div>
+    </div>
   )
 }
 
-export default PlaceDetail
+function BottomCTA({ onClick }) {
+  return (
+    <div className="px-5 pb-1 pt-3">
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex h-[56px] w-full items-center justify-center gap-2 rounded-full bg-[#3A2418] text-[16px] font-semibold text-white shadow-[0_4px_16px_rgba(58,36,24,0.35)] active:opacity-80"
+      >
+        <span className="text-[17px]">📌</span>
+        <span>흔적 보드 보기</span>
+      </button>
+    </div>
+  )
+}
+
+const NAV_ITEMS = [
+  { key: 'home', label: '홈', icon: Home, path: '/home' },
+  { key: 'space', label: '공간', icon: MapPin, path: '/map' },
+  { key: 'trace', label: '내 흔적', icon: Bookmark, path: null },
+  { key: 'my', label: '마이페이지', icon: User, path: null },
+]
+
+function BottomNav() {
+  const navigate = useNavigate()
+
+  return (
+    <nav className="border-t border-[#E8DDD1] bg-[#FBF6EE] px-2 pb-7 pt-2.5">
+      <ul className="grid grid-cols-4">
+        {NAV_ITEMS.map((item) => {
+          const Icon = item.icon
+          // place 상세 화면이므로 "공간" 탭 항상 활성화
+          const active = item.key === 'space'
+          return (
+            <li key={item.key} className="flex justify-center">
+              <button
+                type="button"
+                onClick={() => item.path && navigate(item.path)}
+                className="flex flex-col items-center gap-1"
+              >
+                <Icon
+                  size={22}
+                  strokeWidth={active ? 2.2 : 1.5}
+                  className={active ? 'text-[#3A2418]' : 'text-[#9B8A7B]'}
+                />
+                <span
+                  className={`text-[11px] font-medium ${active ? 'text-[#3A2418]' : 'text-[#9B8A7B]'}`}
+                >
+                  {item.label}
+                </span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </nav>
+  )
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
+
+function PlaceDetailScreen() {
+  const navigate = useNavigate()
+  const { id } = useParams()
+
+  return (
+    <motion.div
+      className="app-device flex flex-col overflow-hidden bg-[#FBF6EE]"
+      initial={{ x: '100%' }}
+      animate={{ x: 0 }}
+      exit={{ x: '100%' }}
+      transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+    >
+      {/* ── Status bar 영역 (뒤로/공유/더보기) ── */}
+      <div className="flex items-center justify-between bg-[#FBF6EE] px-4 pb-1 pt-3">
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          aria-label="뒤로가기"
+          className="flex h-9 w-9 items-center justify-center"
+        >
+          <ChevronLeft size={26} strokeWidth={1.8} className="text-[#3B2A1E]" />
+        </button>
+        <div className="flex items-center gap-3">
+          <button type="button" aria-label="공유" className="flex h-9 w-9 items-center justify-center">
+            <Share size={20} strokeWidth={1.8} className="text-[#3B2A1E]" />
+          </button>
+          <button type="button" aria-label="더보기" className="flex h-9 w-9 items-center justify-center">
+            <MoreHorizontal size={22} strokeWidth={1.8} className="text-[#3B2A1E]" />
+          </button>
+        </div>
+      </div>
+
+      {/* ── 스크롤 본문 ── */}
+      <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
+        {/* Hero 이미지 */}
+        <HeroImage src={mockPlace.images[0]} totalImages={mockPlace.totalImages} />
+
+        {/* 정보 카드 — Hero에 살짝 겹치게 (목표 이미지 기준 ~24px) */}
+        <div className="-mt-6 rounded-t-[28px] bg-white shadow-[0_-4px_16px_rgba(0,0,0,0.10)]">
+          <PlaceInfo place={mockPlace} />
+          <StatsCard stats={mockPlace.stats} />
+          <IntroBox intro={mockPlace.intro} />
+          <MoodTags tags={mockPlace.tags} />
+          <RecentTraceList
+            traces={mockTraces}
+            onMore={() => navigate(`/board/${id ?? 'onion'}`)}
+          />
+          {/* 하단 여유 공간 — CTA(56px) + 패딩(12px) + 네비(72px) = 140px */}
+          <div className="h-36" />
+        </div>
+      </div>
+
+      {/* ── 하단 고정 영역 ── */}
+      <div className="shrink-0 bg-[#FBF6EE] shadow-[0_-6px_20px_rgba(58,36,24,0.08)]">
+        <BottomCTA onClick={() => navigate(`/board/${id ?? 'onion'}`)} />
+        <BottomNav />
+      </div>
+    </motion.div>
+  )
+}
+
+export default PlaceDetailScreen

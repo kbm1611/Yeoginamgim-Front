@@ -1,33 +1,9 @@
 import { useMemo } from 'react'
 import { TransformComponent, TransformWrapper } from 'react-zoom-pan-pinch'
-import postitYellow from '../../assets/images/postits/yellow.png'
-import postitPink from '../../assets/images/postits/pink-torn.png'
-import postitGreen from '../../assets/images/postits/green.png'
-import postitCream from '../../assets/images/postits/grid-cream.png'
+import postitYellow from '../../assets/postit/yellow.png'
 
 const CANVAS_W = 800
-
-// 컬럼 중심 x 좌표
 const COL_X = [210, 600]
-
-// 포스트잇 텍스처 (paperColor 키 → 이미지)
-const POSTIT_TEXTURE = {
-  yellow: postitYellow,
-  pink: postitPink,
-  green: postitGreen,
-  cream: postitCream,
-}
-
-// 포스트잇 색상 (텍스처 없는 경우 fallback)
-const POSTIT_COLOR = {
-  white: '#F8F6F0',
-  yellow: '#F3D98E',
-  pink: '#EEB7C6',
-  green: '#D2D4A2',
-  peach: '#E6B2A6',
-  cream: '#F0EAD6',
-  lavender: '#D4C8F0',
-}
 
 // 테이프 색상 순환
 const TAPE_COLORS = [
@@ -122,10 +98,15 @@ function PolaroidCard({ post }) {
   )
 }
 
+function getPostItTint(post) {
+  const paperColor = post.style?.paperColor
+  return typeof paperColor === 'string' && paperColor.startsWith('#') && paperColor !== '#F5EDD5'
+    ? paperColor
+    : null
+}
+
 function PostItCard({ post }) {
-  const paperColor = post.style?.paperColor ?? 'yellow'
-  const texture = POSTIT_TEXTURE[paperColor]
-  const bgColor = POSTIT_COLOR[paperColor] ?? '#F3D98E'
+  const tint = getPostItTint(post)
 
   return (
     <article
@@ -134,21 +115,28 @@ function PostItCard({ post }) {
         left: post._x,
         top: post._y,
         width: 270,
-        height: 270,
         transform: `rotate(${post._rotate}deg)`,
-        borderRadius: 4,
-        backgroundColor: bgColor,
-        backgroundImage: texture ? `url(${texture})` : undefined,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        boxShadow: '0 6px 20px rgba(42,28,20,0.18), 0 2px 6px rgba(42,28,20,0.10)',
       }}
     >
       <Tape color={post._tapeColor} rotate={post._tapeRotate} />
-      <div className="flex h-full items-center justify-center p-6">
+      <div className="relative">
+        {tint && (
+          <div
+            className="absolute rounded-[4px] mix-blend-multiply"
+            style={{ backgroundColor: tint, inset: '10% 5% 8%' }}
+          />
+        )}
+        <img src={postitYellow} alt="" className="w-full" />
         <p
-          className="whitespace-pre-line text-center text-[34px] leading-[1.3] text-[#2A211A]"
-          style={{ fontFamily: "'Nanum Pen Script', 'Gaegu', cursive" }}
+          className="absolute whitespace-pre-wrap break-words text-[30px] leading-[1.45] text-[#2A1E14]"
+          style={{
+            fontFamily: "'Nanum Pen Script', 'Gaegu', cursive",
+            top: '24%',
+            left: '15%',
+            width: '70%',
+            maxHeight: '54%',
+            overflow: 'hidden',
+          }}
         >
           {post.content}
         </p>
@@ -177,7 +165,7 @@ function EmptyBoard({ onAdd }) {
   )
 }
 
-function BoardCanvas({ posts, onAdd }) {
+function BoardCanvas({ posts, onAdd, transformRef, onZoomChange }) {
   const laid = useMemo(() => layoutPosts(posts), [posts])
 
   const rows = Math.ceil(posts.length / 2)
@@ -187,14 +175,13 @@ function BoardCanvas({ posts, onAdd }) {
     return <EmptyBoard onAdd={onAdd} />
   }
 
-  // 800px 캔버스가 390px 기기에 꽉 차는 scale = 390/800 ≈ 0.49
-  // 캔버스 높이 canvasH * 0.49 가 860px(기기높이)보다 크면 세로도 채워짐
   const SCALE = 0.49
   const posX = 0
   const posY = -Math.max(0, (canvasH * SCALE - 860) / 2)
 
   return (
     <TransformWrapper
+      ref={transformRef}
       minScale={SCALE}
       maxScale={2.0}
       initialScale={SCALE}
@@ -205,6 +192,9 @@ function BoardCanvas({ posts, onAdd }) {
       pinch={{ step: 5 }}
       panning={{ velocityDisabled: false }}
       doubleClick={{ disabled: true }}
+      onTransformed={(_, state) => {
+        onZoomChange?.(Math.round(state.scale * (100 / SCALE)))
+      }}
     >
       <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }}>
         <div
