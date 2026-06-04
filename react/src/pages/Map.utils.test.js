@@ -25,6 +25,7 @@ import {
   getCurrentPositionMarkerTitle,
   getFloatingControlsBottom,
   getMapViewportPlan,
+  getPlaceInfoRows,
   getPlaceCategoryMeta,
   inferPlaceCategoryKey,
   normalizePlaces,
@@ -234,6 +235,23 @@ test('normalizePlaces keeps ambiguous lookup results styled by request category'
   assert.equal(place.categoryKey, 'AT4')
   assert.notEqual(place.categoryKey, 'CT1')
   assert.notEqual(place.categoryKey, 'default')
+})
+
+test('getPlaceInfoRows returns only available selected place facts', () => {
+  const rows = getPlaceInfoRows({
+    placeName: 'Seongsu Cafe',
+    groupName: '카페',
+    address: '서울 성동구',
+    phone: '',
+    distanceLabel: '120m',
+    traceCount: 0,
+  })
+
+  assert.deepEqual(rows, [
+    { label: '주소', value: '서울 성동구' },
+    { label: '카테고리', value: '카페' },
+    { label: '거리', value: '120m' },
+  ])
 })
 
 test('normalizePlaces dedupes places and sorts by trace count first', () => {
@@ -493,7 +511,7 @@ test('category selection state clears the previous selected place before loading
   assert.equal(state.categoryPlacesStatus, 'loading')
   assert.equal(state.categoryPlacesError, '')
   assert.equal(state.boardError, '')
-  assert.equal(state.isSheetOpen, true)
+  assert.equal(Object.hasOwn(state, 'isSheetOpen'), false)
   assert.equal(Object.hasOwn(state, 'popularPlaces'), false)
   assert.equal(Object.hasOwn(state, 'popularPlacesStatus'), false)
 })

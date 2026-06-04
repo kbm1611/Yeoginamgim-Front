@@ -398,8 +398,28 @@ export function getCategorySelectionState(categoryLabel) {
     categoryPlacesStatus: 'loading',
     categoryPlacesError: '',
     boardError: '',
-    isSheetOpen: true,
   }
+}
+
+export function getPlaceInfoRows(place) {
+  if (!place || typeof place !== 'object') return []
+
+  const categoryMeta = getPlaceCategoryMeta(place.categoryKey)
+  const categoryLabel = firstPresentValue(
+    place.groupName !== PLACE_CATEGORY_META.default.label ? place.groupName : '',
+    categoryMeta.label !== PLACE_CATEGORY_META.default.label ? categoryMeta.label : ''
+  )
+  const traceCount = Number(place.traceCount)
+
+  return [
+    createPlaceInfoRow('주소', place.address),
+    createPlaceInfoRow('카테고리', categoryLabel),
+    createPlaceInfoRow('전화', place.phone),
+    createPlaceInfoRow('거리', place.distanceLabel),
+    Number.isFinite(traceCount) && traceCount > 0
+      ? createPlaceInfoRow('흔적', `${traceCount}개`)
+      : null,
+  ].filter(Boolean)
 }
 
 export function inferPlaceCategoryKey(place, fallbackCategory = null) {
@@ -499,6 +519,20 @@ function comparePlaces(left, right) {
   if (boardCompare !== 0) return boardCompare
 
   return left.placeName.localeCompare(right.placeName)
+}
+
+function createPlaceInfoRow(label, value) {
+  const normalizedValue = String(value ?? '').trim()
+  if (!normalizedValue) return null
+
+  return {
+    label,
+    value: normalizedValue,
+  }
+}
+
+function firstPresentValue(...values) {
+  return values.find((value) => String(value ?? '').trim() !== '') ?? ''
 }
 
 function getDistanceInMeters(startLatitude, startLongitude, endLatitude, endLongitude) {

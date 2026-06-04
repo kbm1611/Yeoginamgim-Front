@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   AlertCircle,
+  ArrowRight,
   Baby,
   Banknote,
   Building,
@@ -28,6 +29,7 @@ import {
   Store,
   TrainFront,
   Utensils,
+  X,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { fetchOrCreateBoardForPlace } from '../api/boards'
@@ -58,6 +60,7 @@ import {
   getFloatingControlsBottom,
   getMapViewportPlan,
   getPlaceCategoryMeta,
+  getPlaceInfoRows,
   normalizePlaces,
   normalizePopularPlaces,
 } from './Map.utils'
@@ -179,7 +182,7 @@ function MapPage() {
 
   const selectPlace = useCallback((kakaoPlaceId, { focusMap = false } = {}) => {
     setSelectedPlaceId(kakaoPlaceId)
-    setIsSheetOpen(true)
+    setBoardError('')
 
     if (focusMap) {
       focusMapOnPlace(placeLookupRef.current.get(kakaoPlaceId))
@@ -284,7 +287,7 @@ function MapPage() {
 
       const normalizedPlaces = normalizePlaces(responses, currentPosition, NEARBY_LIMIT)
       setCategoryPlaces(normalizedPlaces)
-      setSelectedPlaceId(normalizedPlaces[0]?.kakaoPlaceId ?? null)
+      setSelectedPlaceId(null)
       setCategoryPlacesStatus('success')
     } catch {
       if (!isMountedRef.current || categoryPlacesRequestIdRef.current !== requestId) return
@@ -484,7 +487,6 @@ function MapPage() {
     setCategoryPlacesStatus(nextState.categoryPlacesStatus)
     setCategoryPlacesError(nextState.categoryPlacesError)
     setBoardError(nextState.boardError)
-    setIsSheetOpen(nextState.isSheetOpen)
 
     if (categoryLabel === selectedCategory) {
       window.queueMicrotask(() => {
@@ -638,6 +640,11 @@ function MapPage() {
             {categoryPlacesError}
           </p>
         ) : null}
+        {categoryPlacesStatus === 'success' && selectedCategory && categoryPlaces.length === 0 ? (
+          <p className="mt-2 rounded-full bg-white/90 px-3 py-1.5 text-[12px] font-medium text-[#6B5343] shadow-[0_4px_10px_rgba(0,0,0,0.04)]">
+            선택한 카테고리의 장소가 아직 없어요.
+          </p>
+        ) : null}
       </section>
 
       <div
@@ -667,6 +674,19 @@ function MapPage() {
           <Navigation size={20} strokeWidth={1.8} />
         </button>
       </div>
+
+      {selectedPlace ? (
+        <SelectedPlacePanel
+          place={selectedPlace}
+          isOpening={selectedPlace.kakaoPlaceId === openingPlaceId}
+          error={boardError}
+          onClose={() => {
+            setSelectedPlaceId(null)
+            setBoardError('')
+          }}
+          onOpenBoard={() => handleOpenBoard(selectedPlace)}
+        />
+      ) : null}
 
       <section
         className={`absolute left-2 right-2 z-20 overflow-hidden rounded-t-[24px] bg-white px-5 pb-4 shadow-[0_-10px_24px_rgba(0,0,0,0.08)] ${MAP_BOTTOM_SHEET_TRANSITION_CLASSES}`}
@@ -747,6 +767,65 @@ function MapPage() {
   )
 }
 
+function SelectedPlacePanel({ place, isOpening, error, onClose, onOpenBoard }) {
+  const rows = getPlaceInfoRows(place)
+  const meta = getPlaceCategoryMeta(place.categoryKey)
+  const PlaceIcon = CATEGORY_ICON_COMPONENTS[meta.iconName] ?? MapPinned
+
+  return (
+    <aside
+      className="absolute left-4 right-20 z-[25] rounded-[18px] border border-[#E8DED2] bg-white/96 p-3 text-[#2B1810] shadow-[0_12px_26px_rgba(61,36,21,0.16)] backdrop-blur-sm"
+      style={{ bottom: `${MAP_BOTTOM_SHEET_BOTTOM_OFFSET_PX + 70}px` }}
+      aria-live="polite"
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border border-[#E1D3C5] bg-[#F8F2EA] text-[#5A4030]">
+          <PlaceIcon size={19} strokeWidth={1.8} />
+        </span>
+
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[16px] font-bold leading-tight">{place.placeName}</p>
+          {rows.length > 0 ? (
+            <dl className="mt-2 grid gap-1 text-[12px] leading-[1.35]">
+              {rows.map((row) => (
+                <div key={row.label} className="grid grid-cols-[42px_minmax(0,1fr)] gap-2">
+                  <dt className="text-[#8A7464]">{row.label}</dt>
+                  <dd className="min-w-0 truncate text-[#4E3829]">{row.value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
+        </div>
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[#7A6558] transition hover:bg-[#F5EFE7]"
+          aria-label="선택 장소 정보 닫기"
+        >
+          <X size={16} strokeWidth={1.8} />
+        </button>
+      </div>
+
+      {error ? <p className="mt-2 text-[12px] font-medium text-[#A74831]">{error}</p> : null}
+
+      <button
+        type="button"
+        onClick={onOpenBoard}
+        disabled={isOpening}
+        className="mt-3 flex h-10 w-full items-center justify-center gap-1.5 rounded-full bg-[#3D2415] px-4 text-[13px] font-semibold text-white shadow-[0_6px_14px_rgba(61,36,21,0.18)] transition disabled:opacity-65"
+      >
+        {isOpening ? (
+          <Loader2 size={15} strokeWidth={1.8} className="animate-spin" />
+        ) : (
+          <ArrowRight size={15} strokeWidth={1.9} />
+        )}
+        <span>{isOpening ? '이동 중' : '보드 이동'}</span>
+      </button>
+    </aside>
+  )
+}
+
 function PlaceCard({ place, isSelected, isOpening, onSelect, onOpen, refCallback }) {
   return (
     <article
@@ -755,7 +834,7 @@ function PlaceCard({ place, isSelected, isOpening, onSelect, onOpen, refCallback
         isSelected ? 'border-[#3D2415] shadow-[0_8px_18px_rgba(61,36,21,0.16)]' : 'border-[#EFE6DB]'
       }`}
     >
-      <button type="button" onClick={onOpen} onMouseEnter={onSelect} className="block h-full w-full text-left">
+      <button type="button" onClick={onOpen} onFocus={onSelect} onMouseEnter={onSelect} className="block h-full w-full text-left">
         <PlaceCardImage place={place} />
         <div className="px-2.5 pb-2.5 pt-2">
           <span className="inline-block rounded-full bg-[#F2EBDF] px-2 py-0.5 text-[10px] font-medium text-[#6B5343]">
