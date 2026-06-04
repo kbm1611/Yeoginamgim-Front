@@ -46,6 +46,7 @@ import {
   MAP_BOTTOM_SHEET_TRANSITION_CLASSES,
   MAP_CATEGORY_FILTER_BUTTON_CLASSES,
   MAP_CATEGORY_FILTER_SCROLL_CLASSES,
+  MAP_CURRENT_LOCATION_LEVEL,
   MAP_FLOATING_CONTROLS_TRANSITION_CLASSES,
   MAP_PLACE_CARD_SCROLL_CLASSES,
   MAP_PLACE_LIST_SCROLL_CLASSES,
@@ -56,9 +57,9 @@ import {
   getBottomSheetToggleLabel,
   getBottomSheetTransform,
   getCategorySelectionState,
+  getCurrentLocationViewPlan,
   getCurrentPositionMarkerTitle,
   getFloatingControlsBottom,
-  getMapViewportPlan,
   getPlaceCategoryMeta,
   getPlaceInfoRows,
   normalizePlaces,
@@ -155,12 +156,19 @@ function MapPage() {
     currentLocationOverlayRef.current = null
   }, [])
 
-  const moveMapTo = useCallback((position, { smooth = true } = {}) => {
+  const applyMapView = useCallback((viewPlan, { smooth = true } = {}) => {
     const kakao = kakaoRef.current
     const map = mapInstanceRef.current
-    if (!kakao || !map || !position) return
+    if (!kakao || !map || !viewPlan?.center) return
 
-    const center = new kakao.maps.LatLng(position.latitude, position.longitude)
+    if (Number.isFinite(viewPlan.level) && typeof map.setLevel === 'function') {
+      const currentLevel = typeof map.getLevel === 'function' ? map.getLevel() : null
+      if (currentLevel !== viewPlan.level) {
+        map.setLevel(viewPlan.level)
+      }
+    }
+
+    const center = new kakao.maps.LatLng(viewPlan.center.latitude, viewPlan.center.longitude)
     if (smooth && map.panTo) {
       map.panTo(center)
       return
@@ -174,11 +182,12 @@ function MapPage() {
     const map = mapInstanceRef.current
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || !map) return
 
-    if (typeof map.getLevel === 'function' && typeof map.setLevel === 'function' && map.getLevel() > MAP_SELECTED_PLACE_LEVEL) {
-      map.setLevel(MAP_SELECTED_PLACE_LEVEL)
-    }
-    moveMapTo({ latitude, longitude })
-  }, [moveMapTo])
+    const currentLevel = typeof map.getLevel === 'function' ? map.getLevel() : null
+    applyMapView({
+      center: { latitude, longitude },
+      level: currentLevel > MAP_SELECTED_PLACE_LEVEL ? MAP_SELECTED_PLACE_LEVEL : null,
+    })
+  }, [applyMapView])
 
   const selectPlace = useCallback((kakaoPlaceId, { focusMap = false } = {}) => {
     setSelectedPlaceId(kakaoPlaceId)
@@ -197,32 +206,6 @@ function MapPage() {
     }, 0)
   }, [focusMapOnPlace])
 
-  const fitMapToPlaces = useCallback((nextPlaces) => {
-    const kakao = kakaoRef.current
-    const map = mapInstanceRef.current
-    if (!kakao || !map) return
-
-    const viewportPlan = getMapViewportPlan(nextPlaces, currentPosition)
-    if (viewportPlan.type === 'none') return
-
-    if (viewportPlan.type === 'single') {
-      map.setLevel(viewportPlan.level)
-      moveMapTo(viewportPlan.center)
-      return
-    }
-
-    const bounds = new kakao.maps.LatLngBounds()
-    viewportPlan.points.forEach((point) => {
-      bounds.extend(new kakao.maps.LatLng(point.latitude, point.longitude))
-    })
-
-    const { padding } = viewportPlan
-    map.setBounds(bounds, padding.top, padding.right, padding.bottom, padding.left)
-    if (typeof map.getLevel === 'function' && typeof map.setLevel === 'function' && map.getLevel() > viewportPlan.maxLevel) {
-      map.setLevel(viewportPlan.maxLevel)
-    }
-  }, [currentPosition, moveMapTo])
-
   const requestCurrentLocation = useCallback(async () => {
     setLocationStatus('loading')
     setLocationNotice('')
@@ -238,16 +221,14 @@ function MapPage() {
       }
       setCurrentPosition(nextPosition)
       setLocationStatus('success')
-      moveMapTo(nextPosition)
     } catch {
       if (!isMountedRef.current) return
 
       setCurrentPosition(DEFAULT_MAP_CENTER)
       setLocationStatus('fallback')
       setLocationNotice('위치 권한을 사용할 수 없어 성수동 기준으로 보여드려요.')
-      moveMapTo(DEFAULT_MAP_CENTER)
     }
-  }, [moveMapTo])
+  }, [])
 
   const loadCategoryPlaces = useCallback(async () => {
     if (!selectedCategory) {
@@ -359,7 +340,7 @@ function MapPage() {
         const center = new kakao.maps.LatLng(DEFAULT_MAP_CENTER.latitude, DEFAULT_MAP_CENTER.longitude)
         mapInstanceRef.current = new kakao.maps.Map(mapElementRef.current, {
           center,
-          level: 5,
+          level: MAP_CURRENT_LOCATION_LEVEL,
         })
         setMapStatus('ready')
       })
@@ -380,8 +361,11 @@ function MapPage() {
 
   useEffect(() => {
     if (mapStatus !== 'ready') return
-    moveMapTo(currentPosition, { smooth: false })
-  }, [currentPosition, mapStatus, moveMapTo])
+    const viewPlan = getCurrentLocationViewPlan(currentPosition)
+    if (!viewPlan) return
+
+    applyMapView(viewPlan)
+  }, [applyMapView, currentPosition, mapStatus])
 
   useEffect(() => {
     if (mapStatus !== 'ready' || !mapInstanceRef.current || !kakaoRef.current) return
@@ -462,10 +446,8 @@ function MapPage() {
       markersRef.current.push({ marker, element: markerElement, handler, placeId: place.kakaoPlaceId })
     })
 
-    fitMapToPlaces(categoryPlaces)
-
     return clearMarkers
-  }, [categoryPlaces, clearMarkers, fitMapToPlaces, mapStatus, selectPlace])
+  }, [categoryPlaces, clearMarkers, mapStatus, selectPlace])
 
   useEffect(() => {
     selectedPlaceIdRef.current = selectedPlaceId

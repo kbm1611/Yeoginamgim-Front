@@ -26,6 +26,7 @@ export const MAP_CATEGORY_FILTER_SCROLL_CLASSES =
   'scrollbar-hide mt-3 flex w-full snap-x snap-proximity flex-nowrap gap-2 overflow-x-scroll overflow-y-hidden overscroll-x-contain scroll-smooth pb-1 whitespace-nowrap [touch-action:pan-x] [-webkit-overflow-scrolling:touch]'
 export const MAP_CATEGORY_FILTER_BUTTON_CLASSES =
   'inline-flex min-h-10 shrink-0 snap-start items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] transition'
+export const MAP_CURRENT_LOCATION_LEVEL = 5
 export const MAP_RESULT_SINGLE_PLACE_LEVEL = 4
 export const MAP_SELECTED_PLACE_LEVEL = 4
 export const MAP_RESULT_MAX_FIT_LEVEL = 9
@@ -337,6 +338,20 @@ export function getCurrentPositionMarkerTitle(locationStatus) {
   return '현재 위치'
 }
 
+export function getCurrentLocationViewPlan(position) {
+  const latitude = toCoordinate(position?.latitude)
+  const longitude = toCoordinate(position?.longitude)
+  if (latitude === null || longitude === null) return null
+
+  return {
+    center: {
+      latitude,
+      longitude,
+    },
+    level: MAP_CURRENT_LOCATION_LEVEL,
+  }
+}
+
 export function getBottomSheetTransform(isOpen) {
   return isOpen ? 'translateY(0)' : MAP_BOTTOM_SHEET_CLOSED_TRANSFORM
 }
@@ -562,6 +577,10 @@ function toRadians(value) {
 }
 
 function toCoordinate(value) {
+  if (value === null || value === undefined || String(value).trim() === '') {
+    return null
+  }
+
   const coordinate = Number(value)
   return Number.isFinite(coordinate) ? coordinate : null
 }

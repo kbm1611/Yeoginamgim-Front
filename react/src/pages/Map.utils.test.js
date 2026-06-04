@@ -15,6 +15,7 @@ import {
   MAP_FLOATING_CONTROLS_TRANSITION_CLASSES,
   MAP_PLACE_CARD_SCROLL_CLASSES,
   MAP_PLACE_LIST_SCROLL_CLASSES,
+  MAP_CURRENT_LOCATION_LEVEL,
   MAP_RESULT_MAX_FIT_LEVEL,
   MAP_RESULT_SINGLE_PLACE_LEVEL,
   PLACE_CATEGORY_META,
@@ -23,6 +24,7 @@ import {
   getBottomSheetTransform,
   getCategorySelectionState,
   getCurrentPositionMarkerTitle,
+  getCurrentLocationViewPlan,
   getFloatingControlsBottom,
   getMapViewportPlan,
   getPlaceInfoRows,
@@ -412,6 +414,27 @@ test('getCurrentPositionMarkerTitle describes real and fallback positions', () =
   assert.equal(getCurrentPositionMarkerTitle('success'), '현재 위치')
   assert.equal(getCurrentPositionMarkerTitle('fallback'), '성수동 기준 위치')
   assert.equal(getCurrentPositionMarkerTitle('loading'), '위치 확인 중')
+})
+
+test('getCurrentLocationViewPlan keeps current location moves at a stable map level', () => {
+  const plan = getCurrentLocationViewPlan({
+    latitude: 37.5447,
+    longitude: 127.0559,
+  })
+
+  assert.deepEqual(plan, {
+    center: {
+      latitude: 37.5447,
+      longitude: 127.0559,
+    },
+    level: MAP_CURRENT_LOCATION_LEVEL,
+  })
+  assert.equal(MAP_CURRENT_LOCATION_LEVEL, 5)
+})
+
+test('getCurrentLocationViewPlan skips invalid current location coordinates', () => {
+  assert.equal(getCurrentLocationViewPlan({ latitude: null, longitude: 127.0559 }), null)
+  assert.equal(getCurrentLocationViewPlan({ latitude: 37.5447, longitude: undefined }), null)
 })
 
 test('bottom sheet helpers keep the sheet height fixed and toggle by transform', () => {
