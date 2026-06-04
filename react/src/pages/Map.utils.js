@@ -70,9 +70,22 @@ const CATEGORY_PATTERNS = [
   { code: 'SW8', pattern: /(sw8|subway|지하철역)/ },
   { code: 'AT4', pattern: /(at4|attraction|tour|tourist|photo[_\s-]?spot|관광|명소|포토스팟|사진명소)/ },
   { code: 'AD5', pattern: /(ad5|lodging|accommodation|hotel|숙박|호텔)/ },
-  { code: 'FD6', pattern: /(fd6|food|restaurant|dining|맛집|음식|음식점|식당|한식|분식|양식|일식|중식)/ },
+  { code: 'FD6', pattern: /(fd6|food|restaurant|dining|맛집|밥집|음식|음식점|식당|한식|분식|양식|일식|중식)/ },
   { code: 'CE7', pattern: /(ce7|cafe|coffee|카페|커피|디저트)/ },
 ]
+const POI_CATEGORY_PRIORITY_SCORE = {
+  CE7: 100,
+  FD6: 90,
+  CULTURE: 80,
+  AT4: 70,
+  SHOPPING: 60,
+  AD5: 50,
+  PARK: 40,
+  CS2: 30,
+  MT1: 20,
+  EDU: 10,
+}
+const EXPLICIT_CATEGORY_INTENT_SCORE = 220
 
 export const CATEGORY_FILTERS = [
   { label: '전체', categories: ALL_PLACE_CATEGORY_VALUES, iconName: 'mapPinned' },
@@ -653,6 +666,7 @@ export function inferPlaceCategoryKey(place, fallbackCategory = null) {
     place?.category,
     place?.groupName,
     place?.categoryName,
+    place?.placeName,
     place?.placeCategory,
   ]
     .map((value) => String(value ?? '').trim().toLowerCase())
@@ -756,6 +770,7 @@ function compareSearchResults(left, right) {
 function getSearchRelevanceScore(place, query) {
   const normalizedQuery = normalizeSearchText(query)
   if (!normalizedQuery) return 0
+  const queryCategoryIntent = inferQueryCategoryIntent(query)
 
   const fields = {
     name: normalizeSearchText(place?.placeName),
@@ -771,6 +786,10 @@ function getSearchRelevanceScore(place, query) {
   if (fields.category.includes(normalizedQuery)) score += 30
   if (fields.address.includes(normalizedQuery)) score += 10
   if (place?.categoryKey === 'SW8' && isStationLikeQuery(query)) score += 35
+  if (queryCategoryIntent && place?.categoryKey === queryCategoryIntent) {
+    score += EXPLICIT_CATEGORY_INTENT_SCORE
+  }
+  score += getPoiCategoryPriorityScore(place?.categoryKey)
 
   tokens.forEach((token) => {
     if (fields.name.includes(token)) score += 8
@@ -779,6 +798,24 @@ function getSearchRelevanceScore(place, query) {
   })
 
   return score
+}
+
+function getPoiCategoryPriorityScore(categoryKey) {
+  return POI_CATEGORY_PRIORITY_SCORE[categoryKey] ?? 0
+}
+
+function inferQueryCategoryIntent(query) {
+  const normalizedQuery = normalizeSearchText(query)
+  if (!normalizedQuery) return null
+
+  const exactCategory = normalizeCategoryKey(normalizedQuery)
+  if (exactCategory) return exactCategory
+
+  const matchedCategory = CATEGORY_PATTERNS.find(({ code, pattern }) => (
+    code !== 'SW8' && pattern.test(normalizedQuery)
+  ))
+
+  return matchedCategory?.code ?? null
 }
 
 function shouldSupplementStationSearch(query) {

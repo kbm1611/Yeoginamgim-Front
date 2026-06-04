@@ -240,6 +240,8 @@ test('inferPlaceCategoryKey handles Korean and English category values', () => {
   assert.equal(inferPlaceCategoryKey({ groupName: '\uC18C\uD488\uC0F5' }), 'SHOPPING')
   assert.equal(inferPlaceCategoryKey({ groupName: '\uC219\uBC15' }), 'AD5')
   assert.equal(inferPlaceCategoryKey({ category: '\uC74C\uC2DD\uC810' }), 'FD6')
+  assert.equal(inferPlaceCategoryKey({ placeName: '\uC131\uC218 \uBC25\uC9D1' }), 'FD6')
+  assert.equal(inferPlaceCategoryKey({ placeName: '\uC131\uC218 \uC18C\uD488\uC0F5' }), 'SHOPPING')
   assert.equal(inferPlaceCategoryKey({ groupName: '\uCE74\uD398' }), 'CE7')
   assert.equal(inferPlaceCategoryKey({ groupName: '\uC54C \uC218 \uC5C6\uC74C' }), 'default')
 })
@@ -398,7 +400,7 @@ test('normalizePopularPlaces keeps distance as the primary bottom sheet sort', (
   )
 })
 
-test('normalizeSearchPlaces ranks direct name and station category matches before address-only matches', () => {
+test('normalizeSearchPlaces keeps service category priority above station hints for broad queries', () => {
   const places = normalizeSearchPlaces(
     [
       {
@@ -430,8 +432,112 @@ test('normalizeSearchPlaces ranks direct name and station category matches befor
 
   assert.deepEqual(
     places.map((place) => place.kakaoPlaceId),
-    ['subway-station', 'name-street', 'address-only-park']
+    ['name-street', 'subway-station', 'address-only-park']
   )
+})
+
+test('normalizeSearchPlaces applies service category priority for broad POI queries', () => {
+  const places = normalizeSearchPlaces(
+    [
+      {
+        kakaoPlaceId: 'restaurant',
+        placeName: '성수 밥집',
+        groupName: '음식점',
+      },
+      {
+        kakaoPlaceId: 'cafe',
+        placeName: '성수 커피',
+        groupName: '카페',
+      },
+      {
+        kakaoPlaceId: 'culture',
+        placeName: '성수 전시관',
+        groupName: '문화시설',
+      },
+      {
+        kakaoPlaceId: 'attraction',
+        placeName: '성수 포토스팟',
+        groupName: '관광명소',
+      },
+    ],
+    null,
+    '성수'
+  )
+
+  assert.deepEqual(
+    places.map((place) => place.kakaoPlaceId),
+    ['cafe', 'restaurant', 'culture', 'attraction']
+  )
+})
+
+test('normalizeSearchPlaces pushes convenience mart and education lower for broad POI queries', () => {
+  const places = normalizeSearchPlaces(
+    [
+      {
+        kakaoPlaceId: 'school',
+        placeName: '성수 학교',
+        groupName: '학교',
+      },
+      {
+        kakaoPlaceId: 'mart',
+        placeName: '성수 마트',
+        groupName: '대형마트',
+      },
+      {
+        kakaoPlaceId: 'convenience',
+        placeName: '성수 편의점',
+        groupName: '편의점',
+      },
+      {
+        kakaoPlaceId: 'culture',
+        placeName: '성수 전시',
+        groupName: '문화시설',
+      },
+      {
+        kakaoPlaceId: 'food',
+        placeName: '성수 맛집',
+        groupName: '음식점',
+      },
+    ],
+    null,
+    '성수'
+  )
+
+  assert.deepEqual(
+    places.map((place) => place.kakaoPlaceId),
+    ['food', 'culture', 'convenience', 'mart', 'school']
+  )
+})
+
+test('normalizeSearchPlaces honors explicit lower-priority category intent', () => {
+  const hotelPlaces = normalizeSearchPlaces(
+    [
+      { kakaoPlaceId: 'cafe', placeName: '성수 카페', groupName: '카페' },
+      { kakaoPlaceId: 'hotel', placeName: '성수 스테이', groupName: '숙박' },
+    ],
+    null,
+    '성수 호텔'
+  )
+  const martPlaces = normalizeSearchPlaces(
+    [
+      { kakaoPlaceId: 'cafe', placeName: '성수 카페', groupName: '카페' },
+      { kakaoPlaceId: 'mart', placeName: '성수 마트', groupName: '대형마트' },
+    ],
+    null,
+    '성수 마트'
+  )
+  const schoolPlaces = normalizeSearchPlaces(
+    [
+      { kakaoPlaceId: 'cafe', placeName: '성수 카페', groupName: '카페' },
+      { kakaoPlaceId: 'school', placeName: '성수 학교', groupName: '학교' },
+    ],
+    null,
+    '성수 학교'
+  )
+
+  assert.equal(hotelPlaces[0].kakaoPlaceId, 'hotel')
+  assert.equal(martPlaces[0].kakaoPlaceId, 'mart')
+  assert.equal(schoolPlaces[0].kakaoPlaceId, 'school')
 })
 
 test('normalizeSearchPlaces preserves Kakao accuracy order when local relevance is unknown', () => {
