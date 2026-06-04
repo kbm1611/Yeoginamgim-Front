@@ -9,8 +9,9 @@ import {
   Search,
   SlidersHorizontal,
 } from 'lucide-react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { fetchBoardDetail } from '../api/boards'
+import PlacementOverlay from '../components/board/PlacementOverlay'
 import { API_BASE_URL } from '../api/client'
 import { createTraceReport } from '../api/reports'
 import { addTraceLike, fetchBoardTraces, removeTraceLike } from '../api/traces'
@@ -107,7 +108,7 @@ function traceToPost(trace) {
   }
 }
 
-function BoardHeader({ placeName, onBack }) {
+function BoardHeader({ placeName, traceCount, onBack }) {
   return (
     <div className="flex items-center justify-between bg-[#F5EFE6] px-4 pb-2 pt-3">
       <button
@@ -124,6 +125,7 @@ function BoardHeader({ placeName, onBack }) {
           <span className="text-[16px] font-bold text-[#3B2A1E]">{placeName}</span>
           <ChevronRight size={15} strokeWidth={2.2} className="text-[#3B2A1E]" />
         </button>
+        <p className="text-[12px] text-[#8B7A6B]">흔적 {traceCount}개</p>
       </div>
 
       <div className="flex items-center gap-1">
@@ -200,6 +202,7 @@ function ZoomControls({ zoom, onZoomIn, onZoomOut }) {
 
 function BoardDetail() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { id } = useParams()
   const boardId = id ?? 'default'
 
@@ -210,6 +213,16 @@ function BoardDetail() {
   const [errorMessage, setErrorMessage] = useState('')
   const [zoom, setZoom] = useState(100)
   const transformRef = useRef(null)
+
+  // 배치 모드 상태 — 마운트 시점에 location.state를 즉시 읽음
+  const [placementDraft, setPlacementDraft] = useState(() => {
+    const draft = location.state?.placementDraft ?? null
+    if (draft) setTimeout(() => window.history.replaceState({}, ''), 0)
+    return draft
+  })
+
+  // 로컬에서 배치한 포스트잇 — 서버 응답이 덮어쓰지 못하게 별도 관리
+  const [localPosts, setLocalPosts] = useState([])
 
   useEffect(() => {
     let ignore = false
@@ -247,30 +260,48 @@ function BoardDetail() {
       try {
         const data = await fetchBoardTraces(boardId, { sort, limit: 100 })
         if (ignore) return
-
         setPosts((data.traces ?? []).map(traceToPost))
       } catch (error) {
         if (ignore) return
-
         setPosts([])
-        setErrorMessage(error.message ?? '?붿쟻??遺덈윭?ㅼ? 紐삵뻽?듬땲??')
+        setErrorMessage(error.message ?? '흔적을 불러오지 못했습니다.')
       } finally {
-        if (!ignore) {
-          setIsLoading(false)
-        }
+        if (!ignore) setIsLoading(false)
       }
     }
 
     loadTraces()
-
-    return () => {
-      ignore = true
-    }
+    return () => { ignore = true }
   }, [boardId, sort])
 
-  const headerPlaceName = boardDetail?.place?.placeName ?? id ?? '?μ냼 蹂대뱶'
+  const headerPlaceName = boardDetail?.place?.placeName ?? id ?? '장소 보드'
+
+  // 서버 포스트 + 로컬 포스트 합산
+  const allPosts = [...posts, ...localPosts]
 
   const handleAdd = () => navigate(`/board/${boardId}/postit`)
+
+  // 배치 확정 — UI 즉시 업데이트, 서버는 비동기
+  const handlePlace = (cell) => {
+    if (!placementDraft) return
+    const newPost = {
+      ...placementDraft,
+      id: placementDraft.id ?? `local-${Date.now()}`,
+      cell,
+      likes: 0,
+      liked: false,
+      createdAt: new Date().toISOString(),
+    }
+
+    // UI 즉시 업데이트: overlay 닫고 보드에 배치됨
+    setLocalPosts((prev) => [...prev, newPost])
+    setPlacementDraft(null)
+
+    // TODO: 서버 저장 (비동기, 실패해도 UI는 유지)
+    // createTrace(boardId, { ...newPost, traceX: cell.col, traceY: cell.row })
+  }
+
+  const handleCancelPlacement = () => setPlacementDraft(null)
 
   const handleToggleLike = async (post) => {
     const result = post.liked ? await removeTraceLike(post.id) : await addTraceLike(post.id)
@@ -308,7 +339,7 @@ function BoardDetail() {
     if (isLoading) {
       return (
         <div className="flex h-full items-center justify-center text-[18px] font-semibold text-[#5C4030]">
-          ?붿쟻??遺덈윭?ㅻ뒗 以?..
+          흔적을 불러오는 중...
         </div>
       )
     }
@@ -317,7 +348,7 @@ function BoardDetail() {
       return (
         <div className="flex h-full items-center justify-center px-8 text-center">
           <div className="rounded-[8px] bg-white/85 px-5 py-4 text-[#5C4030] shadow-md backdrop-blur-sm">
-            <p className="text-[16px] font-semibold">?붿쟻??遺덈윭?ㅼ? 紐삵뻽?듬땲??</p>
+            <p className="text-[16px] font-semibold">흔적을 불러오지 못했습니다.</p>
             <p className="mt-2 break-words text-[13px] text-[#8A6A58]">{errorMessage}</p>
           </div>
         </div>
@@ -326,7 +357,7 @@ function BoardDetail() {
 
     return (
       <BoardCanvas
-        posts={posts}
+        posts={allPosts}
         onAdd={handleAdd}
         transformRef={transformRef}
         onZoomChange={setZoom}
@@ -340,6 +371,7 @@ function BoardDetail() {
     <main className="app-device flex flex-col overflow-hidden">
       <BoardHeader
         placeName={headerPlaceName}
+        traceCount={allPosts.length}
         onBack={() => navigate(-1)}
       />
 
@@ -353,6 +385,17 @@ function BoardDetail() {
         />
 
         <div className="absolute inset-0">{renderBoardContent()}</div>
+
+        {/* 배치 모드 오버레이 */}
+        {placementDraft && (
+          <PlacementOverlay
+            draft={placementDraft}
+            posts={allPosts}
+            transformRef={transformRef}
+            onPlace={handlePlace}
+            onCancel={handleCancelPlacement}
+          />
+        )}
 
         {!isLoading && !errorMessage ? (
           <div className="absolute bottom-24 right-4 z-20">
