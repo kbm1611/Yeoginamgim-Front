@@ -1,182 +1,551 @@
-﻿import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  Briefcase,
+  AlertCircle,
+  Baby,
+  Banknote,
+  Building,
+  Building2,
   ChevronDown,
-  ChevronRight,
+  ChevronUp,
+  CircleParking,
   Coffee,
+  Fuel,
+  GraduationCap,
+  Hospital,
+  Hotel,
+  Landmark,
   LocateFixed,
+  Loader2,
+  Map as MapIcon,
+  MapPinned,
   MapPin,
   Navigation,
+  Pill,
+  RefreshCw,
+  School,
   SlidersHorizontal,
-  Sprout,
+  ShoppingCart,
   Store,
+  TrainFront,
+  Utensils,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { fetchOrCreateBoardForPlace } from '../api/boards'
+import { ensureKakaoMaps } from '../api/kakaoMaps'
+import { fetchNearbyPlaces, fetchPopularPlaces } from '../api/places'
 import mainLogo from '../assets/logo/image_12-removebg-preview.png'
+import {
+  buildNearbyPlaceRequests,
+  buildPopularPlaceRequest,
+  CATEGORY_FILTERS,
+  DEFAULT_MAP_CENTER,
+  MAP_BOTTOM_SHEET_BOTTOM_OFFSET_PX,
+  MAP_BOTTOM_SHEET_HEIGHT,
+  MAP_BOTTOM_SHEET_TRANSITION_CLASSES,
+  MAP_CATEGORY_FILTER_BUTTON_CLASSES,
+  MAP_CATEGORY_FILTER_SCROLL_CLASSES,
+  MAP_FLOATING_CONTROLS_TRANSITION_CLASSES,
+  MAP_PLACE_CARD_SCROLL_CLASSES,
+  MAP_PLACE_LIST_SCROLL_CLASSES,
+  MAP_SELECTED_PLACE_LEVEL,
+  PLACE_MARKER_ICON_PATHS,
+  NEARBY_LIMIT,
+  getBottomSheetContentClasses,
+  getBottomSheetToggleLabel,
+  getBottomSheetTransform,
+  getCategorySelectionState,
+  getCurrentPositionMarkerTitle,
+  getFloatingControlsBottom,
+  getMapViewportPlan,
+  getPlaceCategoryMeta,
+  normalizePlaces,
+  normalizePopularPlaces,
+} from './Map.utils'
 
-const categories = ['전체', '카페', '맛집', '편집샵', '공원', '문화']
+const GEOLOCATION_OPTIONS = {
+  enableHighAccuracy: false,
+  maximumAge: 5 * 60 * 1000,
+  timeout: 8000,
+}
 
-const mapPins = [
-  { id: 'a', placeId: 'yeonbang', name: '성수연방', distance: '250m', top: '29%', left: '25%', icon: Briefcase },
-  { id: 'b', placeId: 'mildo', name: '밀도 성수', distance: '300m', top: '45%', left: '50%', icon: Coffee },
-  { id: 'c', placeId: 'daelim', name: '대림창고', distance: '300m', top: '38%', left: '72%', icon: Store },
-  { id: 'd', placeId: 'forest', name: '서울숲', distance: '400m', top: '63%', left: '55%', icon: Sprout },
-]
-
-const nearbyPlaces = [
-  {
-    id: '1',
-    name: '어니언 성수',
-    category: '카페',
-    summary: '커피와 디저트가 정말 완벽한 조합',
-    distance: '120m',
-    image: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=700&q=80',
-  },
-  {
-    id: '2',
-    name: '성수연방',
-    category: '카페',
-    summary: '비 오는 날 생각나는 공간',
-    distance: '250m',
-    image: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=700&q=80',
-  },
-  {
-    id: '3',
-    name: '밀도 성수',
-    category: '베이커리',
-    summary: '빵 냄새가 따뜻해서 자주 오게 돼요',
-    distance: '300m',
-    image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=700&q=80',
-  },
-  {
-    id: '4',
-    name: '대림창고',
-    category: '편집샵',
-    summary: '구경하다 보면 시간 가는 줄 몰라요',
-    distance: '300m',
-    image: 'https://images.unsplash.com/photo-1463797221720-6b07e6426c24?auto=format&fit=crop&w=700&q=80',
-  },
-  {
-    id: '5',
-    name: '서울숲',
-    category: '공원',
-    summary: '따뜻한 햇살 아래 책 읽기 좋은 곳',
-    distance: '400m',
-    image: 'https://images.unsplash.com/photo-1445116572660-236099ec97a0?auto=format&fit=crop&w=700&q=80',
-  },
-]
+const CATEGORY_ICON_COMPONENTS = {
+  mapPinned: MapPinned,
+  shoppingCart: ShoppingCart,
+  store: Store,
+  baby: Baby,
+  school: School,
+  graduationCap: GraduationCap,
+  circleParking: CircleParking,
+  fuel: Fuel,
+  trainFront: TrainFront,
+  banknote: Banknote,
+  landmark: Landmark,
+  building2: Building2,
+  building: Building,
+  map: MapIcon,
+  hotel: Hotel,
+  coffee: Coffee,
+  utensils: Utensils,
+  hospital: Hospital,
+  pill: Pill,
+}
 
 function MapPage() {
   const navigate = useNavigate()
   const containerRef = useRef(null)
-  const dragStateRef = useRef({ dragging: false, startY: 0, startHeight: 0 })
-  const heightRef = useRef(280)
-  const [isSheetOpen, setIsSheetOpen] = useState(true)
-  const [sheetHeight, setSheetHeight] = useState(280)
-  const DISMISS_THRESHOLD = 150
+  const mapElementRef = useRef(null)
+  const kakaoRef = useRef(null)
+  const mapInstanceRef = useRef(null)
+  const markersRef = useRef([])
+  const currentLocationOverlayRef = useRef(null)
+  const cardRefs = useRef({})
+  const categoryPlacesRequestIdRef = useRef(0)
+  const popularPlacesRequestIdRef = useRef(0)
+  const placeLookupRef = useRef(new globalThis.Map())
+  const selectedPlaceIdRef = useRef(null)
+  const isMountedRef = useRef(false)
 
-  const getHeightBounds = () => {
-    const viewportHeight = containerRef.current?.clientHeight ?? window.innerHeight
-    return {
-      minHeight: 70,
-      maxHeight: Math.max(70, Math.floor(viewportHeight * 0.85)),
-    }
-  }
+  const [mapStatus, setMapStatus] = useState('loading')
+  const [mapError, setMapError] = useState('')
+  const [mapRetryKey, setMapRetryKey] = useState(0)
+  const [locationStatus, setLocationStatus] = useState('loading')
+  const [locationNotice, setLocationNotice] = useState('')
+  const [currentPosition, setCurrentPosition] = useState(DEFAULT_MAP_CENTER)
+  const [selectedCategory, setSelectedCategory] = useState(null)
+  const [categoryPlaces, setCategoryPlaces] = useState([])
+  const [categoryPlacesStatus, setCategoryPlacesStatus] = useState('idle')
+  const [categoryPlacesError, setCategoryPlacesError] = useState('')
+  const [popularPlaces, setPopularPlaces] = useState([])
+  const [popularPlacesStatus, setPopularPlacesStatus] = useState('idle')
+  const [popularPlacesError, setPopularPlacesError] = useState('')
+  const [selectedPlaceId, setSelectedPlaceId] = useState(null)
+  const [openingPlaceId, setOpeningPlaceId] = useState(null)
+  const [boardError, setBoardError] = useState('')
+  const [isSheetOpen, setIsSheetOpen] = useState(false)
 
-  const clampHeight = (value, allowBelowMin = false) => {
-    const { minHeight, maxHeight } = getHeightBounds()
-    const minBoundary = allowBelowMin ? 0 : minHeight
-    return Math.max(minBoundary, Math.min(maxHeight, value))
-  }
+  const knownPlaces = [...categoryPlaces, ...popularPlaces]
+  const selectedPlace = knownPlaces.find((place) => place.kakaoPlaceId === selectedPlaceId) ?? null
+  const selectedCategoryLabel = selectedCategory ?? '카테고리'
+  const popularPlacesPanelNotice = locationNotice || '현재 위치 기준으로 흔적이 많은 공간을 보여드려요.'
+  const locationLabel =
+    locationStatus === 'loading'
+      ? '현재 위치 확인 중'
+      : locationStatus === 'fallback'
+        ? `${DEFAULT_MAP_CENTER.label} 기준`
+        : '현재 위치 근처'
 
-  useEffect(() => {
-    const setInitialHeight = () => {
-      const { minHeight, maxHeight } = getHeightBounds()
-      setSheetHeight((prev) => {
-        if (prev !== 280) return clampHeight(prev)
-        const preferred = Math.floor((minHeight + maxHeight) * 0.52)
-        return clampHeight(preferred)
-      })
-    }
-
-    setInitialHeight()
-    window.addEventListener('resize', setInitialHeight)
-    return () => window.removeEventListener('resize', setInitialHeight)
-  }, [])
-
-  useEffect(() => {
-    heightRef.current = sheetHeight
-  }, [sheetHeight])
-
-  useEffect(() => {
-    const onMouseMove = (event) => {
-      if (!dragStateRef.current.dragging) return
-      const deltaY = dragStateRef.current.startY - event.clientY
-      setSheetHeight(clampHeight(dragStateRef.current.startHeight + deltaY, true))
-    }
-
-    const onTouchMove = (event) => {
-      if (!dragStateRef.current.dragging) return
-      const point = event.touches[0]
-      if (!point) return
-      const deltaY = dragStateRef.current.startY - point.clientY
-      setSheetHeight(clampHeight(dragStateRef.current.startHeight + deltaY, true))
-    }
-
-    const endDrag = () => {
-      if (dragStateRef.current.dragging) {
-        if (heightRef.current <= DISMISS_THRESHOLD) {
-          setIsSheetOpen(false)
-        } else {
-          setSheetHeight(clampHeight(heightRef.current, false))
-        }
+  const clearMarkers = useCallback(() => {
+    const kakao = kakaoRef.current
+    markersRef.current.forEach(({ marker, element, handler }) => {
+      if (element && handler) {
+        element.removeEventListener('click', handler)
+      } else if (kakao && handler) {
+        kakao.maps.event.removeListener(marker, 'click', handler)
       }
-      dragStateRef.current.dragging = false
-    }
-
-    window.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('mouseup', endDrag)
-    window.addEventListener('touchmove', onTouchMove, { passive: true })
-    window.addEventListener('touchend', endDrag)
-    window.addEventListener('touchcancel', endDrag)
-
-    return () => {
-      window.removeEventListener('mousemove', onMouseMove)
-      window.removeEventListener('mouseup', endDrag)
-      window.removeEventListener('touchmove', onTouchMove)
-      window.removeEventListener('touchend', endDrag)
-      window.removeEventListener('touchcancel', endDrag)
-    }
+      marker.setMap(null)
+    })
+    markersRef.current = []
   }, [])
 
-  const openSheet = () => {
-    const { minHeight, maxHeight } = getHeightBounds()
-    const defaultHeight = Math.floor((minHeight + maxHeight) * 0.4)
-    setIsSheetOpen(true)
-    setSheetHeight(clampHeight(defaultHeight))
-  }
+  const clearCurrentLocationOverlay = useCallback(() => {
+    currentLocationOverlayRef.current?.setMap(null)
+    currentLocationOverlayRef.current = null
+  }, [])
 
-  const startDrag = (clientY) => {
-    if (!isSheetOpen) {
-      openSheet()
+  const moveMapTo = useCallback((position, { smooth = true } = {}) => {
+    const kakao = kakaoRef.current
+    const map = mapInstanceRef.current
+    if (!kakao || !map || !position) return
+
+    const center = new kakao.maps.LatLng(position.latitude, position.longitude)
+    if (smooth && map.panTo) {
+      map.panTo(center)
       return
     }
-    dragStateRef.current = {
-      dragging: true,
-      startY: clientY,
-      startHeight: sheetHeight,
+    map.setCenter(center)
+  }, [])
+
+  const focusMapOnPlace = useCallback((place) => {
+    const latitude = Number(place?.latitude)
+    const longitude = Number(place?.longitude)
+    const map = mapInstanceRef.current
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || !map) return
+
+    if (typeof map.getLevel === 'function' && typeof map.setLevel === 'function' && map.getLevel() > MAP_SELECTED_PLACE_LEVEL) {
+      map.setLevel(MAP_SELECTED_PLACE_LEVEL)
+    }
+    moveMapTo({ latitude, longitude })
+  }, [moveMapTo])
+
+  const selectPlace = useCallback((kakaoPlaceId, { focusMap = false } = {}) => {
+    setSelectedPlaceId(kakaoPlaceId)
+    setIsSheetOpen(true)
+
+    if (focusMap) {
+      focusMapOnPlace(placeLookupRef.current.get(kakaoPlaceId))
+    }
+
+    window.setTimeout(() => {
+      cardRefs.current[kakaoPlaceId]?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'center',
+      })
+    }, 0)
+  }, [focusMapOnPlace])
+
+  const fitMapToPlaces = useCallback((nextPlaces) => {
+    const kakao = kakaoRef.current
+    const map = mapInstanceRef.current
+    if (!kakao || !map) return
+
+    const viewportPlan = getMapViewportPlan(nextPlaces, currentPosition)
+    if (viewportPlan.type === 'none') return
+
+    if (viewportPlan.type === 'single') {
+      map.setLevel(viewportPlan.level)
+      moveMapTo(viewportPlan.center)
+      return
+    }
+
+    const bounds = new kakao.maps.LatLngBounds()
+    viewportPlan.points.forEach((point) => {
+      bounds.extend(new kakao.maps.LatLng(point.latitude, point.longitude))
+    })
+
+    const { padding } = viewportPlan
+    map.setBounds(bounds, padding.top, padding.right, padding.bottom, padding.left)
+    if (typeof map.getLevel === 'function' && typeof map.setLevel === 'function' && map.getLevel() > viewportPlan.maxLevel) {
+      map.setLevel(viewportPlan.maxLevel)
+    }
+  }, [currentPosition, moveMapTo])
+
+  const requestCurrentLocation = useCallback(async () => {
+    setLocationStatus('loading')
+    setLocationNotice('')
+
+    try {
+      const position = await getCurrentPosition()
+      if (!isMountedRef.current) return
+
+      const nextPosition = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        label: '현재 위치',
+      }
+      setCurrentPosition(nextPosition)
+      setLocationStatus('success')
+      moveMapTo(nextPosition)
+    } catch {
+      if (!isMountedRef.current) return
+
+      setCurrentPosition(DEFAULT_MAP_CENTER)
+      setLocationStatus('fallback')
+      setLocationNotice('위치 권한을 사용할 수 없어 성수동 기준으로 보여드려요.')
+      moveMapTo(DEFAULT_MAP_CENTER)
+    }
+  }, [moveMapTo])
+
+  const loadCategoryPlaces = useCallback(async () => {
+    if (!selectedCategory) {
+      setCategoryPlaces([])
+      setCategoryPlacesStatus('idle')
+      setCategoryPlacesError('')
+      return
+    }
+
+    const requests = buildNearbyPlaceRequests({
+      latitude: currentPosition.latitude,
+      longitude: currentPosition.longitude,
+      selectedCategory,
+    })
+
+    if (requests.length === 0) {
+      setCategoryPlaces([])
+      setCategoryPlacesStatus('error')
+      setCategoryPlacesError('좌표를 확인할 수 없어 주변 장소를 불러오지 못했어요.')
+      return
+    }
+
+    const requestId = categoryPlacesRequestIdRef.current + 1
+    categoryPlacesRequestIdRef.current = requestId
+    setCategoryPlacesStatus('loading')
+    setCategoryPlacesError('')
+    setBoardError('')
+
+    try {
+      const responses = await Promise.all(
+        requests.map(async (request) => ({
+          requestCategory: request.category,
+          places: await fetchNearbyPlaces(request),
+        }))
+      )
+      if (!isMountedRef.current || categoryPlacesRequestIdRef.current !== requestId) return
+
+      const normalizedPlaces = normalizePlaces(responses, currentPosition, NEARBY_LIMIT)
+      setCategoryPlaces(normalizedPlaces)
+      setSelectedPlaceId(normalizedPlaces[0]?.kakaoPlaceId ?? null)
+      setCategoryPlacesStatus('success')
+    } catch {
+      if (!isMountedRef.current || categoryPlacesRequestIdRef.current !== requestId) return
+
+      setCategoryPlaces([])
+      setSelectedPlaceId(null)
+      setCategoryPlacesStatus('error')
+      setCategoryPlacesError('주변 장소를 불러오지 못했어요.')
+    }
+  }, [currentPosition, selectedCategory])
+
+  const loadPopularPlaces = useCallback(async () => {
+    if (locationStatus === 'loading') return
+
+    const request = buildPopularPlaceRequest({
+      latitude: currentPosition.latitude,
+      longitude: currentPosition.longitude,
+    })
+
+    if (!request) {
+      setPopularPlaces([])
+      setPopularPlacesStatus('error')
+      setPopularPlacesError('주변 인기 공간을 불러올 위치를 확인하지 못했어요.')
+      return
+    }
+
+    const requestId = popularPlacesRequestIdRef.current + 1
+    popularPlacesRequestIdRef.current = requestId
+    setPopularPlacesStatus('loading')
+    setPopularPlacesError('')
+
+    try {
+      const response = await fetchPopularPlaces(request)
+      if (!isMountedRef.current || popularPlacesRequestIdRef.current !== requestId) return
+
+      setPopularPlaces(normalizePopularPlaces(response, currentPosition, NEARBY_LIMIT))
+      setPopularPlacesStatus('success')
+    } catch {
+      if (!isMountedRef.current || popularPlacesRequestIdRef.current !== requestId) return
+
+      setPopularPlaces([])
+      setPopularPlacesStatus('error')
+      setPopularPlacesError('주변 인기 공간을 불러오지 못했어요.')
+    }
+  }, [currentPosition, locationStatus])
+  useEffect(() => {
+    isMountedRef.current = true
+    window.queueMicrotask(() => {
+      if (isMountedRef.current) {
+        requestCurrentLocation()
+      }
+    })
+
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [requestCurrentLocation])
+
+  useEffect(() => {
+    let cancelled = false
+
+    ensureKakaoMaps()
+      .then((kakao) => {
+        if (cancelled || !mapElementRef.current) return
+
+        kakaoRef.current = kakao
+        mapElementRef.current.innerHTML = ''
+
+        const center = new kakao.maps.LatLng(DEFAULT_MAP_CENTER.latitude, DEFAULT_MAP_CENTER.longitude)
+        mapInstanceRef.current = new kakao.maps.Map(mapElementRef.current, {
+          center,
+          level: 5,
+        })
+        setMapStatus('ready')
+      })
+      .catch((error) => {
+        if (cancelled) return
+
+        setMapStatus('error')
+        setMapError(getMapErrorMessage(error))
+      })
+
+    return () => {
+      cancelled = true
+      clearMarkers()
+      clearCurrentLocationOverlay()
+      mapInstanceRef.current = null
+    }
+  }, [clearCurrentLocationOverlay, clearMarkers, mapRetryKey])
+
+  useEffect(() => {
+    if (mapStatus !== 'ready') return
+    moveMapTo(currentPosition, { smooth: false })
+  }, [currentPosition, mapStatus, moveMapTo])
+
+  useEffect(() => {
+    if (mapStatus !== 'ready' || !mapInstanceRef.current || !kakaoRef.current) return
+    if (currentPosition.latitude === null || currentPosition.longitude === null) return
+
+    const kakao = kakaoRef.current
+    const position = new kakao.maps.LatLng(currentPosition.latitude, currentPosition.longitude)
+    const title = getCurrentPositionMarkerTitle(locationStatus)
+
+    clearCurrentLocationOverlay()
+    currentLocationOverlayRef.current = new kakao.maps.CustomOverlay({
+      map: mapInstanceRef.current,
+      position,
+      content: createCurrentLocationMarkerElement(title),
+      xAnchor: 0.5,
+      yAnchor: 0.5,
+      zIndex: 50,
+    })
+
+    return clearCurrentLocationOverlay
+  }, [clearCurrentLocationOverlay, currentPosition, locationStatus, mapStatus])
+
+  useEffect(() => {
+    const nextLookup = new globalThis.Map()
+    ;[...categoryPlaces, ...popularPlaces].forEach((place) => {
+      if (place?.kakaoPlaceId) {
+        nextLookup.set(place.kakaoPlaceId, place)
+      }
+    })
+    placeLookupRef.current = nextLookup
+  }, [categoryPlaces, popularPlaces])
+
+  useEffect(() => {
+    window.queueMicrotask(() => {
+      if (isMountedRef.current) {
+        loadCategoryPlaces()
+      }
+    })
+  }, [loadCategoryPlaces])
+
+  useEffect(() => {
+    window.queueMicrotask(() => {
+      if (isMountedRef.current) {
+        loadPopularPlaces()
+      }
+    })
+  }, [loadPopularPlaces])
+
+  useEffect(() => {
+    if (mapStatus !== 'ready' || !mapInstanceRef.current || !kakaoRef.current) return
+
+    const kakao = kakaoRef.current
+    const map = mapInstanceRef.current
+
+    clearMarkers()
+
+    categoryPlaces.forEach((place) => {
+      if (place.latitude === null || place.longitude === null) return
+
+      const position = new kakao.maps.LatLng(place.latitude, place.longitude)
+      const markerElement = createPlaceMarkerElement(place)
+      const isSelected = place.kakaoPlaceId === selectedPlaceIdRef.current
+      setPlaceMarkerElementSelected(markerElement, isSelected)
+      const marker = new kakao.maps.CustomOverlay({
+        map,
+        position,
+        content: markerElement,
+        xAnchor: 0.5,
+        yAnchor: 1,
+        zIndex: isSelected ? 40 : 10,
+      })
+      const handler = (event) => {
+        event.stopPropagation()
+        selectPlace(place.kakaoPlaceId, { focusMap: true })
+      }
+
+      markerElement.addEventListener('click', handler)
+      markersRef.current.push({ marker, element: markerElement, handler, placeId: place.kakaoPlaceId })
+    })
+
+    fitMapToPlaces(categoryPlaces)
+
+    return clearMarkers
+  }, [categoryPlaces, clearMarkers, fitMapToPlaces, mapStatus, selectPlace])
+
+  useEffect(() => {
+    selectedPlaceIdRef.current = selectedPlaceId
+    markersRef.current.forEach(({ marker, element, placeId }) => {
+      const isSelected = placeId === selectedPlaceId
+      marker.setZIndex(isSelected ? 40 : 10)
+      if (element) {
+        setPlaceMarkerElementSelected(element, isSelected)
+      }
+    })
+  }, [selectedPlaceId])
+
+  const handleCategorySelect = (categoryLabel) => {
+    const nextState = getCategorySelectionState(categoryLabel)
+    categoryPlacesRequestIdRef.current += 1
+    setSelectedCategory(nextState.selectedCategory)
+    setCategoryPlaces(nextState.categoryPlaces)
+    setSelectedPlaceId(nextState.selectedPlaceId)
+    setCategoryPlacesStatus(nextState.categoryPlacesStatus)
+    setCategoryPlacesError(nextState.categoryPlacesError)
+    setBoardError(nextState.boardError)
+    setIsSheetOpen(nextState.isSheetOpen)
+
+    if (categoryLabel === selectedCategory) {
+      window.queueMicrotask(() => {
+        if (isMountedRef.current) {
+          loadCategoryPlaces()
+        }
+      })
     }
   }
 
-  const onHandleMouseDown = (event) => {
+  const handleCategoryFilterWheel = useCallback((event) => {
+    const container = event.currentTarget
+    if (container.scrollWidth <= container.clientWidth) return
+
+    const delta =
+      Math.abs(event.deltaX) > Math.abs(event.deltaY)
+        ? event.deltaX
+        : event.deltaY
+    if (delta === 0) return
+
+    const maxScrollLeft = container.scrollWidth - container.clientWidth
+    const nextScrollLeft = Math.max(0, Math.min(container.scrollLeft + delta, maxScrollLeft))
+    if (nextScrollLeft === container.scrollLeft) return
+
     event.preventDefault()
-    startDrag(event.clientY)
+    container.scrollLeft = nextScrollLeft
+  }, [])
+
+  const handleOpenKakaoMap = () => {
+    if (!selectedPlace?.kakaoMapUrl) return
+    window.open(selectedPlace.kakaoMapUrl, '_blank', 'noopener,noreferrer')
   }
 
-  const onHandleTouchStart = (event) => {
-    const point = event.touches[0]
-    if (!point) return
-    startDrag(point.clientY)
+  const handleOpenBoard = async (place) => {
+    if (!place?.kakaoPlaceId) return
+
+    setBoardError('')
+    setOpeningPlaceId(place.kakaoPlaceId)
+    selectPlace(place.kakaoPlaceId, { focusMap: true })
+
+    try {
+      if (place.boardId) {
+        navigate(`/board/${place.boardId}`)
+        return
+      }
+
+      const board = await fetchOrCreateBoardForPlace(place)
+      if (!board?.boardId) {
+        throw new Error('Board response does not include boardId.')
+      }
+
+      navigate(`/board/${board.boardId}`)
+    } catch {
+      if (isMountedRef.current) {
+        setBoardError('보드로 이동하지 못했어요. 잠시 후 다시 시도해주세요.')
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setOpeningPlaceId(null)
+      }
+    }
   }
 
   return (
@@ -185,128 +554,451 @@ function MapPage() {
       className="relative h-full w-full overflow-hidden bg-[#F7F2EA]"
       style={{ fontFamily: "'Noto Serif KR', serif", color: '#2B1810' }}
     >
-      <div className="absolute inset-0 z-0 bg-[#F1ECE4]">
-        <div className="absolute inset-0 opacity-60 [background-image:linear-gradient(to_right,rgba(222,212,199,0.6)_1px,transparent_1px),linear-gradient(to_bottom,rgba(222,212,199,0.6)_1px,transparent_1px)] [background-size:34px_34px]" />
-        <div className="absolute left-[8%] top-[60%] h-[26%] w-[42%] rounded-[48%] bg-[#d7e2ce]/65" />
-        <div className="absolute left-[0%] top-[74%] h-[22%] w-[100%] bg-[#b8d0e8]/70" />
-      </div>
+      <section className="absolute inset-0 z-[5] bg-[#F1ECE4]">
+        <div ref={mapElementRef} className="h-full w-full" aria-label="카카오 지도" />
+
+        {mapStatus === 'loading' ? (
+          <MapOverlay>
+            <Loader2 size={24} className="animate-spin" />
+            <p className="mt-2 text-[14px] font-semibold">지도를 불러오는 중이에요.</p>
+          </MapOverlay>
+        ) : null}
+
+        {mapStatus === 'error' ? (
+          <MapOverlay>
+            <AlertCircle size={25} />
+            <p className="mt-2 text-[14px] font-semibold">{mapError}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setMapStatus('loading')
+                setMapError('')
+                setMapRetryKey((value) => value + 1)
+              }}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#3D2415] px-4 py-2 text-[12px] font-semibold text-white"
+            >
+              <RefreshCw size={13} />
+              다시 시도
+            </button>
+          </MapOverlay>
+        ) : null}
+      </section>
 
       <section className="absolute left-0 top-0 z-10 w-full px-5 pb-2 pt-3">
         <div className="mx-auto mb-3 flex w-[95px] items-center justify-center">
           <img src={mainLogo} alt="여기남김" className="w-[95px] object-contain" />
         </div>
 
-        <div className="flex items-center rounded-[20px] border border-[#EDE4D8] bg-white px-4 py-3 shadow-[0_4px_12px_rgba(0,0,0,0.04)]">
+        <div className="flex items-center rounded-[20px] border border-[#EDE4D8] bg-white/95 px-4 py-3 shadow-[0_4px_12px_rgba(0,0,0,0.04)] backdrop-blur-sm">
           <button type="button" className="flex flex-1 items-center gap-2 text-[14px] font-medium">
-            <MapPin size={15} strokeWidth={1.7} />
-            <span>성수동</span>
+            {locationStatus === 'loading' ? (
+              <Loader2 size={15} strokeWidth={1.7} className="animate-spin" />
+            ) : (
+              <MapPin size={15} strokeWidth={1.7} />
+            )}
+            <span>{locationLabel}</span>
             <ChevronDown size={14} strokeWidth={1.8} />
           </button>
           <div className="mx-2 h-5 w-px bg-[#EFE7DB]" />
           <button type="button" className="flex items-center gap-1.5 text-[14px] font-medium">
-            <SlidersHorizontal size={14} strokeWidth={1.8} />
-            <span>필터</span>
+            {categoryPlacesStatus === 'loading' ? (
+              <Loader2 size={14} strokeWidth={1.8} className="animate-spin" />
+            ) : (
+              <SlidersHorizontal size={14} strokeWidth={1.8} />
+            )}
+            <span>{selectedCategoryLabel}</span>
           </button>
         </div>
 
-        <div className="scrollbar-hide mt-3 flex gap-2 overflow-x-auto pb-1">
-          {categories.map((item, idx) => (
-            <button
-              key={item}
-              type="button"
-              className={`shrink-0 rounded-full px-4 py-2 text-[13px] ${
-                idx === 0 ? 'bg-[#3D2415] text-white' : 'bg-[#EEE6DA] text-[#5A4030]'
-              }`}
-            >
-              {item}
-            </button>
-          ))}
-        </div>
-      </section>
+        <div className={MAP_CATEGORY_FILTER_SCROLL_CLASSES} onWheel={handleCategoryFilterWheel}>
+          {CATEGORY_FILTERS.map((item) => {
+            const CategoryIcon = CATEGORY_ICON_COMPONENTS[item.iconName] ?? MapPinned
+            const isSelected = selectedCategory === item.label
 
-      <section className="absolute inset-0 z-[5]">
-        {mapPins.map((pin) => {
-          const Icon = pin.icon
-          return (
-            <div
-              key={pin.id}
-              className="absolute -translate-x-1/2 -translate-y-1/2"
-              style={{ top: pin.top, left: pin.left }}
-            >
+            return (
               <button
+                key={item.label}
                 type="button"
-                onClick={() => navigate(`/place/${pin.placeId}`)}
-                className="mx-auto mb-1.5 flex h-11 w-11 items-center justify-center rounded-full bg-[#3D2415] text-white shadow-[0_6px_12px_rgba(0,0,0,0.16)]"
-                aria-label={`${pin.name} 보기`}
+                onClick={() => handleCategorySelect(item.label)}
+                aria-pressed={isSelected}
+                className={`${MAP_CATEGORY_FILTER_BUTTON_CLASSES} ${
+                  isSelected
+                    ? 'border-[#3D2415] bg-[#3D2415] text-white shadow-[0_6px_14px_rgba(61,36,21,0.18)]'
+                    : 'border-[#E2D6C8] bg-[#EEE6DA] text-[#5A4030]'
+                }`}
               >
-                <Icon size={18} strokeWidth={1.9} />
+                <CategoryIcon size={14} strokeWidth={1.9} className="shrink-0" />
+                <span className="whitespace-nowrap">{item.label}</span>
               </button>
-              <div className="min-w-[106px] rounded-[12px] border border-[#EADFD2] bg-white px-2.5 py-2 shadow-[0_6px_12px_rgba(0,0,0,0.08)]">
-                <p className="text-[14px] font-bold leading-tight text-[#2B1810]">{pin.name}</p>
-                <p className="mt-0.5 inline-flex items-center gap-1 text-[12px] font-normal text-[#6E594A]">
-                  <MapPin size={11} strokeWidth={1.6} />
-                  <span>{pin.distance}</span>
-                </p>
-              </div>
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
+        {categoryPlacesStatus === 'error' && categoryPlacesError ? (
+          <p className="mt-2 rounded-full bg-white/90 px-3 py-1.5 text-[12px] font-medium text-[#A74831] shadow-[0_4px_10px_rgba(0,0,0,0.04)]">
+            {categoryPlacesError}
+          </p>
+        ) : null}
       </section>
 
-      <div className="absolute right-4 top-[48%] z-10 flex flex-col gap-3">
-        <button type="button" className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-[#4D3729] shadow-[0_6px_14px_rgba(0,0,0,0.12)]">
-          <LocateFixed size={20} strokeWidth={1.8} />
+      <div
+        className={`absolute right-4 z-30 flex flex-col gap-3 ${MAP_FLOATING_CONTROLS_TRANSITION_CLASSES}`}
+        style={{ bottom: getFloatingControlsBottom(isSheetOpen) }}
+      >
+        <button
+          type="button"
+          onClick={requestCurrentLocation}
+          disabled={locationStatus === 'loading'}
+          className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-[#4D3729] shadow-[0_6px_14px_rgba(0,0,0,0.12)] disabled:opacity-60"
+          aria-label="현재 위치로 이동"
+        >
+          {locationStatus === 'loading' ? (
+            <Loader2 size={20} strokeWidth={1.8} className="animate-spin" />
+          ) : (
+            <LocateFixed size={20} strokeWidth={1.8} />
+          )}
         </button>
-        <button type="button" className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-[#4D3729] shadow-[0_6px_14px_rgba(0,0,0,0.12)]">
+        <button
+          type="button"
+          onClick={handleOpenKakaoMap}
+          disabled={!selectedPlace?.kakaoMapUrl}
+          className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-[#4D3729] shadow-[0_6px_14px_rgba(0,0,0,0.12)] disabled:opacity-45"
+          aria-label="카카오맵에서 선택 장소 열기"
+        >
           <Navigation size={20} strokeWidth={1.8} />
         </button>
       </div>
 
       <section
-        className="absolute bottom-[90px] left-2 right-2 z-20 rounded-t-[24px] bg-white px-5 pb-4 pt-1 shadow-[0_-10px_24px_rgba(0,0,0,0.08)]"
+        className={`absolute left-2 right-2 z-20 overflow-hidden rounded-t-[24px] bg-white px-5 pb-4 shadow-[0_-10px_24px_rgba(0,0,0,0.08)] ${MAP_BOTTOM_SHEET_TRANSITION_CLASSES}`}
         style={{
-          height: `${sheetHeight}px`,
-          transform: isSheetOpen ? 'translateY(0)' : 'translateY(130%)',
-          transition: dragStateRef.current.dragging ? 'none' : 'transform 240ms ease, height 200ms ease',
+          bottom: `${MAP_BOTTOM_SHEET_BOTTOM_OFFSET_PX}px`,
+          height: MAP_BOTTOM_SHEET_HEIGHT,
+          transform: getBottomSheetTransform(isSheetOpen),
         }}
       >
         <button
           type="button"
-          className="mb-1 flex h-9 w-full items-center justify-center bg-transparent"
-          onMouseDown={onHandleMouseDown}
-          onTouchStart={onHandleTouchStart}
-          aria-label="주변 인기 공간 시트 높이 조절"
-          style={{ touchAction: 'none' }}
+          className="flex h-14 w-full items-center justify-between bg-transparent text-left"
+          onClick={() => setIsSheetOpen((prev) => !prev)}
+          aria-expanded={isSheetOpen}
+          aria-label={getBottomSheetToggleLabel(isSheetOpen)}
         >
-          <span className="h-1 w-16 rounded-full bg-[#DDD3C6]" />
+          <span className="flex min-w-0 items-center gap-3">
+            <span className="h-1 w-12 shrink-0 rounded-full bg-[#DDD3C6]" />
+            <span className="truncate text-[18px] font-bold text-[#2B1810]">주변 인기 공간</span>
+          </span>
+          {isSheetOpen ? (
+            <ChevronDown size={18} strokeWidth={1.8} className="shrink-0 text-[#5A4030]" />
+          ) : (
+            <ChevronUp size={18} strokeWidth={1.8} className="shrink-0 text-[#5A4030]" />
+          )}
         </button>
 
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-[20px] font-bold text-[#2B1810]">주변 인기 공간</h2>
-          <button type="button" className="flex items-center text-[12px] font-medium text-[#5A4030]">
-            더보기 <ChevronRight size={15} strokeWidth={1.8} />
-          </button>
-        </div>
-
-        <div className="scrollbar-hide flex h-[calc(100%-70px)] gap-3 overflow-x-auto overflow-y-auto pb-1">
-          {nearbyPlaces.map((place) => (
-            <article key={place.id} className="w-[145px] shrink-0 overflow-hidden rounded-[16px] border border-[#EFE6DB] bg-white">
-              <img src={place.image} alt={place.name} className="aspect-square w-full object-cover" />
-              <div className="px-2.5 pb-2.5 pt-2">
-                <span className="inline-block rounded-full bg-[#F2EBDF] px-2 py-0.5 text-[10px] font-medium text-[#6B5343]">{place.category}</span>
-                <p className="mt-1 text-[15px] font-bold text-[#2B1810]">{place.name}</p>
-                <p className="mt-0.5 text-[12px] font-normal leading-[1.35] text-[#5F4A3B]">{place.summary}</p>
-                <p className="mt-1.5 inline-flex items-center gap-1 text-[12px] font-normal text-[#5F4A3B]">
-                  <MapPin size={11} strokeWidth={1.6} />
-                  <span>{place.distance}</span>
+        <div className={getBottomSheetContentClasses(isSheetOpen)} aria-hidden={!isSheetOpen} inert={!isSheetOpen}>
+            <div className="mb-2 flex items-center justify-between">
+              <div className="min-w-0">
+                <p className="truncate text-[13px] font-medium text-[#7A6558]">
+                  {popularPlacesPanelNotice}
                 </p>
               </div>
-            </article>
-          ))}
+              <button
+                type="button"
+                onClick={loadPopularPlaces}
+                disabled={popularPlacesStatus === 'loading'}
+                className="ml-3 flex shrink-0 items-center gap-1.5 text-[12px] font-medium text-[#5A4030] disabled:opacity-60"
+              >
+                <RefreshCw size={13} strokeWidth={1.8} className={popularPlacesStatus === 'loading' ? 'animate-spin' : ''} />
+                갱신
+              </button>
+            </div>
+
+            {boardError ? <p className="mb-2 text-[12px] font-medium text-[#A74831]">{boardError}</p> : null}
+
+            <div className={MAP_PLACE_LIST_SCROLL_CLASSES}>
+              {popularPlacesStatus === 'idle' ? (
+                <PlacesPanelState message="현재 위치를 확인하면 주변 인기 공간을 보여드려요." />
+              ) : null}
+              {popularPlacesStatus === 'loading' ? <PlaceLoadingCards /> : null}
+              {popularPlacesStatus === 'error' ? (
+                <PlacesPanelState message={popularPlacesError} actionLabel="다시 불러오기" onAction={loadPopularPlaces} />
+              ) : null}
+              {popularPlacesStatus === 'success' && popularPlaces.length === 0 ? (
+                <PlacesPanelState message="근처에 보여줄 장소가 아직 없어요." actionLabel="다시 찾기" onAction={loadPopularPlaces} />
+              ) : null}
+              {popularPlacesStatus === 'success'
+                ? popularPlaces.map((place) => (
+                  <PlaceCard
+                    key={place.kakaoPlaceId}
+                    refCallback={(node) => {
+                      if (node) cardRefs.current[place.kakaoPlaceId] = node
+                    }}
+                    place={place}
+                    isSelected={place.kakaoPlaceId === selectedPlaceId}
+                    isOpening={place.kakaoPlaceId === openingPlaceId}
+                    onSelect={() => selectPlace(place.kakaoPlaceId, { focusMap: true })}
+                    onOpen={() => handleOpenBoard(place)}
+                  />
+                ))
+                : null}
+            </div>
         </div>
       </section>
     </main>
   )
+}
+
+function PlaceCard({ place, isSelected, isOpening, onSelect, onOpen, refCallback }) {
+  return (
+    <article
+      ref={refCallback}
+      className={`${MAP_PLACE_CARD_SCROLL_CLASSES} w-[156px] shrink-0 overflow-hidden rounded-[16px] border bg-white transition ${
+        isSelected ? 'border-[#3D2415] shadow-[0_8px_18px_rgba(61,36,21,0.16)]' : 'border-[#EFE6DB]'
+      }`}
+    >
+      <button type="button" onClick={onOpen} onMouseEnter={onSelect} className="block h-full w-full text-left">
+        <PlaceCardImage place={place} />
+        <div className="px-2.5 pb-2.5 pt-2">
+          <span className="inline-block rounded-full bg-[#F2EBDF] px-2 py-0.5 text-[10px] font-medium text-[#6B5343]">
+            {place.groupName}
+          </span>
+          <p className="mt-1 truncate text-[15px] font-bold text-[#2B1810]">{place.placeName}</p>
+          <p className="mt-0.5 line-clamp-2 min-h-[32px] text-[12px] font-normal leading-[1.35] text-[#5F4A3B]">
+            {place.address || place.phone || '주소 정보가 없어요.'}
+          </p>
+          <div className="mt-1.5 flex items-center justify-between gap-2 text-[12px] font-normal text-[#5F4A3B]">
+            <span className="inline-flex min-w-0 items-center gap-1">
+              <MapPin size={11} strokeWidth={1.6} />
+              <span>{place.distanceLabel || '거리 미상'}</span>
+            </span>
+            <span className="shrink-0 text-[#8B715F]">흔적 {place.traceCount}</span>
+          </div>
+          {isOpening ? (
+            <span className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-[#3D2415]">
+              <Loader2 size={12} className="animate-spin" />
+              이동 중
+            </span>
+          ) : null}
+        </div>
+      </button>
+    </article>
+  )
+}
+
+function PlaceCardImage({ place }) {
+  if (place.imageUrl) {
+    return <img src={place.imageUrl} alt={place.placeName} className="aspect-square w-full object-cover" />
+  }
+
+  const meta = getPlaceCategoryMeta(place.categoryKey)
+  const PlaceholderIcon = CATEGORY_ICON_COMPONENTS[meta.iconName] ?? MapPinned
+
+  return (
+    <div
+      className="flex aspect-square w-full flex-col items-center justify-center gap-2 bg-[#F7F2EA] text-[#6B5343]"
+      aria-label={`${place.placeName} 장소 이미지`}
+    >
+      <PlaceholderIcon size={28} strokeWidth={1.6} />
+      <span className="text-[12px] font-semibold">{meta.label}</span>
+    </div>
+  )
+}
+
+function PlaceLoadingCards() {
+  return Array.from({ length: 3 }, (_, index) => (
+    <article key={index} className="w-[156px] shrink-0 overflow-hidden rounded-[16px] border border-[#EFE6DB] bg-white">
+      <div className="aspect-square w-full animate-pulse bg-[#EFE7DB]" />
+      <div className="space-y-2 px-2.5 pb-2.5 pt-2">
+        <div className="h-4 w-12 animate-pulse rounded-full bg-[#F2EBDF]" />
+        <div className="h-4 w-24 animate-pulse rounded bg-[#EFE7DB]" />
+        <div className="h-8 w-full animate-pulse rounded bg-[#F5EFE7]" />
+      </div>
+    </article>
+  ))
+}
+
+function PlacesPanelState({ message, actionLabel, onAction }) {
+  return (
+    <div className="flex min-w-full flex-col items-center justify-center rounded-[16px] border border-[#EFE6DB] bg-[#FBF8F3] px-5 text-center">
+      <p className="text-[14px] font-semibold text-[#3D2415]">{message}</p>
+      {actionLabel && onAction ? (
+        <button
+          type="button"
+          onClick={onAction}
+          className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#3D2415] px-4 py-2 text-[12px] font-semibold text-white"
+        >
+          <RefreshCw size={13} />
+          {actionLabel}
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
+function MapOverlay({ children }) {
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#F1ECE4]/92 px-8 text-center text-[#3D2415]">
+      {children}
+    </div>
+  )
+}
+
+function createPlaceMarkerElement(place) {
+  const categoryKey = place.categoryKey ?? 'default'
+  const meta = getPlaceCategoryMeta(categoryKey)
+  const marker = document.createElement('button')
+  marker.type = 'button'
+  marker.title = place.placeName
+  marker.dataset.categoryKey = categoryKey
+  marker.setAttribute('aria-label', `${place.placeName} 선택`)
+  marker.style.width = '38px'
+  marker.style.height = '44px'
+  marker.style.padding = '0'
+  marker.style.border = '0'
+  marker.style.background = 'transparent'
+  marker.style.cursor = 'pointer'
+  marker.style.display = 'flex'
+  marker.style.flexDirection = 'column'
+  marker.style.alignItems = 'center'
+  marker.style.justifyContent = 'flex-start'
+  marker.style.lineHeight = '0'
+  marker.style.transformOrigin = '50% 100%'
+  marker.style.transition = 'transform 180ms ease, filter 180ms ease'
+
+  const shell = document.createElement('span')
+  shell.dataset.markerShell = 'true'
+  shell.style.width = '32px'
+  shell.style.height = '32px'
+  shell.style.borderRadius = '13px'
+  shell.style.background = meta.backgroundColor
+  shell.style.display = 'flex'
+  shell.style.alignItems = 'center'
+  shell.style.justifyContent = 'center'
+  shell.style.position = 'relative'
+  shell.style.zIndex = '1'
+
+  const icon = createPlaceMarkerIconElement(meta.iconName, meta.markerColor)
+
+  const tail = document.createElement('span')
+  tail.dataset.markerTail = 'true'
+  tail.style.width = '11px'
+  tail.style.height = '11px'
+  tail.style.marginTop = '-5px'
+  tail.style.background = meta.backgroundColor
+  tail.style.transform = 'rotate(45deg)'
+
+  shell.appendChild(icon)
+  marker.appendChild(shell)
+  marker.appendChild(tail)
+  setPlaceMarkerElementSelected(marker, false)
+
+  return marker
+}
+
+function createPlaceMarkerIconElement(iconName, color) {
+  const svgNamespace = 'http://www.w3.org/2000/svg'
+  const svg = document.createElementNS(svgNamespace, 'svg')
+  svg.dataset.markerIcon = 'true'
+  svg.setAttribute('viewBox', '0 0 24 24')
+  svg.setAttribute('fill', 'none')
+  svg.setAttribute('stroke', color)
+  svg.setAttribute('stroke-width', '1.8')
+  svg.setAttribute('stroke-linecap', 'round')
+  svg.setAttribute('stroke-linejoin', 'round')
+  svg.setAttribute('aria-hidden', 'true')
+  svg.style.width = '17px'
+  svg.style.height = '17px'
+  svg.style.display = 'block'
+  svg.style.transition = 'width 180ms ease, height 180ms ease, stroke-width 180ms ease'
+
+  const paths = PLACE_MARKER_ICON_PATHS[iconName] ?? PLACE_MARKER_ICON_PATHS.mapPinned
+  paths.forEach((pathData) => {
+    const path = document.createElementNS(svgNamespace, 'path')
+    path.setAttribute('d', pathData)
+    svg.appendChild(path)
+  })
+
+  return svg
+}
+
+function setPlaceMarkerElementSelected(marker, isSelected) {
+  const meta = getPlaceCategoryMeta(marker.dataset.categoryKey)
+  const shell = marker.querySelector('[data-marker-shell]')
+  const icon = marker.querySelector('[data-marker-icon]')
+  const tail = marker.querySelector('[data-marker-tail]')
+  const borderColor = isSelected ? meta.selectedBorderColor : meta.borderColor
+  const borderWidth = isSelected ? '2px' : '1.5px'
+
+  marker.setAttribute('aria-pressed', String(isSelected))
+  marker.style.transform = isSelected ? 'scale(1.16)' : 'scale(1)'
+  marker.style.filter = isSelected ? `drop-shadow(0 10px 14px ${meta.shadowColor})` : 'none'
+
+  if (shell) {
+    shell.style.border = `${borderWidth} solid ${borderColor}`
+    shell.style.boxShadow = isSelected
+      ? `0 8px 18px ${meta.shadowColor}`
+      : `0 5px 12px ${meta.shadowColor}`
+  }
+
+  if (icon) {
+    icon.setAttribute('stroke', meta.markerColor)
+    icon.setAttribute('stroke-width', isSelected ? '2.1' : '1.8')
+    icon.style.width = isSelected ? '19px' : '17px'
+    icon.style.height = isSelected ? '19px' : '17px'
+  }
+
+  if (tail) {
+    tail.style.borderRight = `${borderWidth} solid ${borderColor}`
+    tail.style.borderBottom = `${borderWidth} solid ${borderColor}`
+  }
+}
+
+function createCurrentLocationMarkerElement(title) {
+  const marker = document.createElement('div')
+  marker.title = title
+  marker.setAttribute('aria-label', title)
+  marker.style.width = '28px'
+  marker.style.height = '28px'
+  marker.style.borderRadius = '9999px'
+  marker.style.background = 'rgba(37, 99, 235, 0.16)'
+  marker.style.border = '1px solid rgba(37, 99, 235, 0.28)'
+  marker.style.display = 'flex'
+  marker.style.alignItems = 'center'
+  marker.style.justifyContent = 'center'
+  marker.style.boxShadow = '0 6px 14px rgba(37, 99, 235, 0.24)'
+
+  const dot = document.createElement('span')
+  dot.style.width = '13px'
+  dot.style.height = '13px'
+  dot.style.borderRadius = '9999px'
+  dot.style.background = '#2563EB'
+  dot.style.border = '3px solid #FFFFFF'
+  dot.style.boxShadow = '0 2px 6px rgba(37, 99, 235, 0.24)'
+  marker.appendChild(dot)
+
+  return marker
+}
+
+function getCurrentPosition() {
+  if (!navigator.geolocation) {
+    return Promise.reject(new Error('Geolocation is not supported.'))
+  }
+
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(resolve, reject, GEOLOCATION_OPTIONS)
+  })
+}
+
+function getMapErrorMessage(error) {
+  const message = String(error?.message ?? '')
+  if (message.includes('VITE_KAKAO_JAVASCRIPT_KEY')) {
+    return 'Kakao JavaScript Key가 설정되지 않았어요.'
+  }
+
+  if (message.includes('timed out') || message.includes('did not initialize')) {
+    return 'Kakao Map을 초기화하지 못했어요. JavaScript Key와 등록 도메인을 확인해주세요.'
+  }
+
+  return 'Kakao Map SDK를 불러오지 못했어요.'
 }
 
 export default MapPage

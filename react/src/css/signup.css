@@ -1,0 +1,141 @@
+.signup-page {
+  display: flex;
+  align-items: stretch;
+  padding: 28px 22px;
+  font-family: 'Pretendard', 'SUIT', 'Noto Sans KR', sans-serif;
+  color: #3b2a21;
+  background:
+    linear-gradient(180deg, rgba(255, 252, 248, 0.88), rgba(247, 241, 235, 0.96)),
+    #f7f1eb;
+}
+
+.signup-panel {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 2px 8px;
+}
+
+.signup-back-link {
+  align-self: flex-start;
+  color: #7a685d;
+  font-size: 14px;
+  line-height: 20px;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.signup-copy {
+  margin-top: 88px;
+}
+
+.signup-copy p {
+  margin: 0 0 10px;
+  color: #7a4218;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.signup-copy h1 {
+  margin: 0;
+  max-width: 320px;
+  color: #3b2a21;
+  font-size: 30px;
+  line-height: 1.38;
+  font-weight: 800;
+}
+
+.signup-form {
+  margin-top: 42px;
+  display: grid;
+  gap: 16px;
+}
+
+.signup-field {
+  display: grid;
+  gap: 8px;
+}
+
+.signup-field span {
+  color: #6a5747;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 700;
+}
+
+.signup-field input {
+  width: 100%;
+  height: 56px;
+  border: 1px solid #e7d9cc;
+  border-radius: 18px;
+  padding: 0 18px;
+  background: #fffcf8;
+  color: #3b2a21;
+  font: inherit;
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.signup-field input::placeholder {
+  color: #b7a79a;
+}
+
+.signup-field input:focus {
+  border-color: #b98a63;
+  box-shadow: 0 0 0 3px rgba(122, 66, 24, 0.1);
+}
+
+.signup-field input:disabled {
+  opacity: 0.72;
+}
+
+.signup-status {
+  min-height: 20px;
+}
+
+.signup-error {
+  margin: 0;
+  color: #9a3d24;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.signup-success {
+  margin: 0;
+  color: #3d6b42;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 700;
+}
+
+.signup-submit {
+  height: 58px;
+  margin-top: 6px;
+  border: 0;
+  border-radius: 18px;
+  background: #7a4218;
+  color: #fff;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 800;
+  box-shadow: 0 4px 18px rgba(74, 49, 36, 0.08);
+}
+
+.signup-submit:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.signup-back-link:focus-visible,
+.signup-submit:focus-visible {
+  outline: 2px solid rgba(122, 66, 24, 0.32);
+  outline-offset: 3px;
+}
+
+@media (max-width: 430px) {
+  .signup-page {
+    padding: calc(24px + env(safe-area-inset-top)) 22px calc(18px + env(safe-area-inset-bottom));
+  }
+}

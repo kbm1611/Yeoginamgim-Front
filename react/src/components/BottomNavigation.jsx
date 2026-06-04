@@ -6,7 +6,7 @@ const navItems = [
   { key: 'map', label: '지도', icon: MapPinned, path: '/map' },
   { key: 'add', label: '추가', icon: Plus },
   { key: 'archive', label: '보관함', icon: Archive },
-  { key: 'my', label: '마이', icon: User },
+  { key: 'my', label: '마이', icon: User, path: '/my' },
 ]
 
 const APP_BG = '#F7F2EA'

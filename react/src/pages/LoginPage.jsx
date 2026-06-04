@@ -1,7 +1,22 @@
-﻿import { motion } from 'framer-motion'
-import { useNavigate } from 'react-router-dom'
+import { useState } from 'react'
+import { motion } from 'framer-motion'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { login, redirectToGoogleOAuth, redirectToKakaoOAuth } from '../api/auth'
 import loginBgImage from '../assets/auth/login-bg.png'
 import '../css/login.css'
+
+const initialForm = {
+  email: '',
+  password: '',
+}
+
+const loginErrorMessages = [
+  ['email is required', '이메일을 입력해주세요.'],
+  ['email must be valid', '올바른 이메일 형식으로 입력해주세요.'],
+  ['password is required', '비밀번호를 입력해주세요.'],
+  ['password', '이메일 또는 비밀번호가 일치하지 않습니다.'],
+  ['login failed', '이메일 또는 비밀번호가 일치하지 않습니다.'],
+]
 
 function GoogleIcon() {
   return (
@@ -23,26 +38,69 @@ function KakaoIcon() {
   )
 }
 
-function EmailIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" className="svg-icon email">
-      <rect x="3.25" y="5.25" width="17.5" height="13.5" rx="2.3" fill="none" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M4.6 7.2 12 12.6l7.4-5.4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
+function getFriendlyLoginError(error) {
+  const message = String(error?.message ?? '').trim()
+  const normalized = message.toLowerCase()
+  const matched = loginErrorMessages.find(([key]) => normalized.includes(key))
 
-const providers = [
-  { key: 'kakao', label: '카카오로 로그인', icon: KakaoIcon },
-  { key: 'google', label: '구글로 로그인', icon: GoogleIcon },
-  { key: 'email', label: '이메일로 로그인', icon: EmailIcon },
-]
+  if (matched) return matched[1]
+  if (error?.status === 401) return '이메일 또는 비밀번호가 일치하지 않습니다.'
+  if (error?.status >= 500) return '서버에 문제가 생겼습니다. 잠시 후 다시 시도해주세요.'
+  if (message) return message
+
+  return '로그인에 실패했습니다. 입력한 정보를 다시 확인해주세요.'
+}
 
 function LoginPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const intendedPath = location.state?.from?.pathname ?? '/home'
+  const signupEmail = location.state?.signupEmail ?? ''
+  const signupMessage = location.state?.message ?? ''
+  const [form, setForm] = useState(() => ({ ...initialForm, email: signupEmail }))
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleLogin = () => {
-    navigate('/home')
+  const handleChange = (event) => {
+    const { name, value } = event.target
+    setForm((current) => ({ ...current, [name]: value }))
+    setError('')
+  }
+
+  const validateForm = () => {
+    if (!form.email.trim()) return '이메일을 입력해주세요.'
+    if (!form.email.includes('@')) return '올바른 이메일 형식으로 입력해주세요.'
+    if (!form.password) return '비밀번호를 입력해주세요.'
+    return ''
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    const validationError = validateForm()
+
+    if (validationError) {
+      setSuccess('')
+      setError(validationError)
+      return
+    }
+
+    setError('')
+    setSuccess('')
+    setIsSubmitting(true)
+
+    try {
+      await login({
+        email: form.email.trim(),
+        password: form.password,
+      })
+      setSuccess('로그인되었습니다.')
+      navigate(intendedPath, { replace: true })
+    } catch (loginError) {
+      setError(getFriendlyLoginError(loginError))
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -61,33 +119,92 @@ function LoginPage() {
         transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
       >
         <span className="sheet-grabber" aria-hidden="true" />
-        <p className="sheet-caption">로그인 방법을 선택해주세요</p>
+        <p className="sheet-caption">다시 남기러 가볼까요</p>
 
-        <div className="login-methods">
-          {providers.map((provider) => {
-            const Icon = provider.icon
-            return (
-              <motion.button
-                key={provider.key}
-                type="button"
-                className={`login-method ${provider.key}`}
-                whileTap={{ scale: 0.988 }}
-                transition={{ duration: 0.12 }}
-                onClick={handleLogin}
-              >
-                <span className="method-icon" aria-hidden="true">
-                  <Icon />
-                </span>
-                <span className="method-label">{provider.label}</span>
-              </motion.button>
-            )
-          })}
+        <form className="login-form" onSubmit={handleSubmit}>
+          <label className="login-field">
+            <span>이메일</span>
+            <input
+              name="email"
+              type="email"
+              autoComplete="email"
+              placeholder="you@example.com"
+              value={form.email}
+              onChange={handleChange}
+              disabled={isSubmitting}
+            />
+          </label>
+
+          <label className="login-field">
+            <span>비밀번호</span>
+            <input
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              placeholder="비밀번호"
+              value={form.password}
+              onChange={handleChange}
+              disabled={isSubmitting}
+            />
+          </label>
+
+          <div className="login-status" aria-live="polite">
+            {(success || signupMessage) && <p className="login-success">{success || signupMessage}</p>}
+            {error && <p className="login-error">{error}</p>}
+          </div>
+
+          <motion.button
+            type="submit"
+            className="login-submit"
+            disabled={isSubmitting}
+            whileTap={{ scale: 0.988 }}
+            transition={{ duration: 0.12 }}
+          >
+            {isSubmitting ? '로그인 중...' : '이메일로 로그인'}
+          </motion.button>
+        </form>
+
+        <div className="login-divider" aria-hidden="true">
+          <span />
+          <b>또는</b>
+          <span />
         </div>
 
-        <p className="sheet-agreement">
-          로그인하면 서비스 이용약관 및 개인정보처리방침에
-          <br />
-          동의한 것으로 간주됩니다.
+        <div className="login-methods">
+          <motion.button
+            type="button"
+            className="login-method kakao"
+            whileTap={{ scale: 0.988 }}
+            transition={{ duration: 0.12 }}
+            onClick={redirectToKakaoOAuth}
+            disabled={isSubmitting}
+          >
+            <span className="method-icon" aria-hidden="true">
+              <KakaoIcon />
+            </span>
+            <span className="method-label">카카오로 계속하기</span>
+          </motion.button>
+
+          <motion.button
+            type="button"
+            className="login-method google"
+            whileTap={{ scale: 0.988 }}
+            transition={{ duration: 0.12 }}
+            onClick={redirectToGoogleOAuth}
+            disabled={isSubmitting}
+          >
+            <span className="method-icon" aria-hidden="true">
+              <GoogleIcon />
+            </span>
+            <span className="method-label">구글로 계속하기</span>
+          </motion.button>
+        </div>
+
+        <p className="signup-prompt">
+          아직 계정이 없나요?{' '}
+          <Link className="signup-link" to="/signup">
+            회원가입
+          </Link>
         </p>
       </motion.section>
     </motion.main>

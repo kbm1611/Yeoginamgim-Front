@@ -8,10 +8,10 @@
 
 | 항목 | 내용 |
 |---|---|
-| 프레임워크 | React 18 |
+| 프레임워크 | React 19 |
 | 빌드 도구 | Vite |
 | 스타일 | Tailwind CSS v4 |
-| 라우팅 | React Router v6 |
+| 라우팅 | React Router DOM v7 |
 | 애니메이션 | Framer Motion |
 | 아이콘 | Lucide React |
 | 줌/팬 | react-zoom-pan-pinch |
@@ -42,6 +42,7 @@ react/src/
 │   ├── SplashPage.jsx             # 스플래시 화면
 │   ├── OnboardingPage.jsx         # 온보딩
 │   ├── LoginPage.jsx              # 로그인
+│   ├── SignupPage.jsx             # 회원가입
 │   ├── HomePage.jsx               # 홈 (인기 공간, 최근 흔적)
 │   ├── Map.jsx                    # 지도
 │   ├── PlaceDetail.jsx            # 장소 상세
@@ -59,7 +60,7 @@ react/src/
 │   ├── RecentTracesSection.jsx    # 최근 흔적 리스트 섹션
 │   │
 │   ├── board/                     # 보드 관련 컴포넌트
-│   │   ├── BoardCanvas.jsx        # 줌/팬 캔버스 + 포스트 렌더링
+│   │   ├── BoardCanvas.jsx        # 줌/팬 캔버스 + 흔적 렌더링
 │   │   ├── PostItCard.jsx         # 포스트잇 카드
 │   │   ├── PostIt.jsx             # (미사용 예정)
 │   │   ├── Polaroid.jsx           # (미사용 예정)
@@ -91,7 +92,16 @@ react/src/
 │   ├── login.css
 │   └── onboarding.css
 │
-└── api/                           # API 통신 (미구현 — 백엔드 연동 시 작성)
+└── api/                           # 백엔드 API 통신 헬퍼
+    ├── client.js                  # 공통 fetch 래퍼, 토큰 처리
+    ├── auth.js                    # 로그인/OAuth/로그아웃
+    ├── users.js                   # 회원가입, 내 정보 조회/수정
+    ├── places.js                  # 주변/인기 장소 조회
+    ├── boards.js                  # 보드 조회/생성
+    ├── traces.js                  # 흔적 목록/작성/수정/삭제/좋아요
+    ├── reports.js                 # 흔적 신고
+    ├── archive.js                 # 내 흔적/아카이브
+    └── locationDistrict.js        # 현재 위치 기반 구/동 확인
 ```
 
 ---
@@ -104,6 +114,7 @@ react/src/
 | `/splash` | SplashPage | 앱 시작 |
 | `/onboarding` | OnboardingPage | 온보딩 |
 | `/login` | LoginPage | 로그인 |
+| `/signup` | SignupPage | 회원가입 |
 | `/home` | HomePage | 홈 |
 | `/map` | Map | 지도 |
 | `/place/:id` | PlaceDetail | 장소 상세 |
@@ -121,16 +132,16 @@ BoardDetail (pages/)
 │   ├── react-zoom-pan-pinch — 핀치줌/드래그
 │   ├── PolaroidCard — 폴라로이드
 │   └── PostItCard — 포스트잇 (텍스처 이미지 적용)
-├── 플로팅 헤더 — 랭기순/최신순 탭 + 필터
+├── 플로팅 헤더 — 인기순/최신순 탭 + 필터
 └── FAB 버튼 — 돋보기 / + (흔적 추가)
 ```
 
 ### 데이터 흐름
 
 ```
-PostItEditor → 완료 → BoardDetail (location.state)
-BoardDetail → localStorage 저장 (board_posts_{boardId})
-BoardDetail 진입 시 → localStorage 로드
+PostItEditor → `/api/boards/{boardId}/traces`로 흔적 작성
+BoardDetail → `/api/boards/{boardId}/traces`로 흔적 목록 조회
+이미지 업로드 → `/api/traces/images`
 ```
 
 ---
@@ -139,5 +150,5 @@ BoardDetail 진입 시 → localStorage 로드
 
 - **보드 배경은 캔버스 밖** — 줌/팬해도 배경이 항상 전체화면 유지
 - **행렬 기반 배치** — 2컬럼 + 시드 기반 지터(위치/회전) 로 자연스러운 배치
-- **localStorage** — 현재 백엔드 없이 로컬 저장, 추후 API 연동 예정
+- **API 연동** — `src/api` 헬퍼를 통해 백엔드와 통신하고 JWT는 localStorage에 저장
 - **app-device** — PC에서도 모바일 앱처럼 보이도록 중앙 고정 컨테이너
