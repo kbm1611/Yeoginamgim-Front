@@ -246,6 +246,18 @@ test('inferPlaceCategoryKey handles Korean and English category values', () => {
   assert.equal(inferPlaceCategoryKey({ groupName: '\uC54C \uC218 \uC5C6\uC74C' }), 'default')
 })
 
+test('inferPlaceCategoryKey prefers structured categories over place name hints', () => {
+  assert.equal(inferPlaceCategoryKey({ placeName: '성수학교 앞 카페', groupName: '카페' }), 'CE7')
+  assert.equal(inferPlaceCategoryKey({ placeName: '성수마트 옆 맛집', groupName: '음식점' }), 'FD6')
+  assert.equal(inferPlaceCategoryKey({ placeName: '호텔 근처 카페', groupName: '카페' }), 'CE7')
+})
+
+test('inferPlaceCategoryKey uses place name hints when structured categories are empty', () => {
+  assert.equal(inferPlaceCategoryKey({ placeName: '성수학교 앞' }), 'EDU')
+  assert.equal(inferPlaceCategoryKey({ placeName: '성수마트 옆' }), 'MT1')
+  assert.equal(inferPlaceCategoryKey({ placeName: '호텔 근처' }), 'AD5')
+})
+
 test('normalizePlaces keeps ambiguous lookup results styled by request category', () => {
   const [place] = normalizePlaces(
     [
@@ -467,6 +479,40 @@ test('normalizeSearchPlaces applies service category priority for broad POI quer
   assert.deepEqual(
     places.map((place) => place.kakaoPlaceId),
     ['cafe', 'restaurant', 'culture', 'attraction']
+  )
+})
+
+test('normalizeSearchPlaces keeps cafe and food priority when names contain lower-priority hints', () => {
+  const places = normalizeSearchPlaces(
+    [
+      {
+        kakaoPlaceId: 'cafe-school-name',
+        placeName: '성수학교 앞 카페',
+        groupName: '카페',
+      },
+      {
+        kakaoPlaceId: 'food-mart-name',
+        placeName: '성수마트 옆 맛집',
+        groupName: '음식점',
+      },
+      {
+        kakaoPlaceId: 'mart',
+        placeName: '성수 마트',
+        groupName: '대형마트',
+      },
+      {
+        kakaoPlaceId: 'school',
+        placeName: '성수 학교',
+        groupName: '학교',
+      },
+    ],
+    null,
+    '성수'
+  )
+
+  assert.deepEqual(
+    places.map((place) => place.kakaoPlaceId),
+    ['cafe-school-name', 'food-mart-name', 'mart', 'school']
   )
 })
 

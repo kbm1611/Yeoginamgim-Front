@@ -661,27 +661,27 @@ export function getPlaceInfoRows(place) {
   ].filter(Boolean)
 }
 export function inferPlaceCategoryKey(place, fallbackCategory = null) {
-  const sourceText = [
+  const explicitCategory = getExactCategoryFromFields([
     place?.categoryKey,
+    place?.category,
+  ])
+  if (explicitCategory) return explicitCategory
+
+  const structuredCategory = inferCategoryFromFields([
     place?.category,
     place?.groupName,
     place?.categoryName,
-    place?.placeName,
     place?.placeCategory,
-  ]
-    .map((value) => String(value ?? '').trim().toLowerCase())
-    .filter(Boolean)
-    .join(' ')
+  ])
+  if (structuredCategory) return structuredCategory
 
-  if (!sourceText) return normalizeCategoryKey(fallbackCategory) ?? 'default'
+  const fallbackCategoryKey = normalizeCategoryKey(fallbackCategory)
+  if (fallbackCategoryKey) return fallbackCategoryKey
 
-  const exactCategory = normalizeCategoryKey(sourceText)
-  if (exactCategory) return exactCategory
+  const nameCategory = inferCategoryFromFields([place?.placeName])
+  if (nameCategory) return nameCategory
 
-  const matchedCategory = CATEGORY_PATTERNS.find(({ pattern }) => pattern.test(sourceText))
-  if (matchedCategory) return matchedCategory.code
-
-  return normalizeCategoryKey(fallbackCategory) ?? 'default'
+  return 'default'
 }
 
 export function getPlaceCategoryMeta(categoryKey) {
@@ -714,6 +714,24 @@ function normalizeCategoryKey(value) {
   if (!category || category === 'default') return null
 
   return CATEGORY_CODE_BY_ALIAS.get(category) ?? null
+}
+
+function getExactCategoryFromFields(fields) {
+  return fields.map(normalizeCategoryKey).find(Boolean) ?? null
+}
+
+function inferCategoryFromFields(fields) {
+  const exactCategory = getExactCategoryFromFields(fields)
+  if (exactCategory) return exactCategory
+
+  const sourceText = fields
+    .map((value) => String(value ?? '').trim().toLowerCase())
+    .filter(Boolean)
+    .join(' ')
+  if (!sourceText) return null
+
+  const matchedCategory = CATEGORY_PATTERNS.find(({ pattern }) => pattern.test(sourceText))
+  return matchedCategory?.code ?? null
 }
 
 function buildCategoryCodeByAlias() {
