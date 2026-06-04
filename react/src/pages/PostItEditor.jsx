@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
@@ -134,36 +134,46 @@ function PolaroidPreview({ photoIdx, captionText, onCaptionChange }) {
 
 // ─── PostIt Preview ───────────────────────────────────────────────────────────
 
+// 색상별 hue-rotate 필터 (yellow.png 기준)
+const COLOR_FILTER = {
+  '#F5EDD5': 'hue-rotate(0deg)',
+  '#F5D5D5': 'hue-rotate(195deg) saturate(0.9)',
+  '#D5EDD5': 'hue-rotate(82deg) saturate(0.85)',
+  '#D5E5F5': 'hue-rotate(148deg) saturate(0.8)',
+  '#E8D5F5': 'hue-rotate(218deg) saturate(0.85)',
+  '#F5E0D0': 'hue-rotate(-22deg) saturate(0.9)',
+}
+
 function PostItPreview({ text, onText, bg, textActive }) {
   const textareaRef = useRef(null)
 
   useEffect(() => {
     if (textActive) {
       textareaRef.current?.focus()
-      // 커서를 텍스트 끝으로 이동
       const len = textareaRef.current?.value.length ?? 0
       textareaRef.current?.setSelectionRange(len, len)
     }
   }, [textActive])
 
+  const imgFilter = COLOR_FILTER[bg] ?? 'hue-rotate(0deg)'
+
   return (
-    <div
-      className="relative w-full"
-      style={{ transform: 'scale(1.18)', transformOrigin: 'top center', marginTop: '-2%' }}
-    >
-      {bg && bg !== '#F5EDD5' && (
-        <div
-          className="absolute inset-0 rounded-[4px] mix-blend-multiply"
-          style={{ backgroundColor: bg, top: '10%', left: '5%', right: '5%', bottom: '8%' }}
-        />
-      )}
-      <img src={postitYellow} alt="포스트잇" className="w-full" draggable={false} />
+    <div className="relative w-full" style={{ transform: 'scale(1.12)', transformOrigin: 'center center' }}>
+      {/* hue-rotate 필터로 포스트잇 색상 변경 */}
+      <img
+        src={postitYellow}
+        alt="포스트잇"
+        className="w-full"
+        draggable={false}
+        style={{ filter: imgFilter, transition: 'filter 0.2s' }}
+      />
+      {/* textarea — 클릭 시 캔버스로 버블링 차단해서 커서 유지 */}
       <textarea
         ref={textareaRef}
         value={text}
         onChange={(e) => onText(e.target.value)}
-        placeholder="오늘 어땠나요?"
-        className="absolute resize-none border-none bg-transparent leading-[1.8] text-[#2A1E14] outline-none placeholder:text-[#B09A7A]/60"
+        onClick={(e) => e.stopPropagation()}
+        className="absolute resize-none border-none bg-transparent leading-[1.8] text-[#2A1E14] outline-none"
         style={{
           fontFamily: "'Nanum Pen Script','Gaegu',cursive",
           fontSize: 26,
@@ -171,6 +181,7 @@ function PostItPreview({ text, onText, bg, textActive }) {
           left: '14%',
           width: '72%',
           height: '55%',
+          cursor: 'text',
         }}
       />
     </div>
@@ -180,21 +191,11 @@ function PostItPreview({ text, onText, bg, textActive }) {
 // ─── BottomSheet ──────────────────────────────────────────────────────────────
 
 function BottomSheet({ open, children }) {
+  if (!open) return null
   return (
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          key="sheet"
-          className="overflow-hidden bg-white"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 20 }}
-          transition={{ duration: 0.18, ease: 'easeOut' }}
-        >
-          {children}
-        </motion.div>
-      )}
-    </AnimatePresence>
+    <div className="bg-white">
+      {children}
+    </div>
   )
 }
 
@@ -424,26 +425,27 @@ function PostItEditor() {
 
   return (
     <motion.main
-      className="app-device flex flex-col overflow-hidden bg-[#F2EDE6]"
+      className="app-device flex flex-col overflow-hidden bg-[#F0EAE0]"
       initial={{ y: '100%' }}
       animate={{ y: 0 }}
       exit={{ y: '100%' }}
       transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
     >
       {/* ── 헤더 ── */}
-      <header className="flex items-center justify-between px-4 pb-1 pt-3">
+      <header className="flex items-center justify-between px-4 pb-2 pt-4">
         <button type="button" onClick={() => navigate(-1)} className="flex h-9 w-9 items-center justify-center text-[#3B2A1E]">
           <X size={22} strokeWidth={2} />
         </button>
+        <span className="text-[16px] font-semibold text-[#3B2A1E]">혼적 남기기</span>
         <button type="button" onClick={handleComplete}
-          className="rounded-2xl bg-[#F5C842] px-6 py-2 text-[15px] font-bold text-[#3B2A1E] shadow-sm active:opacity-80"
+          className="rounded-2xl bg-[#F5C842] px-5 py-1.5 text-[14px] font-bold text-[#3B2A1E] shadow-sm active:opacity-80"
         >
           남기기
         </button>
       </header>
 
       {/* ── 타입 탭 ── */}
-      <div className="flex gap-2 px-4 pb-2">
+      <div className="flex gap-2 px-4 pb-3">
         {[
           { key: 'polaroid', label: '포토카드', emoji: '🖼' },
           { key: 'postit',   label: '포스트잇', emoji: '📋' },
@@ -452,7 +454,7 @@ function PostItEditor() {
           return (
             <button key={key} type="button"
               onClick={() => { setType(key); setActiveTool(null) }}
-              className={`flex items-center gap-1.5 rounded-full px-5 py-2 text-[14px] font-semibold transition-all ${active ? 'bg-[#3B2A1E] text-white shadow' : 'bg-white text-[#6B5A4C] shadow-sm'}`}
+              className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[13px] font-semibold transition-all ${active ? 'bg-[#3B2A1E] text-white shadow' : 'bg-white/80 text-[#6B5A4C]'}`}
             >
               <span>{emoji}</span>
               {label}
@@ -461,26 +463,47 @@ function PostItEditor() {
         })}
       </div>
 
-      {/* ── 캔버스 ── */}
+      {/* ── 캔버스 (흰 종이 배경 + 포스트잇) ── */}
       <div
-        className="relative flex flex-1 items-start justify-center px-4 pt-3"
+        className="relative mx-3 flex-1 overflow-hidden rounded-[24px] bg-white shadow-[0_4px_24px_rgba(0,0,0,0.10)]"
         onClick={(e) => { e.stopPropagation(); setActiveTool(null) }}
       >
-        {type === 'polaroid' ? (
-          <PolaroidPreview photoIdx={photoIdx} captionText={captionText} onCaptionChange={setCaptionText} />
-        ) : (
-          <PostItPreview
-            text={postitText}
-            onText={setPostitText}
-            bg={postitBg}
-            textActive={activeTool === 'text' || activeTool === 'font'}
-          />
-        )}
+        {/* 배경 격자 패턴 */}
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            backgroundImage: `
+              linear-gradient(rgba(180,160,140,0.08) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(180,160,140,0.08) 1px, transparent 1px)
+            `,
+            backgroundSize: '28px 28px',
+          }}
+        />
+
+        {/* 은은한 배경 장식 */}
+        <span className="pointer-events-none absolute left-4 top-6 select-none text-[22px] opacity-20">✿</span>
+        <span className="pointer-events-none absolute right-5 top-10 select-none text-[18px] opacity-15">♡</span>
+        <span className="pointer-events-none absolute bottom-8 left-5 select-none text-[16px] opacity-15">✦</span>
+        <span className="pointer-events-none absolute bottom-10 right-4 select-none text-[20px] opacity-20">✿</span>
+
+        {/* 콘텐츠 — 포스트잇이 흰 카드를 꽉 채우게 */}
+        <div className="relative flex h-full items-center justify-center py-4">
+          {type === 'polaroid' ? (
+            <PolaroidPreview photoIdx={photoIdx} captionText={captionText} onCaptionChange={setCaptionText} />
+          ) : (
+            <PostItPreview
+              text={postitText}
+              onText={setPostitText}
+              bg={postitBg}
+              textActive={activeTool === 'text' || activeTool === 'font'}
+            />
+          )}
+        </div>
       </div>
 
       {/* ── 하단 영역 ── */}
       <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-        {/* BottomSheet: 툴바 위로 슬라이드 — 캔버스는 건드리지 않음 */}
+        {/* BottomSheet */}
         <BottomSheet open={activeTool !== null}>
           <div className="border-t border-[#EDE5DA] bg-white pb-2">
             {renderPanel()}
@@ -488,7 +511,7 @@ function PostItEditor() {
         </BottomSheet>
 
         {/* Floating Toolbar */}
-        <div className="bg-[#F2EDE6] pb-6 pt-2">
+        <div className="px-0 pb-6 pt-3">
           <ToolTabBar tools={tools} activeTool={activeTool} onTool={handleTool} />
         </div>
       </div>
