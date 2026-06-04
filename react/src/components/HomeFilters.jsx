@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Bell, ChevronDown, LocateFixed, MapPin, X } from 'lucide-react'
+import { ChevronDown, LocateFixed, MapPin, X } from 'lucide-react'
 import { ALL_DISTRICTS_LABEL, HOME_PERIOD_OPTIONS, SEOUL_DISTRICTS } from '../pages/HomePage.utils'
 
 function HomeFilters({
@@ -19,24 +19,7 @@ function HomeFilters({
   }
 
   return (
-    <section className="px-5 pb-2 pt-3">
-      <div className="mb-5 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-[30px] font-bold leading-tight text-[#171B2A]">자치구별 인기 방명록</h1>
-          <p className="mt-2 text-[14px] leading-snug text-[#7A8394]">
-            선택한 자치구 안에서 사람들이 많이 기록한 장소를 둘러보세요.
-          </p>
-        </div>
-        <button
-          type="button"
-          aria-label="알림"
-          className="relative mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[#171B2A] shadow-[0_4px_12px_rgba(0,0,0,0.05)]"
-        >
-          <Bell size={21} strokeWidth={1.8} />
-          <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-[#8B63F7]" />
-        </button>
-      </div>
-
+    <section className="px-5 pb-2 pt-1">
       <div className="grid grid-cols-4 rounded-[14px] border border-[#EEE7F8] bg-white p-1 shadow-[0_4px_14px_rgba(0,0,0,0.03)]">
         {HOME_PERIOD_OPTIONS.map((option) => {
           const isActive = period === option.value
