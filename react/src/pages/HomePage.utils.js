@@ -42,6 +42,13 @@ export function normalizeHomeDistrict(districtInfo) {
   return SEOUL_DISTRICTS.includes(district) ? district : ALL_DISTRICTS_LABEL
 }
 
+export function filterSeoulDistricts(query) {
+  const normalizedQuery = String(query ?? '').trim()
+  if (!normalizedQuery) return SEOUL_DISTRICTS
+
+  return SEOUL_DISTRICTS.filter((district) => district.includes(normalizedQuery))
+}
+
 export function buildHomePlaceParams({ period = DEFAULT_HOME_PERIOD, district, limit = 5 } = {}) {
   return buildHomeScopedParams({ period, district, limit })
 }

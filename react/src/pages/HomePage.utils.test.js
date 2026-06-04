@@ -4,6 +4,7 @@ import {
   buildHomePlaceParams,
   buildHomeTraceParams,
   DEFAULT_HOME_PERIOD,
+  filterSeoulDistricts,
   HOME_PERIOD_OPTIONS,
   normalizeHomeDistrict,
   SEOUL_DISTRICTS,
@@ -15,6 +16,14 @@ test('home period options default to today and expose four filters', () => {
     HOME_PERIOD_OPTIONS.map((option) => option.value),
     ['today', 'week', 'month', 'year']
   )
+})
+
+test('filterSeoulDistricts matches district names as the query changes', () => {
+  assert.deepEqual(filterSeoulDistricts('마포'), ['마포구'])
+  assert.deepEqual(filterSeoulDistricts('송파'), ['송파구'])
+  assert.deepEqual(filterSeoulDistricts('강'), ['강남구', '강동구', '강북구', '강서구'])
+  assert.deepEqual(filterSeoulDistricts('없는구'), [])
+  assert.equal(filterSeoulDistricts('').length, SEOUL_DISTRICTS.length)
 })
 
 test('normalizeHomeDistrict keeps Seoul districts and falls back to all', () => {
