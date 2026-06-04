@@ -62,14 +62,14 @@ const KAKAO_CATEGORY_CODES = [
 const SERVICE_CATEGORY_CODES = [
   'CE7',
   'FD6',
-  'CS2',
-  'PARK',
   'CULTURE',
-  'SHOPPING',
   'AT4',
-  'EDU',
-  'MT1',
+  'SHOPPING',
   'AD5',
+  'PARK',
+  'CS2',
+  'MT1',
+  'EDU',
 ]
 
 test('buildNearbyPlaceRequests maps all filter to concrete backend categories', () => {
@@ -206,10 +206,11 @@ test('buildPoiSearchRequest skips empty keyword but does not require current pos
 
 test('category filters expose stable icon names for map controls', () => {
   assert.equal(CATEGORY_FILTERS.length, 11)
-  assert.deepEqual(CATEGORY_FILTERS.slice(1).map((filter) => filter.categories[0]), SERVICE_CATEGORY_CODES)
+  assert.deepEqual(CATEGORY_FILTERS[0].categories, SERVICE_CATEGORY_CODES)
+  assert.deepEqual(CATEGORY_FILTERS.slice(1).map((filter) => filter.categories), SERVICE_CATEGORY_CODES.map((code) => [code]))
   assert.deepEqual(
     CATEGORY_FILTERS.slice(1).map((filter) => filter.label),
-    ['카페', '음식점 / 맛집', '편의점', '공원 / 산책로', '문화시설 / 전시 / 팝업', '쇼핑 / 소품샵 / 편집샵', '관광명소 / 포토스팟', '학교 / 학원', '마트', '숙박 / 호텔']
+    ['카페', '음식점 / 맛집', '문화시설 / 전시 / 팝업', '관광명소 / 포토스팟', '쇼핑 / 소품샵 / 편집샵', '숙박 / 호텔', '공원 / 산책로', '편의점', '마트', '학교 / 학원']
   )
   assert.deepEqual(
     CATEGORY_FILTERS.map((filter) => filter.iconName),
@@ -217,14 +218,14 @@ test('category filters expose stable icon names for map controls', () => {
       'mapPinned',
       'coffee',
       'utensils',
-      'store',
-      'trees',
       'landmark',
-      'shoppingBag',
       'camera',
-      'graduationCap',
-      'shoppingCart',
+      'shoppingBag',
       'hotel',
+      'trees',
+      'store',
+      'shoppingCart',
+      'graduationCap',
     ]
   )
 })

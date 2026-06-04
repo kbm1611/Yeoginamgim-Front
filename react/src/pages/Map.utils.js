@@ -47,14 +47,14 @@ export const MAP_RESULT_VIEWPORT_PADDING = {
 const PLACE_CATEGORY_DEFINITIONS = [
   { code: 'CE7', label: '카페', iconName: 'coffee', aliases: ['cafe', 'coffee', '커피'] },
   { code: 'FD6', label: '음식점 / 맛집', iconName: 'utensils', aliases: ['food', 'restaurant', 'dining', '맛집', '음식', '음식점', '식당'] },
-  { code: 'CS2', label: '편의점', iconName: 'store', aliases: ['convenience', 'convenience_store', 'store'] },
-  { code: 'PARK', label: '공원 / 산책로', iconName: 'trees', aliases: ['park', 'trail', 'walk', 'walking_trail', '공원', '산책로', '둘레길'] },
   { code: 'CULTURE', label: '문화시설 / 전시 / 팝업', iconName: 'landmark', aliases: ['CT1', 'culture', 'cultural_facility', 'exhibition', 'popup', '문화', '문화시설', '전시', '팝업', '팝업스토어'] },
-  { code: 'SHOPPING', label: '쇼핑 / 소품샵 / 편집샵', iconName: 'shoppingBag', aliases: ['shopping', 'shop', 'select_shop', 'lifestyle_shop', '쇼핑', '소품샵', '편집샵', '상점'] },
   { code: 'AT4', label: '관광명소 / 포토스팟', iconName: 'camera', aliases: ['attraction', 'tour', 'tourist_attraction', 'photo_spot', '관광', '관광명소', '명소', '포토스팟', '사진명소'] },
-  { code: 'EDU', label: '학교 / 학원', iconName: 'graduationCap', aliases: ['SC4', 'AC5', 'school', 'academy', 'hagwon', '학교', '학원'] },
-  { code: 'MT1', label: '마트', iconName: 'shoppingCart', aliases: ['mart', 'large_mart', 'largemart', 'market', 'supermarket', '대형마트', '마트'] },
+  { code: 'SHOPPING', label: '쇼핑 / 소품샵 / 편집샵', iconName: 'shoppingBag', aliases: ['shopping', 'shop', 'select_shop', 'lifestyle_shop', '쇼핑', '소품샵', '편집샵', '상점'] },
   { code: 'AD5', label: '숙박 / 호텔', iconName: 'hotel', aliases: ['lodging', 'accommodation', 'hotel', '숙박', '호텔'] },
+  { code: 'PARK', label: '공원 / 산책로', iconName: 'trees', aliases: ['park', 'trail', 'walk', 'walking_trail', '공원', '산책로', '둘레길'] },
+  { code: 'CS2', label: '편의점', iconName: 'store', aliases: ['convenience', 'convenience_store', 'store'] },
+  { code: 'MT1', label: '마트', iconName: 'shoppingCart', aliases: ['mart', 'large_mart', 'largemart', 'market', 'supermarket', '대형마트', '마트'] },
+  { code: 'EDU', label: '학교 / 학원', iconName: 'graduationCap', aliases: ['SC4', 'AC5', 'school', 'academy', 'hagwon', '학교', '학원'] },
 ]
 
 const ALL_PLACE_CATEGORY_VALUES = PLACE_CATEGORY_DEFINITIONS.map((category) => category.code)
