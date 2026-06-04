@@ -10,6 +10,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { fetchBoardDetail } from '../api/boards'
 import { API_BASE_URL } from '../api/client'
 import { createTraceReport } from '../api/reports'
 import { addTraceLike, fetchBoardTraces, removeTraceLike } from '../api/traces'
@@ -70,6 +71,11 @@ function formatDateLabel(dateText) {
   ).padStart(2, '0')}`
 }
 
+function toDisplayTraceCount(traceCount) {
+  const count = Number(traceCount)
+  return Number.isFinite(count) ? count : 0
+}
+
 function traceToPost(trace) {
   const element = trace.elements?.[0] ?? {}
   const style = parseStyleJson(element.styleJson)
@@ -107,6 +113,8 @@ function traceToPost(trace) {
 }
 
 function BoardHeader({ placeName, traceCount, onBack }) {
+  const displayTraceCount = toDisplayTraceCount(traceCount)
+
   return (
     <div className="flex items-center justify-between bg-[#F5EFE6] px-4 pb-2 pt-3">
       <button
@@ -123,7 +131,7 @@ function BoardHeader({ placeName, traceCount, onBack }) {
           <span className="text-[16px] font-bold text-[#3B2A1E]">{placeName}</span>
           <ChevronRight size={15} strokeWidth={2.2} className="text-[#3B2A1E]" />
         </button>
-        <p className="text-[12px] text-[#8B7A6B]">흔적 {traceCount}개</p>
+        <p className="text-[12px] text-[#8B7A6B]">흔적 {displayTraceCount}개</p>
       </div>
 
       <div className="flex items-center gap-1">
@@ -204,6 +212,7 @@ function BoardDetail() {
   const boardId = id ?? 'default'
 
   const [sort, setSort] = useState('latest')
+  const [boardDetail, setBoardDetail] = useState(null)
   const [posts, setPosts] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
@@ -213,9 +222,35 @@ function BoardDetail() {
   useEffect(() => {
     let ignore = false
 
+    async function loadBoardDetail() {
+      setBoardDetail(null)
+
+      try {
+        const detail = await fetchBoardDetail(boardId)
+        if (!ignore) {
+          setBoardDetail(detail)
+        }
+      } catch {
+        if (!ignore) {
+          setBoardDetail(null)
+        }
+      }
+    }
+
+    loadBoardDetail()
+
+    return () => {
+      ignore = true
+    }
+  }, [boardId])
+
+  useEffect(() => {
+    let ignore = false
+
     async function loadTraces() {
       setIsLoading(true)
       setErrorMessage('')
+      setPosts([])
 
       try {
         const data = await fetchBoardTraces(boardId, { sort, limit: 100 })
@@ -240,6 +275,9 @@ function BoardDetail() {
       ignore = true
     }
   }, [boardId, sort])
+
+  const headerPlaceName = boardDetail?.place?.placeName ?? id ?? '장소 보드'
+  const headerTraceCount = boardDetail?.traceCount ?? posts.length
 
   const handleAdd = () => navigate(`/board/${boardId}/postit`)
 
@@ -310,8 +348,8 @@ function BoardDetail() {
   return (
     <main className="app-device flex flex-col overflow-hidden">
       <BoardHeader
-        placeName={id ?? '장소 보드'}
-        traceCount={posts.length}
+        placeName={headerPlaceName}
+        traceCount={headerTraceCount}
         onBack={() => navigate(-1)}
       />
 

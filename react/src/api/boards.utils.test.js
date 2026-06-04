@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { buildBoardRequestFromPlace, resolveBoardForPlace } from './boards.utils.js'
+import { buildBoardRequestFromPlace, normalizeBoardDetail, resolveBoardForPlace } from './boards.utils.js'
 
 test('resolveBoardForPlace returns existing board id without backend calls', async () => {
   let didFetch = false
@@ -73,4 +73,16 @@ test('resolveBoardForPlace preserves non-404 lookup failures', async () => {
     serverError
   )
   assert.equal(didCreate, false)
+})
+
+test('normalizeBoardDetail keeps traceCount as a safe number', () => {
+  assert.deepEqual(normalizeBoardDetail({ boardId: 11, traceCount: '12' }), {
+    boardId: 11,
+    traceCount: 12,
+  })
+
+  assert.deepEqual(normalizeBoardDetail({ boardId: 11 }), {
+    boardId: 11,
+    traceCount: null,
+  })
 })

@@ -11,6 +11,17 @@ export function buildBoardRequestFromPlace(place) {
   }
 }
 
+export function normalizeBoardDetail(board) {
+  if (!board || typeof board !== 'object') {
+    return { traceCount: null }
+  }
+
+  return {
+    ...board,
+    traceCount: toSafeNumber(board.traceCount),
+  }
+}
+
 export async function resolveBoardForPlace(
   place,
   { fetchBoardByKakaoPlaceId, createBoard }
@@ -33,4 +44,13 @@ export async function resolveBoardForPlace(
 
 function hasBoardId(boardId) {
   return boardId !== null && boardId !== undefined && String(boardId).trim() !== ''
+}
+
+function toSafeNumber(value) {
+  if (value === null || value === undefined || String(value).trim() === '') {
+    return null
+  }
+
+  const number = Number(value)
+  return Number.isFinite(number) ? number : null
 }
