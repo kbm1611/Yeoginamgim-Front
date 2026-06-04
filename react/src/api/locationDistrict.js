@@ -1,5 +1,5 @@
 import { ensureKakaoMaps } from './kakaoMaps.js'
-import { isSeoulDistrict } from '../pages/HomePage.utils.js'
+import { isSupportedDistrict } from '../pages/HomePage.utils.js'
 
 const DISTRICT_CACHE_KEY = 'yeoginamgim.currentDistrict'
 const DISTRICT_CACHE_TTL_MS = 30 * 60 * 1000
@@ -10,7 +10,7 @@ export function readCachedDistrict() {
     if (!rawValue) return null
 
     const cached = JSON.parse(rawValue)
-    if (!cached?.district || !cached?.checkedAt || !isSeoulDistrict(cached.district)) {
+    if (!cached?.district || !cached?.checkedAt || !isSupportedDistrict(cached.district)) {
       window.localStorage.removeItem(DISTRICT_CACHE_KEY)
       return null
     }
@@ -40,7 +40,7 @@ export async function resolveCurrentDistrict({ forceRefresh = false } = {}) {
     const longitude = position.coords.longitude
     const district = await reverseGeocodeDistrict(latitude, longitude)
 
-    if (!isSeoulDistrict(district)) return null
+    if (!isSupportedDistrict(district)) return null
 
     const resolvedDistrict = {
       district,
@@ -89,8 +89,19 @@ async function reverseGeocodeDistrict(latitude, longitude) {
 export function extractDistrictFromAddressResult(result) {
   if (!Array.isArray(result) || result.length === 0) return null
 
-  const firstResult = result[0]
-  return firstResult.road_address?.region_2depth_name
-    ?? firstResult.address?.region_2depth_name
-    ?? null
+  return extractSupportedDistrict(result[0].road_address) ?? extractSupportedDistrict(result[0].address) ?? null
+}
+
+function extractSupportedDistrict(address) {
+  if (!address) return null
+
+  const region2 = String(address.region_2depth_name ?? '').trim()
+  const region3 = String(address.region_3depth_name ?? '').trim()
+  const combined = [region2, region3].filter(Boolean).join(' ')
+
+  if (isSupportedDistrict(combined)) return combined
+  if (isSupportedDistrict(region2)) return region2
+  if (isSupportedDistrict(region3)) return region3
+
+  return null
 }
