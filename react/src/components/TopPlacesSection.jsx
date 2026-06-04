@@ -3,6 +3,7 @@ import { ChevronRight, Loader2, RefreshCw, UserRound } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { fetchOrCreateBoardForPlace } from '../api/boards'
 import { fetchPopularPlaces } from '../api/places'
+import { ALL_DISTRICTS_LABEL, buildHomePlaceParams } from '../pages/HomePage.utils'
 
 const fallbackImages = [
   'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=900&q=80',
@@ -13,11 +14,13 @@ const fallbackImages = [
 ]
 
 const categoryLabels = {
+  CE7: '카페',
+  FD6: '맛집',
+  AT4: '관광명소',
+  CT1: '문화공간',
   cafe: '카페',
   food: '맛집',
-  shop: '편집샵',
-  park: '공원',
-  culture: '문화',
+  culture: '문화공간',
 }
 
 function toTopPlace(place, index) {
@@ -41,13 +44,13 @@ function toTopPlace(place, index) {
     rank: place.rank ?? index + 1,
     name: placeName,
     category: categoryLabels[groupName] ?? groupName ?? '공간',
-    quote: address || '사람들이 오래 기억한 공간이에요.',
+    quote: address || '사람들이 기억을 남긴 공간이에요.',
     traces: place.traceCount ?? 0,
     image: fallbackImages[index % fallbackImages.length],
   }
 }
 
-function TopPlacesSection({ districtInfo, locationStatus = 'idle', onRefreshDistrict }) {
+function TopPlacesSection({ period, district, locationStatus = 'idle', onRefreshDistrict }) {
   const navigate = useNavigate()
   const isMountedRef = useRef(false)
   const [places, setPlaces] = useState([])
@@ -55,7 +58,7 @@ function TopPlacesSection({ districtInfo, locationStatus = 'idle', onRefreshDist
   const [errorMessage, setErrorMessage] = useState('')
   const [openingPlaceId, setOpeningPlaceId] = useState(null)
   const [boardError, setBoardError] = useState('')
-  const district = districtInfo?.district
+  const districtLabel = district || ALL_DISTRICTS_LABEL
 
   useEffect(() => {
     isMountedRef.current = true
@@ -78,7 +81,7 @@ function TopPlacesSection({ districtInfo, locationStatus = 'idle', onRefreshDist
       setBoardError('')
 
       try {
-        const popularPlaces = await fetchPopularPlaces({ district, limit: 5 })
+        const popularPlaces = await fetchPopularPlaces(buildHomePlaceParams({ period, district: districtLabel }))
         if (ignored) return
 
         setPlaces(popularPlaces.map(toTopPlace))
@@ -97,7 +100,7 @@ function TopPlacesSection({ districtInfo, locationStatus = 'idle', onRefreshDist
     return () => {
       ignored = true
     }
-  }, [district, locationStatus])
+  }, [districtLabel, locationStatus, period])
 
   const handleShowMore = () => {
     navigate('/map')
@@ -136,15 +139,16 @@ function TopPlacesSection({ districtInfo, locationStatus = 'idle', onRefreshDist
     }
   }
 
-  const title = district ? `${district} 인기 공간 TOP 5` : '인기 공간 TOP 5'
-  const description = district
-    ? `${district}에서 사람들이 오래 기억한 공간들이에요.`
-    : '사람들이 오래 기억한 공간들이에요.'
+  const title = `${districtLabel} 인기 공간 TOP 5`
+  const description =
+    districtLabel === ALL_DISTRICTS_LABEL
+      ? '사람들이 오늘 많이 남긴 공간들이에요.'
+      : `${districtLabel}에서 오늘 많이 기록된 공간들이에요.`
 
   return (
     <section className="pt-4">
       <div className="mb-2 flex items-center justify-between px-5">
-        <h2 className="text-[30px] font-bold tracking-[-0.015em] text-[#2B1810]">{title}</h2>
+        <h2 className="text-[24px] font-bold tracking-[-0.015em] text-[#2B1810]">{title}</h2>
         <div className="flex items-center gap-1">
           <button
             type="button"
@@ -156,12 +160,8 @@ function TopPlacesSection({ districtInfo, locationStatus = 'idle', onRefreshDist
           >
             <RefreshCw size={15} className={locationStatus === 'loading' ? 'animate-spin' : ''} />
           </button>
-          <button
-            type="button"
-            onClick={handleShowMore}
-            className="flex items-center text-[13px] font-medium text-[#7D6E62]"
-          >
-            더보기
+          <button type="button" onClick={handleShowMore} className="flex items-center text-[13px] font-medium text-[#7D6E62]">
+            지도보기
             <ChevronRight size={15} />
           </button>
         </div>
@@ -174,71 +174,43 @@ function TopPlacesSection({ districtInfo, locationStatus = 'idle', onRefreshDist
         </div>
       ) : null}
 
-      {status === 'loading' && (
-        <div className="mx-5 mb-3 rounded-[12px] bg-white px-4 py-6 text-center text-[13px] text-[#7D6E62] shadow-[0_5px_14px_rgba(0,0,0,0.05)]">
-          인기 공간을 불러오는 중입니다.
-        </div>
-      )}
-
-      {status === 'error' && (
-        <div className="mx-5 mb-3 rounded-[12px] bg-white px-4 py-6 text-center text-[13px] text-[#7D6E62] shadow-[0_5px_14px_rgba(0,0,0,0.05)]">
-          {errorMessage}
-        </div>
-      )}
-
-      {status === 'ready' && places.length === 0 && (
-        <div className="mx-5 mb-3 rounded-[12px] bg-white px-4 py-6 text-center text-[13px] text-[#7D6E62] shadow-[0_5px_14px_rgba(0,0,0,0.05)]">
-          {district ? `${district}의 인기 공간이 아직 없습니다.` : '인기 공간이 아직 없습니다.'}
-        </div>
-      )}
+      {status === 'loading' && <StatusCard message="인기 공간을 불러오는 중입니다." />}
+      {status === 'error' && <StatusCard message={errorMessage} />}
+      {status === 'ready' && places.length === 0 && <StatusCard message={`${districtLabel}의 인기 공간이 아직 없습니다.`} />}
 
       {status === 'ready' && places.length > 0 && (
-        <div className="scrollbar-hide flex gap-2.5 overflow-x-scroll px-5 pb-3">
+        <div className="space-y-2 px-5 pb-3">
           {places.map((place) => {
             const isOpening = openingPlaceId === place.id
 
             return (
-              <article
-                key={place.id}
-                className="w-[122px] shrink-0 overflow-hidden rounded-[16px] bg-white shadow-[0_5px_14px_rgba(0,0,0,0.08)] transition active:scale-[0.99]"
-              >
+              <article key={place.id} className="overflow-hidden rounded-[16px] bg-white shadow-[0_5px_14px_rgba(0,0,0,0.08)]">
                 <button
                   type="button"
                   onClick={() => handleOpenPlace(place)}
                   disabled={openingPlaceId !== null}
                   aria-busy={isOpening}
                   aria-label={`${place.name} 보드 열기`}
-                  className="block h-full w-full text-left disabled:cursor-wait disabled:opacity-80"
+                  className="flex w-full items-center gap-3 px-3 py-2.5 text-left disabled:cursor-wait disabled:opacity-80"
                 >
-                  <div className="relative aspect-square overflow-hidden">
-                    <img src={place.image} alt={place.name} className="h-full w-full object-cover" />
-                    <span className="absolute left-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-[#3E2A1E] text-[10px] font-bold text-white">
-                      {place.rank}
-                    </span>
-                  </div>
-
-                  <div className="bg-white px-2.5 pb-2.5 pt-2">
-                    <h3 className="truncate text-[13px] font-medium leading-tight text-[#2F2118]">{place.name}</h3>
-                    <span className="mt-1 inline-block rounded-[8px] bg-[#F3EEE7] px-1.5 py-0.5 text-[10px] text-[#7E6E62]">
-                      {place.category}
-                    </span>
-                    <p className="mt-1.5 line-clamp-2 text-[11px] font-normal leading-[1.35] text-[#66564A]">
-                      "{place.quote}"
-                    </p>
-                    <p className="mt-1.5 flex min-h-[16px] items-center gap-0.5 text-[11px] font-normal text-[#8A7A6D]">
-                      {isOpening ? (
-                        <>
-                          <Loader2 size={11} strokeWidth={1.8} className="animate-spin" />
-                          <span>보드로 이동 중</span>
-                        </>
-                      ) : (
-                        <>
-                          <UserRound size={11} strokeWidth={1.7} />
-                          <span>{place.traces}개의 흔적</span>
-                        </>
-                      )}
-                    </p>
-                  </div>
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F2EAFE] text-[15px] font-bold text-[#7B55F6]">
+                    {place.rank}
+                  </span>
+                  <img src={place.image} alt={place.name} className="h-16 w-20 shrink-0 rounded-[12px] object-cover" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[16px] font-bold text-[#2F2118]">{place.name}</span>
+                    <span className="mt-1 block truncate text-[12px] text-[#7E6E62]">{place.quote}</span>
+                  </span>
+                  <span className="flex min-h-[42px] w-[88px] shrink-0 items-center justify-center rounded-[12px] bg-[#F2EAFE] px-2 text-center text-[12px] font-bold text-[#7B55F6]">
+                    {isOpening ? (
+                      <Loader2 size={15} strokeWidth={1.8} className="animate-spin" />
+                    ) : (
+                      <>
+                        <UserRound size={13} strokeWidth={1.7} />
+                        <span className="ml-1">{place.traces}</span>
+                      </>
+                    )}
+                  </span>
                 </button>
               </article>
             )
@@ -246,6 +218,14 @@ function TopPlacesSection({ districtInfo, locationStatus = 'idle', onRefreshDist
         </div>
       )}
     </section>
+  )
+}
+
+function StatusCard({ message }) {
+  return (
+    <div className="mx-5 mb-3 rounded-[12px] bg-white px-4 py-6 text-center text-[13px] text-[#7D6E62] shadow-[0_5px_14px_rgba(0,0,0,0.05)]">
+      {message}
+    </div>
   )
 }
 
