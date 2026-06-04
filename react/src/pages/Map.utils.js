@@ -538,11 +538,7 @@ export function getPlaceInfoRows(place) {
     place.groupName !== PLACE_CATEGORY_META.default.label ? place.groupName : '',
     categoryMeta.label !== PLACE_CATEGORY_META.default.label ? categoryMeta.label : ''
   )
-  const traceCount = Number(place.traceCount)
-  const traceCountValue = Number.isFinite(traceCount) ? `${traceCount}개` : '0개'
-
   return [
-    createPlaceInfoRow('흔적', traceCountValue),
     createPlaceInfoRow('주소', place.address),
     createPlaceInfoRow('카테고리', categoryLabel),
     createPlaceInfoRow('전화', place.phone),

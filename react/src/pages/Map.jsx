@@ -10,6 +10,7 @@ import {
   ChevronUp,
   CircleParking,
   Coffee,
+  ClipboardList,
   Fuel,
   GraduationCap,
   Hospital,
@@ -1203,6 +1204,8 @@ function SelectedPlacePanel({
   const rows = getPlaceInfoRows(place)
   const meta = getPlaceCategoryMeta(place.categoryKey)
   const PlaceIcon = CATEGORY_ICON_COMPONENTS[meta.iconName] ?? MapPinned
+  const traceCount = Number(place.traceCount)
+  const traceCountLabel = Number.isFinite(traceCount) ? `${traceCount}개` : '0개'
 
   return (
     <aside
@@ -1222,7 +1225,11 @@ function SelectedPlacePanel({
           <p className="mt-1 truncate text-[12px] font-medium text-[#7A6558]">{place.groupName || '장소'}</p>
         </div>
 
-        <div className="flex shrink-0 items-center">
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="inline-flex items-center gap-1 rounded-full bg-[#FFF8ED] px-2.5 py-1 text-[11px] font-semibold text-[#7A5A2E]">
+            <ClipboardList size={11} strokeWidth={1.8} />
+            흔적 {traceCountLabel}
+          </span>
           <button
             type="button"
             onClick={onClose}

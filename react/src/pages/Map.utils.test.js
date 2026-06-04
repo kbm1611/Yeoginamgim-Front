@@ -289,7 +289,7 @@ test('normalizePlaces keeps ambiguous lookup results styled by request category'
   assert.notEqual(place.categoryKey, 'default')
 })
 
-test('getPlaceInfoRows includes zero trace count for selected place facts', () => {
+test('getPlaceInfoRows returns selected place facts without trace count row', () => {
   const rows = getPlaceInfoRows({
     placeName: 'Seongsu Cafe',
     groupName: '카페',
@@ -300,7 +300,6 @@ test('getPlaceInfoRows includes zero trace count for selected place facts', () =
   })
 
   assert.deepEqual(rows, [
-    { label: '흔적', value: '0개' },
     { label: '주소', value: '서울 성동구' },
     { label: '카테고리', value: '카페' },
     { label: '거리', value: '120m' },

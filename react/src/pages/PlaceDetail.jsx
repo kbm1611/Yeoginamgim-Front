@@ -88,24 +88,16 @@ function PlaceInfoCard({ place, traceStatus }) {
 
   return (
     <section className="mx-5 mt-5 rounded-[16px] border border-[#EBE1D6] bg-white px-4 py-4 shadow-[0_2px_8px_rgba(60,42,30,0.07)]">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <span className="inline-flex items-center gap-1 rounded-full bg-[#FFF8ED] px-3 py-1.5 text-[13px] font-semibold text-[#7A5A2E]">
-          <ClipboardList size={13} strokeWidth={1.7} />
-          흔적 {traceCountText}
-        </span>
-        <button
-          type="button"
-          className="flex shrink-0 items-center gap-1.5 rounded-xl border border-[#E0D4C5] bg-[#F5F0EA] px-3 py-1.5 text-[13px] font-medium text-[#5C4A3B]"
-        >
-          <Bookmark size={13} strokeWidth={1.8} />
-          저장 {place.savedCount ?? 0}
-        </button>
-      </div>
-
       <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <h1 className="min-w-0 truncate text-[24px] font-bold leading-tight text-[#3B2A1E]">{place.name}</h1>
-          <Star size={18} className="shrink-0 fill-[#F5C842] text-[#F5C842]" />
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex items-center gap-2">
+            <h1 className="min-w-0 truncate text-[24px] font-bold leading-tight text-[#3B2A1E]">{place.name}</h1>
+            <Star size={18} className="shrink-0 fill-[#F5C842] text-[#F5C842]" />
+          </div>
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#FFF8ED] px-2.5 py-1 text-[11px] font-semibold text-[#7A5A2E]">
+            <ClipboardList size={11} strokeWidth={1.8} />
+            흔적 {traceCountText}
+          </span>
         </div>
         <div className="mt-2 flex min-w-0 items-center gap-1.5 text-[13px] text-[#8B7A6B]">
           <MapPin size={13} className="shrink-0 text-[#B0957C]" />
@@ -115,6 +107,13 @@ function PlaceInfoCard({ place, traceStatus }) {
           <span className="rounded-full bg-[#F5F0EA] px-2.5 py-1 text-[12px] font-medium text-[#6B5344]">
             {place.category || '카테고리 없음'}
           </span>
+          <button
+            type="button"
+            className="flex shrink-0 items-center gap-1 rounded-full border border-[#E0D4C5] bg-[#F5F0EA] px-2.5 py-1 text-[12px] font-medium text-[#5C4A3B]"
+          >
+            <Bookmark size={12} strokeWidth={1.8} />
+            저장 {place.savedCount ?? 0}
+          </button>
         </div>
       </div>
 
