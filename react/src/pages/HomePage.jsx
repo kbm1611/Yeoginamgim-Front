@@ -4,34 +4,40 @@ import HomeFilters from '../components/HomeFilters'
 import TopPlacesSection from '../components/TopPlacesSection'
 import RecentTracesSection from '../components/RecentTracesSection'
 import { resolveCurrentDistrict } from '../api/locationDistrict'
+import { DEFAULT_HOME_PERIOD, normalizeHomeDistrict } from './HomePage.utils'
 
 function HomePage() {
-  const [activeCategory, setActiveCategory] = useState('전체')
-  const [districtInfo, setDistrictInfo] = useState(null)
+  const [period, setPeriod] = useState(DEFAULT_HOME_PERIOD)
+  const [selectedDistrict, setSelectedDistrict] = useState('전체')
+  const [currentDistrict, setCurrentDistrict] = useState('전체')
   const [locationStatus, setLocationStatus] = useState('loading')
+
+  const applyDistrictInfo = useCallback((nextDistrictInfo) => {
+    const district = normalizeHomeDistrict(nextDistrictInfo)
+    setCurrentDistrict(district)
+    setSelectedDistrict(district)
+    setLocationStatus(district === '전체' ? 'unavailable' : 'ready')
+    return district
+  }, [])
 
   const refreshDistrict = useCallback(async ({ forceRefresh = false } = {}) => {
     setLocationStatus('loading')
     const nextDistrictInfo = await resolveCurrentDistrict({ forceRefresh })
-    setDistrictInfo(nextDistrictInfo)
-    setLocationStatus(nextDistrictInfo ? 'ready' : 'unavailable')
-    return nextDistrictInfo
-  }, [])
+    return applyDistrictInfo(nextDistrictInfo)
+  }, [applyDistrictInfo])
 
   useEffect(() => {
     let ignored = false
 
     resolveCurrentDistrict().then((nextDistrictInfo) => {
       if (ignored) return
-
-      setDistrictInfo(nextDistrictInfo)
-      setLocationStatus(nextDistrictInfo ? 'ready' : 'unavailable')
+      applyDistrictInfo(nextDistrictInfo)
     })
 
     return () => {
       ignored = true
     }
-  }, [])
+  }, [applyDistrictInfo])
 
   return (
     <motion.div
@@ -42,18 +48,21 @@ function HomePage() {
       transition={{ duration: 0.2 }}
     >
       <HomeFilters
-        activeCategory={activeCategory}
-        locationLabel={districtInfo?.district ?? '전체 지역'}
+        period={period}
+        selectedDistrict={selectedDistrict}
+        currentDistrict={currentDistrict}
         isLocationLoading={locationStatus === 'loading'}
-        onCategoryChange={setActiveCategory}
+        onPeriodChange={setPeriod}
+        onDistrictChange={setSelectedDistrict}
         onRefreshLocation={() => refreshDistrict({ forceRefresh: true })}
       />
       <TopPlacesSection
-        districtInfo={districtInfo}
+        period={period}
+        district={selectedDistrict}
         locationStatus={locationStatus}
         onRefreshDistrict={() => refreshDistrict({ forceRefresh: true })}
       />
-      <RecentTracesSection />
+      <RecentTracesSection period={period} district={selectedDistrict} />
     </motion.div>
   )
 }
