@@ -1,4 +1,5 @@
-import { ensureKakaoMaps } from './kakaoMaps'
+import { ensureKakaoMaps } from './kakaoMaps.js'
+import { isSeoulDistrict } from '../pages/HomePage.utils.js'
 
 const DISTRICT_CACHE_KEY = 'yeoginamgim.currentDistrict'
 const DISTRICT_CACHE_TTL_MS = 30 * 60 * 1000
@@ -9,7 +10,10 @@ export function readCachedDistrict() {
     if (!rawValue) return null
 
     const cached = JSON.parse(rawValue)
-    if (!cached?.district || !cached?.checkedAt) return null
+    if (!cached?.district || !cached?.checkedAt || !isSeoulDistrict(cached.district)) {
+      window.localStorage.removeItem(DISTRICT_CACHE_KEY)
+      return null
+    }
 
     const checkedAt = new Date(cached.checkedAt).getTime()
     if (Number.isNaN(checkedAt) || Date.now() - checkedAt > DISTRICT_CACHE_TTL_MS) {
@@ -36,7 +40,7 @@ export async function resolveCurrentDistrict({ forceRefresh = false } = {}) {
     const longitude = position.coords.longitude
     const district = await reverseGeocodeDistrict(latitude, longitude)
 
-    if (!district) return null
+    if (!isSeoulDistrict(district)) return null
 
     const resolvedDistrict = {
       district,
@@ -77,12 +81,16 @@ async function reverseGeocodeDistrict(latitude, longitude) {
         return
       }
 
-      const firstResult = result[0]
-      resolve(
-        firstResult.road_address?.region_2depth_name
-          ?? firstResult.address?.region_2depth_name
-          ?? null
-      )
+      resolve(extractDistrictFromAddressResult(result))
     })
   })
+}
+
+export function extractDistrictFromAddressResult(result) {
+  if (!Array.isArray(result) || result.length === 0) return null
+
+  const firstResult = result[0]
+  return firstResult.road_address?.region_2depth_name
+    ?? firstResult.address?.region_2depth_name
+    ?? null
 }
