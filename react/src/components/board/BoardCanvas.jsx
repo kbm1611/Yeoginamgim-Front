@@ -1,20 +1,10 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState } from 'react'
 import { Flag, Heart } from 'lucide-react'
 import { TransformComponent, TransformWrapper } from 'react-zoom-pan-pinch'
 import postitYellow from '../../assets/postit/postit.png'
 import polaroidBg from '../../assets/poloaroid/폴라로이드.png'
 
-import { CANVAS_W, COL_X, ROW_H, COL_STAGGER, CARD_W as CARD_W_CONST } from './PlacementOverlay'
-
-const POSTIT_COLOR = {
-  white: '#F8F6F0',
-  yellow: '#F3D98E',
-  pink: '#EEB7C6',
-  green: '#D2D4A2',
-  peach: '#E6B2A6',
-  cream: '#F0EAD6',
-  lavender: '#D4C8F0',
-}
+import { CANVAS_W, COL_X, ROW_H, COL_STAGGER, CARD_W as CARD_W_CONST } from './PlacementGrid'
 
 const TAPE_COLORS = [
   'rgba(243,217,142,0.80)',
@@ -34,15 +24,6 @@ const REPORT_REASONS = [
 function seeded(n) {
   const x = Math.sin(n + 1.5) * 10000
   return x - Math.floor(x)
-}
-
-function resolvePaperColor(style = {}) {
-  const paperColor = style.paperColor
-  if (typeof paperColor === 'string' && paperColor.startsWith('#')) return paperColor
-  if (paperColor && POSTIT_COLOR[paperColor]) return POSTIT_COLOR[paperColor]
-  if (typeof style.backgroundColor === 'string') return style.backgroundColor
-
-  return POSTIT_COLOR.yellow
 }
 
 function layoutPosts(posts) {

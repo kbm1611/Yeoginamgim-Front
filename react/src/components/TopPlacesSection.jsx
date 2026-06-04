@@ -15,12 +15,23 @@ const fallbackImages = [
 
 const categoryLabels = {
   CE7: '카페',
-  FD6: '맛집',
-  AT4: '관광명소',
-  CT1: '문화공간',
+  FD6: '음식점 / 맛집',
+  CS2: '편의점',
+  PARK: '공원 / 산책로',
+  CULTURE: '문화시설 / 전시 / 팝업',
+  SHOPPING: '쇼핑 / 소품샵 / 편집샵',
+  AT4: '관광명소 / 포토스팟',
+  EDU: '학교 / 학원',
+  MT1: '마트',
+  AD5: '숙박 / 호텔',
+  CT1: '문화시설 / 전시 / 팝업',
+  SC4: '학교 / 학원',
+  AC5: '학교 / 학원',
   cafe: '카페',
-  food: '맛집',
-  culture: '문화공간',
+  food: '음식점 / 맛집',
+  culture: '문화시설 / 전시 / 팝업',
+  park: '공원 / 산책로',
+  shopping: '쇼핑 / 소품샵 / 편집샵',
 }
 
 function toTopPlace(place, index) {

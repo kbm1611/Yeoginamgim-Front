@@ -41,7 +41,7 @@ import { fetchNearbyPlaces, fetchPoiPlaces, fetchPopularPlaces } from '../api/pl
 import mainLogo from '../assets/logo/image_12-removebg-preview.png'
 import {
   buildNearbyPlaceRequests,
-  buildPoiSearchRequest,
+  buildPoiSearchRequests,
   buildPopularPlaceRequest,
   CATEGORY_FILTERS,
   DEFAULT_MAP_CENTER,
@@ -462,13 +462,13 @@ function MapPage() {
     setIsSheetOpen(false)
 
     const searchOrigin = locationStatus === 'success' ? currentPosition : null
-    const request = buildPoiSearchRequest({
+    const requests = buildPoiSearchRequests({
       query: trimmedQuery,
       latitude: searchOrigin?.latitude,
       longitude: searchOrigin?.longitude,
     })
 
-    if (!request) {
+    if (requests.length === 0) {
       setSearchPlaces([])
       setSearchStatus('error')
       setSearchError('검색어를 입력한 뒤 다시 검색해 주세요.')
@@ -484,7 +484,7 @@ function MapPage() {
     setSearchNotice('')
 
     try {
-      const response = await fetchPoiPlaces(request)
+      const response = await Promise.all(requests.map((request) => fetchPoiPlaces(request)))
       if (!isMountedRef.current || poiSearchRequestIdRef.current !== requestId) return
 
       const normalizedPlaces = normalizeSearchPlaces(response, searchOrigin, trimmedQuery, NEARBY_LIMIT)

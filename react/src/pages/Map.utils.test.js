@@ -4,6 +4,7 @@ import {
   buildBoardRequestFromPlace,
   buildNearbyPlaceRequests,
   buildPoiSearchRequest,
+  buildPoiSearchRequests,
   buildPopularPlaceRequest,
   CATEGORY_FILTERS,
   MAP_BOTTOM_SHEET_BOTTOM_OFFSET_PX,
@@ -45,45 +46,29 @@ import {
 } from './Map.utils.js'
 
 const KAKAO_CATEGORY_CODES = [
-  'CT1',
-  'FD6',
   'CE7',
-  'AT4',
+  'FD6',
   'CS2',
+  'PARK',
+  'CULTURE',
+  'SHOPPING',
+  'AT4',
+  'EDU',
   'MT1',
-  'SW8',
-  'PK6',
-  'BK9',
-  'HP8',
-  'PM9',
-  'SC4',
-  'AC5',
-  'PS3',
-  'PO3',
-  'AG2',
   'AD5',
-  'OL7',
 ]
 
 const SERVICE_CATEGORY_CODES = [
   'CE7',
   'FD6',
-  'CT1',
-  'AT4',
   'CS2',
+  'PARK',
+  'CULTURE',
+  'SHOPPING',
+  'AT4',
+  'EDU',
   'MT1',
-  'SW8',
-  'PK6',
-  'BK9',
-  'HP8',
-  'PM9',
-  'SC4',
-  'AC5',
-  'PS3',
-  'PO3',
-  'AG2',
   'AD5',
-  'OL7',
 ]
 
 test('buildNearbyPlaceRequests maps all filter to concrete backend categories', () => {
@@ -106,22 +91,30 @@ test('buildNearbyPlaceRequests maps visible category labels to backend values', 
   const [request] = buildNearbyPlaceRequests({
     latitude: 37.5447,
     longitude: 127.0559,
-    selectedCategory: '음식점',
+    selectedCategory: '음식점 / 맛집',
   })
 
   assert.equal(request.category, 'FD6')
   assert.equal(request.limit, 15)
 })
 
-test('buildNearbyPlaceRequests maps official Kakao category labels to backend codes', () => {
+test('buildNearbyPlaceRequests maps service category labels to backend values', () => {
   const [request] = buildNearbyPlaceRequests({
     latitude: 37.5447,
     longitude: 127.0559,
-    selectedCategory: '대형마트',
+    selectedCategory: '마트',
   })
 
   assert.equal(request.category, 'MT1')
   assert.equal(request.limit, 15)
+
+  const [educationRequest] = buildNearbyPlaceRequests({
+    latitude: 37.5447,
+    longitude: 127.0559,
+    selectedCategory: '학교 / 학원',
+  })
+
+  assert.equal(educationRequest.category, 'EDU')
 })
 
 test('buildNearbyPlaceRequests skips nearby lookup before a category is selected', () => {
@@ -211,11 +204,11 @@ test('buildPoiSearchRequest skips empty keyword but does not require current pos
 })
 
 test('category filters expose stable icon names for map controls', () => {
-  assert.equal(CATEGORY_FILTERS.length, 19)
+  assert.equal(CATEGORY_FILTERS.length, 11)
   assert.deepEqual(CATEGORY_FILTERS.slice(1).map((filter) => filter.categories[0]), SERVICE_CATEGORY_CODES)
   assert.deepEqual(
     CATEGORY_FILTERS.slice(1).map((filter) => filter.label),
-    ['카페', '음식점', '문화시설', '관광명소', '편의점', '대형마트', '지하철역', '주차장', '은행', '병원', '약국', '학교', '학원', '어린이집·유치원', '공공기관', '중개업소', '숙박', '주유소·충전소']
+    ['카페', '음식점 / 맛집', '편의점', '공원 / 산책로', '문화시설 / 전시 / 팝업', '쇼핑 / 소품샵 / 편집샵', '관광명소 / 포토스팟', '학교 / 학원', '마트', '숙박 / 호텔']
   )
   assert.deepEqual(
     CATEGORY_FILTERS.map((filter) => filter.iconName),
@@ -223,22 +216,14 @@ test('category filters expose stable icon names for map controls', () => {
       'mapPinned',
       'coffee',
       'utensils',
-      'landmark',
-      'map',
       'store',
-      'shoppingCart',
-      'trainFront',
-      'circleParking',
-      'banknote',
-      'hospital',
-      'pill',
-      'school',
+      'trees',
+      'landmark',
+      'shoppingBag',
+      'camera',
       'graduationCap',
-      'baby',
-      'building',
-      'building2',
+      'shoppingCart',
       'hotel',
-      'fuel',
     ]
   )
 })
@@ -246,24 +231,15 @@ test('category filters expose stable icon names for map controls', () => {
 test('inferPlaceCategoryKey handles Korean and English category values', () => {
   assert.equal(inferPlaceCategoryKey({ groupName: '\uB300\uD615\uB9C8\uD2B8' }), 'MT1')
   assert.equal(inferPlaceCategoryKey({ groupName: '\uD3B8\uC758\uC810' }), 'CS2')
-  assert.equal(inferPlaceCategoryKey({ groupName: '\uC5B4\uB9B0\uC774\uC9D1' }), 'PS3')
-  assert.equal(inferPlaceCategoryKey({ groupName: '\uC720\uCE58\uC6D0' }), 'PS3')
-  assert.equal(inferPlaceCategoryKey({ groupName: '\uD559\uAD50' }), 'SC4')
-  assert.equal(inferPlaceCategoryKey({ groupName: '\uD559\uC6D0' }), 'AC5')
-  assert.equal(inferPlaceCategoryKey({ groupName: '\uC8FC\uCC28\uC7A5' }), 'PK6')
-  assert.equal(inferPlaceCategoryKey({ groupName: '\uC8FC\uC720\uC18C' }), 'OL7')
-  assert.equal(inferPlaceCategoryKey({ groupName: '\uCDA9\uC804\uC18C' }), 'OL7')
-  assert.equal(inferPlaceCategoryKey({ groupName: '\uC9C0\uD558\uCCA0\uC5ED' }), 'SW8')
-  assert.equal(inferPlaceCategoryKey({ groupName: '\uC740\uD589' }), 'BK9')
-  assert.equal(inferPlaceCategoryKey({ groupName: '\uBB38\uD654\uC2DC\uC124' }), 'CT1')
-  assert.equal(inferPlaceCategoryKey({ groupName: '\uC911\uAC1C\uC5C5\uC18C' }), 'AG2')
-  assert.equal(inferPlaceCategoryKey({ groupName: '\uACF5\uACF5\uAE30\uAD00' }), 'PO3')
-  assert.equal(inferPlaceCategoryKey({ categoryName: '\uC5EC\uD589 > \uAD00\uAD11,\uBA85\uC18C > \uB3C4\uC2DC\uADFC\uB9B0\uACF5\uC6D0' }), 'AT4')
+  assert.equal(inferPlaceCategoryKey({ groupName: '\uD559\uAD50' }), 'EDU')
+  assert.equal(inferPlaceCategoryKey({ groupName: '\uD559\uC6D0' }), 'EDU')
+  assert.equal(inferPlaceCategoryKey({ groupName: '\uBB38\uD654\uC2DC\uC124' }), 'CULTURE')
+  assert.equal(inferPlaceCategoryKey({ categoryName: '\uC5EC\uD589 > \uAD00\uAD11,\uBA85\uC18C > \uB3C4\uC2DC\uADFC\uB9B0\uACF5\uC6D0' }), 'PARK')
+  assert.equal(inferPlaceCategoryKey({ categoryName: '\uC5EC\uD589 > \uAD00\uAD11,\uBA85\uC18C > \uD3EC\uD1A0\uC2A4\uD31F' }), 'AT4')
+  assert.equal(inferPlaceCategoryKey({ groupName: '\uC18C\uD488\uC0F5' }), 'SHOPPING')
   assert.equal(inferPlaceCategoryKey({ groupName: '\uC219\uBC15' }), 'AD5')
   assert.equal(inferPlaceCategoryKey({ category: '\uC74C\uC2DD\uC810' }), 'FD6')
   assert.equal(inferPlaceCategoryKey({ groupName: '\uCE74\uD398' }), 'CE7')
-  assert.equal(inferPlaceCategoryKey({ groupName: '\uBCD1\uC6D0' }), 'HP8')
-  assert.equal(inferPlaceCategoryKey({ groupName: '\uC57D\uAD6D' }), 'PM9')
   assert.equal(inferPlaceCategoryKey({ groupName: '\uC54C \uC218 \uC5C6\uC74C' }), 'default')
 })
 
@@ -271,7 +247,7 @@ test('normalizePlaces keeps ambiguous lookup results styled by request category'
   const [place] = normalizePlaces(
     [
       {
-        requestCategory: 'AT4',
+        requestCategory: 'PARK',
         places: [
           {
             kakaoPlaceId: 'attraction-1',
@@ -286,8 +262,8 @@ test('normalizePlaces keeps ambiguous lookup results styled by request category'
     { latitude: 37.5447, longitude: 127.0559 }
   )
 
-  assert.equal(place.categoryKey, 'AT4')
-  assert.notEqual(place.categoryKey, 'CT1')
+  assert.equal(place.categoryKey, 'PARK')
+  assert.notEqual(place.categoryKey, 'CULTURE')
   assert.notEqual(place.categoryKey, 'default')
 })
 
@@ -345,7 +321,7 @@ test('normalizePlaces dedupes places and sorts by distance first', () => {
   assert.equal(places[0].hasBoard, true)
   assert.equal(places[0].categoryKey, 'CE7')
   assert.equal(places[1].kakaoPlaceId, 'far')
-  assert.equal(places[1].categoryKey, 'CT1')
+  assert.equal(places[1].categoryKey, 'CULTURE')
 })
 
 test('normalizePlaces uses distance before board state when trace counts tie', () => {
@@ -421,38 +397,39 @@ test('normalizePopularPlaces keeps distance as the primary bottom sheet sort', (
   )
 })
 
-test('normalizeSearchPlaces preserves backend merged order instead of local relevance sorting', () => {
+test('normalizeSearchPlaces ranks direct name and station category matches before address-only matches', () => {
   const places = normalizeSearchPlaces(
     [
       {
-        kakaoPlaceId: 'near-unrelated',
-        placeName: 'Nearby Pharmacy',
-        latitude: 37.5447,
-        longitude: 127.0559,
-        groupName: 'pharmacy',
+        kakaoPlaceId: 'address-only-park',
+        placeName: '사육신역사공원 사육신묘',
+        latitude: 37.5133,
+        longitude: 126.9482,
+        groupName: '관광명소',
+        address: '서울 동작구 노량진로 191',
       },
       {
-        kakaoPlaceId: 'far-relevant',
-        placeName: 'Seongsu Coffee Lab',
-        latitude: 37.5647,
-        longitude: 127.0559,
-        groupName: 'cafe',
+        kakaoPlaceId: 'subway-station',
+        placeName: '노량진역',
+        latitude: 37.5142,
+        longitude: 126.9425,
+        groupName: '지하철역',
       },
       {
-        kakaoPlaceId: 'near-relevant',
-        placeName: 'Seongsu Coffee Bar',
-        latitude: 37.5457,
-        longitude: 127.0559,
-        groupName: 'cafe',
+        kakaoPlaceId: 'name-street',
+        placeName: '노량진길벗거리',
+        latitude: 37.5134,
+        longitude: 126.9458,
+        groupName: '관광명소',
       },
     ],
     { latitude: 37.5447, longitude: 127.0559 },
-    'seongsu coffee'
+    '노량진'
   )
 
   assert.deepEqual(
     places.map((place) => place.kakaoPlaceId),
-    ['near-unrelated', 'far-relevant', 'near-relevant']
+    ['subway-station', 'name-street', 'address-only-park']
   )
 })
 
@@ -479,6 +456,27 @@ test('normalizeSearchPlaces preserves Kakao accuracy order when local relevance 
   assert.deepEqual(
     places.map((place) => place.kakaoPlaceId),
     ['api-first-far', 'api-second-near']
+  )
+})
+
+test('buildPoiSearchRequests supplements short Korean place queries with a station query', () => {
+  const requests = buildPoiSearchRequests({
+    query: ' 노량진 ',
+    latitude: 37.5142,
+    longitude: 126.9425,
+  })
+
+  assert.deepEqual(
+    requests.map((request) => request.query),
+    ['노량진역', '노량진']
+  )
+  assert.equal(requests.every((request) => request.radius === 2000), true)
+})
+
+test('buildPoiSearchRequests does not duplicate queries that already end with station', () => {
+  assert.deepEqual(
+    buildPoiSearchRequests({ query: '노량진역' }).map((request) => request.query),
+    ['노량진역']
   )
 })
 
@@ -876,4 +874,3 @@ test('map bottom ui keeps controls outside the detail panel while a place is sel
     selectedPanelControlsPlacement: 'selected-panel-edge',
   })
 })
-

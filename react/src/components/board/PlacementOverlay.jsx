@@ -1,20 +1,5 @@
 import { useRef, useState } from 'react'
-
-// BoardCanvas와 공유하는 그리드 상수
-export const CANVAS_W = 480
-export const COL_X = [125, 355]
-export const CARD_W = 210
-export const ROW_H = 280
-export const COL_STAGGER = 80
-
-// 셀 인덱스 → 캔버스 중심 좌표
-export function cellToCenter(row, col) {
-  const stagger = col === 1 ? COL_STAGGER : 0
-  return {
-    x: COL_X[col],
-    y: row * ROW_H + stagger + 60 + CARD_W / 2,
-  }
-}
+import { CARD_W, COL_STAGGER, COL_X, ROW_H, cellToCenter } from './PlacementGrid'
 
 // 화면 좌표 → 캔버스 좌표 (transform 적용 후)
 function screenToCanvas(screenX, screenY, transformRef) {
@@ -111,6 +96,7 @@ export default function PlacementOverlay({ draft, posts, transformRef, onPlace, 
   const [pointerPos, setPointerPos] = useState(null)
   const [targetCell, setTargetCell] = useState(null)
   const [snapping, setSnapping] = useState(false)
+  const [snapPos, setSnapPos] = useState(null)
   const dragStartRef = useRef(null)
   const overlayRef = useRef(null)
   const occupied = getOccupied(posts)
@@ -122,6 +108,7 @@ export default function PlacementOverlay({ draft, posts, transformRef, onPlace, 
     const cell = findNearestEmpty(rough.row, rough.col, occupied)
     setTargetCell(cell)
     setPointerPos({ x: screenX, y: screenY })
+    setSnapPos(null)
   }
 
   // 포인터 다운: 드래그 시작
@@ -147,6 +134,7 @@ export default function PlacementOverlay({ draft, posts, transformRef, onPlace, 
     }
 
     dragStartRef.current = null
+    setSnapPos(getSnapPos())
     setSnapping(true)
 
     // snap 애니메이션 후 배치 → onPlace에서 overlay 닫기 처리
@@ -177,6 +165,7 @@ export default function PlacementOverlay({ draft, posts, transformRef, onPlace, 
     }
 
     dragStartRef.current = null
+    setSnapPos(getSnapPos())
     setSnapping(true)
 
     // snap 애니메이션 후 배치 → onPlace에서 overlay 닫기 처리
@@ -200,7 +189,6 @@ export default function PlacementOverlay({ draft, posts, transformRef, onPlace, 
     }
   }
 
-  const snapPos = snapping ? getSnapPos() : null
   const displayPos = snapping && snapPos ? snapPos : pointerPos
 
   return (

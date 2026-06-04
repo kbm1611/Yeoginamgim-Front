@@ -864,6 +864,7 @@ function PostItEditor() {
   // 선택된 오브젝트 스타일 동기화
   useEffect(() => {
     if (!selectedTextId) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTextObjects((prev) =>
       prev.map((o) =>
         o.id === selectedTextId ? { ...o, color: textColor, fontSize, fontFamily, align: textAlign } : o
@@ -941,7 +942,7 @@ function PostItEditor() {
                 id: `polaroid-${baseId}`,
                 type: 'polaroid',
                 content: captionText,
-                media: { image: MOCK_PHOTOS[photoIdx], dateLabel: today() },
+                media: { image: selectedPhoto ?? MOCK_PHOTOS[0], dateLabel: today() },
                 style: { color: textColor, fontSize, fontFamily },
                 createdAt: new Date().toISOString(),
               }
@@ -1109,7 +1110,7 @@ function PostItEditor() {
       {/* ── canvas-area: 빈 영역 클릭 시만 시트 닫기 ── */}
       <div
         style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden', zIndex: 2 }}
-        onClick={(e) => {
+        onClick={() => {
           // postit-wrapper 내부 클릭은 stopPropagation으로 여기까지 안 옴
           // 여기 오면 = 캔버스 빈 영역 클릭
           setSelectedTextId(null)
