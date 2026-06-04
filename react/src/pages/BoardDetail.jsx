@@ -108,7 +108,7 @@ function traceToPost(trace) {
   }
 }
 
-function BoardHeader({ placeName, traceCount, onBack }) {
+function BoardHeader({ placeName, onBack }) {
   return (
     <div className="flex items-center justify-between bg-[#F5EFE6] px-4 pb-2 pt-3">
       <button
@@ -125,7 +125,6 @@ function BoardHeader({ placeName, traceCount, onBack }) {
           <span className="text-[16px] font-bold text-[#3B2A1E]">{placeName}</span>
           <ChevronRight size={15} strokeWidth={2.2} className="text-[#3B2A1E]" />
         </button>
-        <p className="text-[12px] text-[#8B7A6B]">흔적 {traceCount}개</p>
       </div>
 
       <div className="flex items-center gap-1">
@@ -170,7 +169,7 @@ function FilterBar({ sort, onSort }) {
         className="flex items-center gap-1.5 rounded-full border border-[#D8CDBF] bg-white/70 px-3 py-1.5 text-[13px] font-medium text-[#5C4A3B] shadow-sm"
       >
         <SlidersHorizontal size={13} strokeWidth={2} />
-        ?꾪꽣
+        필터
       </button>
     </div>
   )
@@ -371,7 +370,6 @@ function BoardDetail() {
     <main className="app-device flex flex-col overflow-hidden">
       <BoardHeader
         placeName={headerPlaceName}
-        traceCount={allPosts.length}
         onBack={() => navigate(-1)}
       />
 

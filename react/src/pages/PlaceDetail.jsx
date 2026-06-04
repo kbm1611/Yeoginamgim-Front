@@ -73,7 +73,7 @@ const mockTraces = [
 function HeroImage({ src, totalImages }) {
   return (
     <div className="relative h-[260px] w-full overflow-hidden">
-      <img src={src} alt="?μ냼 ?대?吏" className="h-full w-full object-cover" />
+      <img src={src} alt="장소 이미지" className="h-full w-full object-cover" />
       {/* ?대?吏 移댁슫??諛곗? ???대?吏 ?곗륫 ?섎떒, 寃뱀묠 ?곸뿭 ??*/}
       <div className="absolute bottom-8 right-3 rounded-full bg-black/45 px-2.5 py-[3px] text-[12px] font-medium text-white backdrop-blur-sm">
         1/{totalImages}
@@ -225,13 +225,13 @@ function RecentTraceList({ traces, onMore }) {
   return (
     <div className="mt-6">
       <div className="mb-3 flex items-center justify-between px-5">
-        <h2 className="text-[16px] font-bold text-[#3B2A1E]">理쒓렐 ?붿쟻</h2>
+        <h2 className="text-[16px] font-bold text-[#3B2A1E]">최근 흔적</h2>
         <button
           type="button"
           onClick={onMore}
           className="flex items-center gap-0.5 text-[13px] font-medium text-[#6B5A4C]"
         >
-          ?붾낫湲?
+          더보기
           <ChevronRight size={14} strokeWidth={2} />
         </button>
       </div>
@@ -256,8 +256,7 @@ function BottomCTA({ onClick }) {
         onClick={onClick}
         className="flex h-[56px] w-full items-center justify-center gap-2 rounded-full bg-[#3A2418] text-[16px] font-semibold text-white shadow-[0_4px_16px_rgba(58,36,24,0.35)] active:opacity-80"
       >
-        <span className="text-[17px]">?뱦</span>
-        <span>?붿쟻 蹂대뱶 蹂닿린</span>
+        <span>흔적 보드 보기</span>
       </button>
     </div>
   )
