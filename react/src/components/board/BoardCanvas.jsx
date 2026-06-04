@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { Flag, Heart } from 'lucide-react'
 import { TransformComponent, TransformWrapper } from 'react-zoom-pan-pinch'
-import postitYellow from '../../assets/postit/yellow.png'
+import postitYellow from '../../assets/postit/postit.png'
+import polaroidBg from '../../assets/poloaroid/폴라로이드.png'
 
-const CANVAS_W = 800
-const COL_X = [210, 600]
+import { CANVAS_W, COL_X, ROW_H, COL_STAGGER, CARD_W as CARD_W_CONST } from './PlacementOverlay'
 
 const POSTIT_COLOR = {
   white: '#F8F6F0',
@@ -47,26 +47,26 @@ function resolvePaperColor(style = {}) {
 
 function layoutPosts(posts) {
   return posts.map((post, i) => {
-    const col = i % 2
-    const row = Math.floor(i / 2)
+    // cell 정보가 있으면 사용, 없으면 순서 기반 fallback
+    const col = post.cell?.col ?? (i % 2)
+    const row = post.cell?.row ?? Math.floor(i / 2)
     const s = i + 1
 
-    const dx = (seeded(s * 1.31 + 2.71) - 0.5) * 44
-    const dy = (seeded(s * 2.13 + 5.37) - 0.5) * 44
-    const rotate = (seeded(s * 3.71 + 8.13) - 0.5) * 10
-    const tapeRotate = (seeded(s * 4.23 + 1.09) - 0.5) * 6
+    const dx = (seeded(s * 1.31 + 2.71) - 0.5) * 24
+    const dy = (seeded(s * 2.13 + 5.37) - 0.5) * 24
+    const rotate = (seeded(s * 3.71 + 8.13) - 0.5) * 7
+    const tapeRotate = (seeded(s * 4.23 + 1.09) - 0.5) * 5
     const tapeColor = TAPE_COLORS[i % TAPE_COLORS.length]
-
-    const cardW = post.type === 'polaroid' ? 320 : 270
-    const colStagger = col === 1 ? 130 : 0
+    const stagger = col === 1 ? COL_STAGGER : 0
 
     return {
       ...post,
-      _x: COL_X[col] - cardW / 2 + dx,
-      _y: row * 400 + colStagger + 100 + dy,
+      _x: COL_X[col] - CARD_W_CONST / 2 + dx,
+      _y: row * ROW_H + stagger + 60 + dy,
       _rotate: rotate,
       _tapeRotate: tapeRotate,
       _tapeColor: tapeColor,
+      _cardW: CARD_W_CONST,
     }
   })
 }
@@ -224,15 +224,17 @@ function PolaroidCard({ post, onToggleLike, onReport }) {
 
   return (
     <article
-      className="absolute bg-white"
+      className="absolute"
       style={{
         left: post._x,
         top: post._y,
         width: 320,
         transform: `rotate(${post._rotate}deg)`,
         borderRadius: 10,
-        backgroundColor: post.style?.backgroundColor ?? '#FFFFFF',
         boxShadow: '0 6px 22px rgba(42,28,20,0.20), 0 2px 6px rgba(42,28,20,0.10)',
+        backgroundImage: `url(${polaroidBg})`,
+        backgroundSize: '100% 100%',
+        backgroundColor: 'transparent',
       }}
     >
       <Tape color={post._tapeColor} rotate={post._tapeRotate} />
@@ -274,50 +276,67 @@ function PolaroidCard({ post, onToggleLike, onReport }) {
   )
 }
 
-function PostItCard({ post, onToggleLike, onReport }) {
-  const bgColor = resolvePaperColor(post.style)
+// POST_IT 전용 컴포넌트 — 노란 포스트잇 PNG만 렌더링
+function BoardPostIt({ post, onToggleLike, onReport }) {
   const contentLength = post.content?.length ?? 0
   const savedFontSize = Number(post.style?.fontSize)
-  const fontSize = Number.isFinite(savedFontSize) && savedFontSize > 0 ? savedFontSize : contentLength > 60 ? 24 : contentLength > 35 ? 29 : 34
+  const fontSize = Number.isFinite(savedFontSize) && savedFontSize > 0
+    ? savedFontSize
+    : contentLength > 60 ? 24 : contentLength > 35 ? 29 : 34
   const fontFamily = post.style?.fontFamily ?? "'Nanum Pen Script', 'Gaegu', cursive"
+  const cardW = post._cardW ?? CARD_W_CONST
 
   return (
-    <article
-      className="absolute overflow-visible"
+    <div
       style={{
+        position: 'absolute',
         left: post._x,
         top: post._y,
-        width: 270,
-        height: 270,
+        width: cardW,
+        height: cardW,
         transform: `rotate(${post._rotate}deg)`,
-        borderRadius: 4,
-        backgroundColor: bgColor,
+        backgroundImage: `url(${postitYellow})`,
+        backgroundSize: 'contain',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
         boxShadow: '0 6px 20px rgba(42,28,20,0.18), 0 2px 6px rgba(42,28,20,0.10)',
       }}
     >
-      <Tape color={post._tapeColor} rotate={post._tapeRotate} />
-      <img
-        src={postitYellow}
-        alt=""
-        className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-        style={{ mixBlendMode: 'multiply', opacity: bgColor === POSTIT_COLOR.yellow ? 0.95 : 0.45 }}
-      />
-      <div className="relative z-10 flex h-full items-center justify-center overflow-hidden p-6">
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '24px',
+        }}
+      >
         <p
-          className="max-h-full whitespace-pre-line break-words text-center leading-[1.3]"
           style={{
-            color: post.style?.textColor ?? '#2A211A',
+            color: post.style?.textColor ?? '#2A1E14',
             fontFamily,
             fontSize,
+            margin: 0,
+            lineHeight: 1.3,
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+            textAlign: 'center',
+            maxHeight: '100%',
+            overflow: 'hidden',
           }}
         >
           {post.content}
         </p>
       </div>
+
       <TraceActions post={post} onToggleLike={onToggleLike} onReport={onReport} />
-    </article>
+    </div>
   )
 }
+
+// 호환성 유지 (기존 PostItCard 이름 사용)
+const PostItCard = BoardPostIt
 
 function EmptyBoard({ onAdd }) {
   return (
@@ -342,20 +361,22 @@ function EmptyBoard({ onAdd }) {
 function BoardCanvas({ posts, onAdd, transformRef, onZoomChange, onToggleLike, onReport }) {
   const laid = useMemo(() => layoutPosts(posts), [posts])
   const rows = Math.ceil(posts.length / 2)
-  const canvasH = Math.max(1800, rows * 400 + 800)
+  const canvasH = Math.max(1200, rows * ROW_H + 400)
 
   if (posts.length === 0) {
     return <EmptyBoard onAdd={onAdd} />
   }
 
-  const scale = 0.49
+  // 화면 너비 기준 scale 계산: 캔버스 480px이 화면에 딱 맞게
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 390
+  const scale = Math.min(0.9, (vw - 16) / CANVAS_W)  // 좌우 8px 여백
   const posX = 0
-  const posY = -Math.max(0, (canvasH * scale - 860) / 2)
+  const posY = 0  // 첫 번째 포스트잇부터 바로 보이게
 
   return (
     <TransformWrapper
       ref={transformRef}
-      minScale={scale}
+      minScale={Math.min(scale, 0.5)}
       maxScale={2.0}
       initialScale={scale}
       initialPositionX={posX}
