@@ -64,7 +64,7 @@ import {
   getBottomSheetContentClasses,
   getBottomSheetToggleLabel,
   getBottomSheetTransform,
-  getCategorySelectionState,
+  getCategoryToggleState,
   getCurrentLocationViewPlan,
   getCurrentPositionMarkerTitle,
   getFloatingControlsBottom,
@@ -143,6 +143,7 @@ function MapPage() {
   const [searchStatus, setSearchStatus] = useState('idle')
   const [searchError, setSearchError] = useState('')
   const [searchNotice, setSearchNotice] = useState('')
+  const [focusedSearchPlaceId, setFocusedSearchPlaceId] = useState(null)
   const [popularPlaces, setPopularPlaces] = useState([])
   const [popularPlacesStatus, setPopularPlacesStatus] = useState('idle')
   const [popularPlacesError, setPopularPlacesError] = useState('')
@@ -166,7 +167,8 @@ function MapPage() {
     popularPlaces,
     selectedCategory,
     selectedPlaceId,
-  }), [categoryPlaces, isPoiSearchActive, popularPlaces, searchPlaces, selectedCategory, selectedPlaceId])
+    focusedSearchPlaceId,
+  }), [categoryPlaces, focusedSearchPlaceId, isPoiSearchActive, popularPlaces, searchPlaces, selectedCategory, selectedPlaceId])
   const bottomUiState = getMapBottomUiState({ hasSelectedPlace: Boolean(selectedPlace) })
   const isFloatingControlsPinnedToSelectedPanel = bottomUiState.selectedPanelControlsPlacement === 'selected-panel-edge'
   const floatingControlsBottom = isFloatingControlsPinnedToSelectedPanel
@@ -395,9 +397,10 @@ function MapPage() {
     }
   }, [activeSearchQuery, currentPosition, locationStatus, selectedCategory])
 
-  const loadPopularPlaces = useCallback(async () => {
-    if (locationStatus === 'loading') return
-    if (locationStatus !== 'success') {
+  const loadPopularPlaces = useCallback(async ({ origin = null } = {}) => {
+    const lookupOrigin = origin ?? currentPosition
+    if (!origin && locationStatus === 'loading') return
+    if (!origin && locationStatus !== 'success') {
       setPopularPlaces([])
       setPopularPlacesStatus('error')
       setPopularPlacesError(LOCATION_REQUIRED_MESSAGE)
@@ -405,8 +408,8 @@ function MapPage() {
     }
 
     const request = buildPopularPlaceRequest({
-      latitude: currentPosition.latitude,
-      longitude: currentPosition.longitude,
+      latitude: lookupOrigin.latitude,
+      longitude: lookupOrigin.longitude,
     })
 
     if (!request) {
@@ -418,6 +421,9 @@ function MapPage() {
 
     const requestId = popularPlacesRequestIdRef.current + 1
     popularPlacesRequestIdRef.current = requestId
+    if (origin) {
+      setPopularPlaces([])
+    }
     setPopularPlacesStatus('loading')
     setPopularPlacesError('')
 
@@ -425,7 +431,7 @@ function MapPage() {
       const response = await fetchPopularPlaces(request)
       if (!isMountedRef.current || popularPlacesRequestIdRef.current !== requestId) return
 
-      setPopularPlaces(normalizePopularPlaces(response, currentPosition, NEARBY_LIMIT))
+      setPopularPlaces(normalizePopularPlaces(response, lookupOrigin, NEARBY_LIMIT))
       setPopularPlacesStatus('success')
     } catch {
       if (!isMountedRef.current || popularPlacesRequestIdRef.current !== requestId) return
@@ -446,6 +452,7 @@ function MapPage() {
       setSearchNotice('검색어를 입력해 주세요.')
       setSearchError('')
       setSelectedPlaceId(null)
+      setFocusedSearchPlaceId(null)
       setOpeningPlaceId(null)
       setBoardError('')
       setIsSearchResultsOpen(true)
@@ -456,6 +463,7 @@ function MapPage() {
     setSearchInput(trimmedQuery)
     setSearchPlaces([])
     setSelectedPlaceId(null)
+    setFocusedSearchPlaceId(null)
     setOpeningPlaceId(null)
     setBoardError('')
     setIsSearchResultsOpen(true)
@@ -484,7 +492,10 @@ function MapPage() {
     setSearchNotice('')
 
     try {
-      const response = await Promise.all(requests.map((request) => fetchPoiPlaces(request)))
+      const response = await Promise.all(requests.map(async (request) => ({
+        requestCategory: request.category,
+        places: await fetchPoiPlaces(request),
+      })))
       if (!isMountedRef.current || poiSearchRequestIdRef.current !== requestId) return
 
       const normalizedPlaces = normalizeSearchPlaces(response, searchOrigin, trimmedQuery, NEARBY_LIMIT)
@@ -510,9 +521,15 @@ function MapPage() {
     setSearchNotice('')
     setIsSearchResultsOpen(false)
     setSelectedPlaceId(null)
+    setFocusedSearchPlaceId(null)
     setOpeningPlaceId(null)
     setBoardError('')
-  }, [])
+    window.queueMicrotask(() => {
+      if (isMountedRef.current) {
+        loadPopularPlaces()
+      }
+    })
+  }, [loadPopularPlaces])
 
   const handleSearchInputChange = (event) => {
     const nextValue = event.target.value
@@ -534,6 +551,7 @@ function MapPage() {
       setSearchError('')
       setIsSearchResultsOpen(false)
       setSelectedPlaceId(null)
+      setFocusedSearchPlaceId(null)
       setOpeningPlaceId(null)
       setBoardError('')
     }
@@ -541,6 +559,14 @@ function MapPage() {
 
   const handleSearchResultSelect = (place) => {
     if (!place?.kakaoPlaceId) return
+
+    setSelectedCategory(null)
+    setCategoryPlaces([])
+    setCategoryPlacesStatus('idle')
+    setCategoryPlacesError('')
+    setPopularPlaces([])
+    setFocusedSearchPlaceId(place.kakaoPlaceId)
+    loadPopularPlaces({ origin: place })
 
     selectPlace(place.kakaoPlaceId, {
       focusMap: true,
@@ -735,23 +761,20 @@ function MapPage() {
   }, [applyMapViewportPlan, categoryPlaces, categoryPlacesStatus, currentPosition, isPoiSearchActive, mapStatus])
 
   const handleCategorySelect = (categoryLabel) => {
-    const nextState = getCategorySelectionState(categoryLabel)
+    if (isPoiSearchActive || activeSearchQuery) return
+
+    const nextState = getCategoryToggleState(selectedCategory, categoryLabel)
     categoryPlacesRequestIdRef.current += 1
     setSelectedCategory(nextState.selectedCategory)
     setCategoryPlaces(nextState.categoryPlaces)
     setCategoryPlacesError(nextState.categoryPlacesError)
     setBoardError(nextState.boardError)
 
-    if (activeSearchQuery) {
-      setCategoryPlacesStatus('idle')
-      return
-    }
-
     setSelectedPlaceId(nextState.selectedPlaceId)
     setCategoryPlacesStatus(nextState.categoryPlacesStatus)
     setIsSearchResultsOpen(false)
 
-    if (categoryLabel === selectedCategory) {
+    if (nextState.selectedCategory) {
       window.queueMicrotask(() => {
         if (isMountedRef.current) {
           loadCategoryPlaces()
@@ -948,15 +971,20 @@ function MapPage() {
           {CATEGORY_FILTERS.map((item) => {
             const CategoryIcon = CATEGORY_ICON_COMPONENTS[item.iconName] ?? MapPinned
             const isSelected = selectedCategory === item.label
+            const isDisabled = isPoiSearchActive
 
             return (
               <button
                 key={item.label}
                 type="button"
                 onClick={() => handleCategorySelect(item.label)}
+                disabled={isDisabled}
+                aria-disabled={isDisabled}
                 aria-pressed={isSelected}
                 className={`${MAP_CATEGORY_FILTER_BUTTON_CLASSES} ${
-                  isSelected
+                  isDisabled
+                    ? 'cursor-not-allowed border-[#E2D6C8] bg-[#EEE6DA] text-[#8D7A6B] opacity-60'
+                    : isSelected
                     ? 'border-[#3D2415] bg-[#3D2415] text-white shadow-[0_6px_14px_rgba(61,36,21,0.18)]'
                     : 'border-[#E2D6C8] bg-[#EEE6DA] text-[#5A4030]'
                 }`}

@@ -27,6 +27,7 @@ import {
   getBottomSheetToggleLabel,
   getBottomSheetTransform,
   getCategorySelectionState,
+  getCategoryToggleState,
   getCurrentPositionMarkerTitle,
   getCurrentLocationViewPlan,
   getHorizontalDragScrollLeft,
@@ -166,7 +167,7 @@ test('buildPopularPlaceRequest skips lookup without a real user location', () =>
   assert.equal(buildPopularPlaceRequest({ latitude: 37.5447, longitude: undefined }), null)
 })
 
-test('buildPoiSearchRequest includes valid current location and keyword radius for POI search', () => {
+test('buildPoiSearchRequest ignores category filters for POI keyword search', () => {
   const request = buildPoiSearchRequest({
     query: '  seongsu coffee  ',
     latitude: 37.5447,
@@ -464,12 +465,14 @@ test('buildPoiSearchRequests supplements short Korean place queries with a stati
     query: ' 노량진 ',
     latitude: 37.5142,
     longitude: 126.9425,
+    selectedCategory: '공원 / 산책로',
   })
 
   assert.deepEqual(
     requests.map((request) => request.query),
     ['노량진역', '노량진']
   )
+  assert.equal(requests.every((request) => !Object.hasOwn(request, 'category')), true)
   assert.equal(requests.every((request) => request.radius === 2000), true)
 })
 
@@ -564,6 +567,66 @@ test('marker places prefer POI search results while search is active', () => {
       isSearchActive: true,
     }).map((place) => place.kakaoPlaceId),
     ['search-1', 'search-2']
+  )
+})
+
+test('marker places keep selected POI and nearby category icons after a search result is selected', () => {
+  const searchPlaces = [
+    { kakaoPlaceId: 'search-cafe', placeName: 'Search Cafe', categoryKey: 'CE7' },
+    { kakaoPlaceId: 'search-park', placeName: 'Search Park', categoryKey: 'PARK' },
+  ]
+  const categoryPlaces = [
+    { kakaoPlaceId: 'old-category', placeName: 'Old Category', categoryKey: 'FD6' },
+  ]
+  const popularPlaces = [
+    { kakaoPlaceId: 'near-food', placeName: 'Nearby Food', categoryKey: 'FD6' },
+    { kakaoPlaceId: 'near-store', placeName: 'Nearby Store', categoryKey: 'CS2' },
+  ]
+
+  const markerPlaces = getMarkerPlaces({
+    searchPlaces,
+    categoryPlaces,
+    popularPlaces,
+    selectedCategory: '\uCE74\uD398',
+    selectedPlaceId: 'search-cafe',
+    isSearchActive: true,
+  })
+
+  assert.deepEqual(
+    markerPlaces.map((place) => [place.kakaoPlaceId, place.categoryKey]),
+    [
+      ['search-cafe', 'CE7'],
+      ['near-food', 'FD6'],
+      ['near-store', 'CS2'],
+    ]
+  )
+})
+
+test('marker places keep focused POI nearby markers after the selected panel closes', () => {
+  const searchPlaces = [
+    { kakaoPlaceId: 'search-cafe', placeName: 'Search Cafe', categoryKey: 'CE7' },
+    { kakaoPlaceId: 'search-park', placeName: 'Search Park', categoryKey: 'PARK' },
+  ]
+  const popularPlaces = [
+    { kakaoPlaceId: 'near-food', placeName: 'Nearby Food', categoryKey: 'FD6' },
+    { kakaoPlaceId: 'near-store', placeName: 'Nearby Store', categoryKey: 'CS2' },
+  ]
+
+  const markerPlaces = getMarkerPlaces({
+    searchPlaces,
+    popularPlaces,
+    focusedSearchPlaceId: 'search-cafe',
+    selectedPlaceId: null,
+    isSearchActive: true,
+  })
+
+  assert.deepEqual(
+    markerPlaces.map((place) => [place.kakaoPlaceId, place.categoryKey]),
+    [
+      ['search-cafe', 'CE7'],
+      ['near-food', 'FD6'],
+      ['near-store', 'CS2'],
+    ]
   )
 })
 
@@ -780,6 +843,17 @@ test('category selection state clears the previous selected place before loading
   assert.equal(Object.hasOwn(state, 'isSheetOpen'), false)
   assert.equal(Object.hasOwn(state, 'popularPlaces'), false)
   assert.equal(Object.hasOwn(state, 'popularPlacesStatus'), false)
+})
+
+test('category toggle state clears active category when the same filter is selected again', () => {
+  const state = getCategoryToggleState('\uCE74\uD398', '\uCE74\uD398')
+
+  assert.equal(state.selectedCategory, null)
+  assert.deepEqual(state.categoryPlaces, [])
+  assert.equal(state.selectedPlaceId, null)
+  assert.equal(state.categoryPlacesStatus, 'idle')
+  assert.equal(state.categoryPlacesError, '')
+  assert.equal(state.boardError, '')
 })
 
 test('place selection transition resets the detail panel before opening the next place', () => {

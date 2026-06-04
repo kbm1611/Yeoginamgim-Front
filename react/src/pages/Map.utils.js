@@ -329,22 +329,32 @@ export function getMarkerPlaces({
   popularPlaces = [],
   selectedCategory = null,
   selectedPlaceId = null,
+  focusedSearchPlaceId = null,
 } = {}) {
+  const searchAnchorPlaceId = selectedPlaceId ?? focusedSearchPlaceId
+  if (isSearchActive && searchAnchorPlaceId) {
+    const selectedSearchPlace = searchPlaces.find((place) => place?.kakaoPlaceId === searchAnchorPlaceId)
+    return dedupeMarkerPlaces([
+      ...(selectedSearchPlace ? [selectedSearchPlace] : []),
+      ...popularPlaces,
+    ])
+  }
+
   const markerPlaces = isSearchActive
     ? [...searchPlaces]
     : selectedCategory
       ? [...categoryPlaces]
       : [...popularPlaces]
-  const seenPlaceIds = new Set(markerPlaces.map((place) => place?.kakaoPlaceId).filter(Boolean))
 
-  if (!isSearchActive && selectedCategory && selectedPlaceId && !seenPlaceIds.has(selectedPlaceId)) {
+  if (!isSearchActive && selectedCategory && selectedPlaceId) {
+    const seenPlaceIds = new Set(markerPlaces.map((place) => place?.kakaoPlaceId).filter(Boolean))
     const selectedPopularPlace = popularPlaces.find((place) => place?.kakaoPlaceId === selectedPlaceId)
-    if (selectedPopularPlace) {
+    if (selectedPopularPlace && !seenPlaceIds.has(selectedPlaceId)) {
       markerPlaces.push(selectedPopularPlace)
     }
   }
 
-  return markerPlaces.filter((place) => place?.kakaoPlaceId)
+  return dedupeMarkerPlaces(markerPlaces)
 }
 
 export function normalizePlaces(places, origin, limit = NEARBY_LIMIT) {
@@ -432,6 +442,16 @@ function flattenPlaceGroup(entry) {
   }
 
   return [{ place: entry, requestCategory: null }]
+}
+
+function dedupeMarkerPlaces(places) {
+  const seenPlaceIds = new Set()
+  return places.filter((place) => {
+    const placeId = place?.kakaoPlaceId
+    if (!placeId || seenPlaceIds.has(placeId)) return false
+    seenPlaceIds.add(placeId)
+    return true
+  })
 }
 
 export function getCurrentPositionMarkerTitle(locationStatus) {
@@ -572,6 +592,21 @@ export function getCategorySelectionState(categoryLabel) {
     categoryPlacesError: '',
     boardError: '',
   }
+}
+
+export function getCategoryToggleState(currentCategory, categoryLabel) {
+  if (currentCategory === categoryLabel) {
+    return {
+      selectedCategory: null,
+      categoryPlaces: [],
+      selectedPlaceId: null,
+      categoryPlacesStatus: 'idle',
+      categoryPlacesError: '',
+      boardError: '',
+    }
+  }
+
+  return getCategorySelectionState(categoryLabel)
 }
 
 export function getPlaceSelectionTransitionState(kakaoPlaceId) {
