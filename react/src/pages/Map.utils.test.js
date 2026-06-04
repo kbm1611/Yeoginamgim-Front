@@ -10,6 +10,8 @@ import {
   MAP_BOTTOM_SHEET_COLLAPSED_VISIBLE_HEIGHT_PX,
   MAP_BOTTOM_SHEET_CONTENT_CLASSES,
   MAP_BOTTOM_SHEET_TRANSITION_CLASSES,
+  MAP_CATEGORY_FILTER_BUTTON_CLASSES,
+  MAP_CATEGORY_FILTER_SCROLL_CLASSES,
   MAP_FLOATING_CONTROLS_GAP_PX,
   MAP_FLOATING_CONTROLS_TRANSITION_CLASSES,
   MAP_SEARCH_RESULTS_LIST_CLASSES,
@@ -23,6 +25,7 @@ import {
   PLACE_MARKER_ICON_PATHS,
   getBottomSheetToggleLabel,
   getBottomSheetTransform,
+  getCategorySelectionState,
   getCurrentPositionMarkerTitle,
   getCurrentLocationViewPlan,
   getFloatingControlsBottom,
@@ -168,7 +171,7 @@ test('buildPopularPlaceRequest skips lookup without a real user location', () =>
   assert.equal(buildPopularPlaceRequest({ latitude: 37.5447, longitude: undefined }), null)
 })
 
-test('buildPoiSearchRequest uses only a trimmed keyword and pagination for POI search', () => {
+test('buildPoiSearchRequest includes valid current location and keyword radius for POI search', () => {
   const request = buildPoiSearchRequest({
     query: '  seongsu coffee  ',
     latitude: 37.5447,
@@ -178,13 +181,13 @@ test('buildPoiSearchRequest uses only a trimmed keyword and pagination for POI s
 
   assert.deepEqual(request, {
     query: 'seongsu coffee',
+    latitude: 37.5447,
+    longitude: 127.0559,
+    radius: 2000,
     page: 1,
     limit: 15,
   })
   assert.equal(Object.hasOwn(request, 'category'), false)
-  assert.equal(Object.hasOwn(request, 'radius'), false)
-  assert.equal(Object.hasOwn(request, 'latitude'), false)
-  assert.equal(Object.hasOwn(request, 'longitude'), false)
 })
 
 test('buildPoiSearchRequest skips empty keyword but does not require current position', () => {
@@ -417,7 +420,7 @@ test('normalizePopularPlaces keeps distance as the primary bottom sheet sort', (
   )
 })
 
-test('normalizeSearchPlaces keeps keyword relevance ahead of distance and uses distance for close relevance ties', () => {
+test('normalizeSearchPlaces preserves backend merged order instead of local relevance sorting', () => {
   const places = normalizeSearchPlaces(
     [
       {
@@ -448,7 +451,7 @@ test('normalizeSearchPlaces keeps keyword relevance ahead of distance and uses d
 
   assert.deepEqual(
     places.map((place) => place.kakaoPlaceId),
-    ['near-relevant', 'far-relevant', 'near-unrelated']
+    ['near-unrelated', 'far-relevant', 'near-relevant']
   )
 })
 
@@ -634,6 +637,17 @@ test('place list scroll classes enable smooth horizontal snapping', () => {
   assert.match(MAP_PLACE_CARD_SCROLL_CLASSES, /snap-start/)
 })
 
+test('category filter classes keep chips in one horizontal scroll row', () => {
+  assert.match(MAP_CATEGORY_FILTER_SCROLL_CLASSES, /overflow-x-scroll/)
+  assert.match(MAP_CATEGORY_FILTER_SCROLL_CLASSES, /overflow-y-hidden/)
+  assert.match(MAP_CATEGORY_FILTER_SCROLL_CLASSES, /flex-nowrap/)
+  assert.match(MAP_CATEGORY_FILTER_SCROLL_CLASSES, /whitespace-nowrap/)
+  assert.match(MAP_CATEGORY_FILTER_SCROLL_CLASSES, /snap-x/)
+  assert.match(MAP_CATEGORY_FILTER_SCROLL_CLASSES, /touch-action:pan-x/)
+  assert.match(MAP_CATEGORY_FILTER_BUTTON_CLASSES, /shrink-0/)
+  assert.match(MAP_CATEGORY_FILTER_BUTTON_CLASSES, /snap-start/)
+})
+
 test('map viewport plan leaves the current view alone when no place markers exist', () => {
   const plan = getMapViewportPlan([], { latitude: 37.5447, longitude: 127.0559 })
 
@@ -692,6 +706,20 @@ test('map viewport plan fits multiple results with the current position and max 
     latitude: 37.5447,
     longitude: 127.0559,
   })
+})
+
+test('category selection state clears the previous selected place before loading', () => {
+  const state = getCategorySelectionState('\uCE74\uD398')
+
+  assert.equal(state.selectedCategory, '\uCE74\uD398')
+  assert.deepEqual(state.categoryPlaces, [])
+  assert.equal(state.selectedPlaceId, null)
+  assert.equal(state.categoryPlacesStatus, 'loading')
+  assert.equal(state.categoryPlacesError, '')
+  assert.equal(state.boardError, '')
+  assert.equal(Object.hasOwn(state, 'isSheetOpen'), false)
+  assert.equal(Object.hasOwn(state, 'popularPlaces'), false)
+  assert.equal(Object.hasOwn(state, 'popularPlacesStatus'), false)
 })
 
 test('place selection transition resets the detail panel before opening the next place', () => {

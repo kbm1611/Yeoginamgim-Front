@@ -7,6 +7,7 @@ export const DEFAULT_MAP_CENTER = {
 }
 
 export const NEARBY_RADIUS_METERS = 1000
+export const POI_SEARCH_RADIUS_METERS = 2000
 export const NEARBY_LIMIT = 15
 export const MAP_BOTTOM_SHEET_OPEN_HEIGHT = 'min(420px, 58%)'
 export const MAP_BOTTOM_SHEET_HEIGHT = MAP_BOTTOM_SHEET_OPEN_HEIGHT
@@ -28,6 +29,10 @@ export const MAP_SEARCH_RESULTS_PANEL_CLASSES =
   'relative z-[45] mb-2 overflow-hidden rounded-[20px] border border-[#EDE4D8] bg-white/97 shadow-[0_10px_24px_rgba(61,36,21,0.12)] backdrop-blur-sm'
 export const MAP_SEARCH_RESULTS_LIST_CLASSES =
   'scrollbar-hide flex max-h-[min(320px,calc(100dvh-260px))] flex-col overflow-y-auto overscroll-contain'
+export const MAP_CATEGORY_FILTER_SCROLL_CLASSES =
+  'scrollbar-hide mt-3 flex w-full snap-x snap-proximity flex-nowrap gap-2 overflow-x-scroll overflow-y-hidden overscroll-x-contain scroll-smooth pb-1 whitespace-nowrap [touch-action:pan-x] [-webkit-overflow-scrolling:touch]'
+export const MAP_CATEGORY_FILTER_BUTTON_CLASSES =
+  'inline-flex min-h-10 shrink-0 snap-start items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] transition'
 export const MAP_CURRENT_LOCATION_LEVEL = 5
 export const MAP_RESULT_SINGLE_PLACE_LEVEL = 4
 export const MAP_SELECTED_PLACE_LEVEL = 4
@@ -274,15 +279,27 @@ export function buildPopularPlaceRequest({ latitude, longitude } = {}) {
 
 export function buildPoiSearchRequest({
   query,
+  latitude,
+  longitude,
 } = {}) {
   const safeQuery = String(query ?? '').trim()
   if (!safeQuery) return null
 
-  return {
+  const request = {
     query: safeQuery,
     page: 1,
     limit: NEARBY_LIMIT,
   }
+
+  const safeLatitude = toCoordinate(latitude)
+  const safeLongitude = toCoordinate(longitude)
+  if (safeLatitude !== null && safeLongitude !== null) {
+    request.latitude = safeLatitude
+    request.longitude = safeLongitude
+    request.radius = POI_SEARCH_RADIUS_METERS
+  }
+
+  return request
 }
 
 export function getMarkerPlaces({
@@ -479,6 +496,17 @@ export function getMapViewportPlan(places = [], currentPosition = null) {
   }
 }
 
+export function getCategorySelectionState(categoryLabel) {
+  return {
+    selectedCategory: categoryLabel,
+    categoryPlaces: [],
+    selectedPlaceId: null,
+    categoryPlacesStatus: 'loading',
+    categoryPlacesError: '',
+    boardError: '',
+  }
+}
+
 export function getPlaceSelectionTransitionState(kakaoPlaceId) {
   return {
     selectedPlaceId: null,
@@ -623,27 +651,7 @@ function comparePlaces(left, right) {
 }
 
 function compareSearchResults(left, right) {
-  const relevanceCompare = right.relevanceScore - left.relevanceScore
-  if (relevanceCompare !== 0) return relevanceCompare
-
-  if (left.relevanceScore <= 0 && right.relevanceScore <= 0) {
-    return left.apiRank - right.apiRank
-  }
-
-  const leftDistance = left.place.distanceMeters
-  const rightDistance = right.place.distanceMeters
-  if (leftDistance !== null && rightDistance !== null) {
-    const distanceCompare = leftDistance - rightDistance
-    if (distanceCompare !== 0) return distanceCompare
-  }
-
-  if (leftDistance !== null) return -1
-  if (rightDistance !== null) return 1
-
-  const rankCompare = left.apiRank - right.apiRank
-  if (rankCompare !== 0) return rankCompare
-
-  return left.place.placeName.localeCompare(right.place.placeName)
+  return left.apiRank - right.apiRank
 }
 
 function getSearchRelevanceScore(place, query) {

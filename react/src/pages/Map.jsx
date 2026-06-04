@@ -34,15 +34,19 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { fetchOrCreateBoardForPlace } from '../api/boards'
 import { ensureKakaoMaps } from '../api/kakaoMaps'
-import { fetchPoiPlaces, fetchPopularPlaces } from '../api/places'
+import { fetchNearbyPlaces, fetchPoiPlaces, fetchPopularPlaces } from '../api/places'
 import mainLogo from '../assets/logo/image_12-removebg-preview.png'
 import {
+  buildNearbyPlaceRequests,
   buildPoiSearchRequest,
   buildPopularPlaceRequest,
+  CATEGORY_FILTERS,
   DEFAULT_MAP_CENTER,
   MAP_BOTTOM_SHEET_BOTTOM_OFFSET_PX,
   MAP_BOTTOM_SHEET_HEIGHT,
   MAP_BOTTOM_SHEET_TRANSITION_CLASSES,
+  MAP_CATEGORY_FILTER_BUTTON_CLASSES,
+  MAP_CATEGORY_FILTER_SCROLL_CLASSES,
   MAP_CURRENT_LOCATION_LEVEL,
   MAP_FLOATING_CONTROLS_TRANSITION_CLASSES,
   MAP_PLACE_CARD_SCROLL_CLASSES,
@@ -57,6 +61,7 @@ import {
   getBottomSheetContentClasses,
   getBottomSheetToggleLabel,
   getBottomSheetTransform,
+  getCategorySelectionState,
   getCurrentLocationViewPlan,
   getCurrentPositionMarkerTitle,
   getFloatingControlsBottom,
@@ -67,6 +72,7 @@ import {
   getPlaceSelectionTransitionState,
   getPlaceInfoRows,
   getSearchResultsPanelState,
+  normalizePlaces,
   normalizePopularPlaces,
   normalizeSearchPlaces,
 } from './Map.utils'
@@ -110,6 +116,7 @@ function MapPage() {
   const markersRef = useRef([])
   const currentLocationOverlayRef = useRef(null)
   const cardRefs = useRef({})
+  const categoryPlacesRequestIdRef = useRef(0)
   const poiSearchRequestIdRef = useRef(0)
   const popularPlacesRequestIdRef = useRef(0)
   const placeLookupRef = useRef(new globalThis.Map())
@@ -123,6 +130,10 @@ function MapPage() {
   const [locationStatus, setLocationStatus] = useState('loading')
   const [locationNotice, setLocationNotice] = useState('')
   const [currentPosition, setCurrentPosition] = useState(DEFAULT_MAP_CENTER)
+  const [selectedCategory, setSelectedCategory] = useState(null)
+  const [categoryPlaces, setCategoryPlaces] = useState([])
+  const [categoryPlacesStatus, setCategoryPlacesStatus] = useState('idle')
+  const [categoryPlacesError, setCategoryPlacesError] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [activeSearchQuery, setActiveSearchQuery] = useState('')
   const [searchPlaces, setSearchPlaces] = useState([])
@@ -139,14 +150,16 @@ function MapPage() {
   const [isSearchResultsOpen, setIsSearchResultsOpen] = useState(false)
 
   const isPoiSearchActive = searchStatus !== 'idle'
-  const knownPlaces = [...searchPlaces, ...popularPlaces]
+  const knownPlaces = [...searchPlaces, ...categoryPlaces, ...popularPlaces]
   const selectedPlace = knownPlaces.find((place) => place.kakaoPlaceId === selectedPlaceId) ?? null
   const markerPlaces = useMemo(() => getMarkerPlaces({
     searchPlaces,
     isSearchActive: isPoiSearchActive,
+    categoryPlaces,
     popularPlaces,
+    selectedCategory,
     selectedPlaceId,
-  }), [isPoiSearchActive, popularPlaces, searchPlaces, selectedPlaceId])
+  }), [categoryPlaces, isPoiSearchActive, popularPlaces, searchPlaces, selectedCategory, selectedPlaceId])
   const bottomUiState = getMapBottomUiState({ hasSelectedPlace: Boolean(selectedPlace) })
   const isFloatingControlsPinnedToSelectedPanel = bottomUiState.selectedPanelControlsPlacement === 'selected-panel-edge'
   const floatingControlsBottom = isFloatingControlsPinnedToSelectedPanel
@@ -310,6 +323,70 @@ function MapPage() {
     }
   }, [])
 
+  const loadCategoryPlaces = useCallback(async () => {
+    if (activeSearchQuery) {
+      return
+    }
+
+    if (!selectedCategory) {
+      setCategoryPlaces([])
+      setCategoryPlacesStatus('idle')
+      setCategoryPlacesError('')
+      return
+    }
+
+    if (locationStatus === 'loading') return
+
+    if (locationStatus !== 'success') {
+      setCategoryPlaces([])
+      setSelectedPlaceId(null)
+      setCategoryPlacesStatus('error')
+      setCategoryPlacesError(LOCATION_REQUIRED_MESSAGE)
+      return
+    }
+
+    const requests = buildNearbyPlaceRequests({
+      latitude: currentPosition.latitude,
+      longitude: currentPosition.longitude,
+      selectedCategory,
+    })
+
+    if (requests.length === 0) {
+      setCategoryPlaces([])
+      setCategoryPlacesStatus('error')
+      setCategoryPlacesError(LOCATION_REQUIRED_MESSAGE)
+      return
+    }
+
+    const requestId = categoryPlacesRequestIdRef.current + 1
+    categoryPlacesRequestIdRef.current = requestId
+    setCategoryPlacesStatus('loading')
+    setCategoryPlacesError('')
+    setBoardError('')
+
+    try {
+      const responses = await Promise.all(
+        requests.map(async (request) => ({
+          requestCategory: request.category,
+          places: await fetchNearbyPlaces(request),
+        }))
+      )
+      if (!isMountedRef.current || categoryPlacesRequestIdRef.current !== requestId) return
+
+      const normalizedPlaces = normalizePlaces(responses, currentPosition, NEARBY_LIMIT)
+      setCategoryPlaces(normalizedPlaces)
+      setSelectedPlaceId(null)
+      setCategoryPlacesStatus('success')
+    } catch {
+      if (!isMountedRef.current || categoryPlacesRequestIdRef.current !== requestId) return
+
+      setCategoryPlaces([])
+      setSelectedPlaceId(null)
+      setCategoryPlacesStatus('error')
+      setCategoryPlacesError('주변 장소를 불러오지 못했어요.')
+    }
+  }, [activeSearchQuery, currentPosition, locationStatus, selectedCategory])
+
   const loadPopularPlaces = useCallback(async () => {
     if (locationStatus === 'loading') return
     if (locationStatus !== 'success') {
@@ -376,8 +453,11 @@ function MapPage() {
     setIsSearchResultsOpen(true)
     setIsSheetOpen(false)
 
+    const searchOrigin = locationStatus === 'success' ? currentPosition : null
     const request = buildPoiSearchRequest({
       query: trimmedQuery,
+      latitude: searchOrigin?.latitude,
+      longitude: searchOrigin?.longitude,
     })
 
     if (!request) {
@@ -390,6 +470,7 @@ function MapPage() {
 
     const requestId = poiSearchRequestIdRef.current + 1
     poiSearchRequestIdRef.current = requestId
+    categoryPlacesRequestIdRef.current += 1
     setSearchStatus('loading')
     setSearchError('')
     setSearchNotice('')
@@ -398,7 +479,7 @@ function MapPage() {
       const response = await fetchPoiPlaces(request)
       if (!isMountedRef.current || poiSearchRequestIdRef.current !== requestId) return
 
-      const normalizedPlaces = normalizeSearchPlaces(response, currentPosition, trimmedQuery, NEARBY_LIMIT)
+      const normalizedPlaces = normalizeSearchPlaces(response, searchOrigin, trimmedQuery, NEARBY_LIMIT)
       setSearchPlaces(normalizedPlaces)
       setSearchStatus('success')
     } catch {
@@ -408,7 +489,7 @@ function MapPage() {
       setSearchStatus('error')
       setSearchError('장소 검색을 완료하지 못했어요. 잠시 뒤 다시 시도해 주세요.')
     }
-  }, [currentPosition, searchInput])
+  }, [currentPosition, locationStatus, searchInput])
 
   const clearPoiSearch = useCallback(() => {
     poiSearchRequestIdRef.current += 1
@@ -536,13 +617,21 @@ function MapPage() {
 
   useEffect(() => {
     const nextLookup = new globalThis.Map()
-    ;[...searchPlaces, ...popularPlaces].forEach((place) => {
+    ;[...searchPlaces, ...categoryPlaces, ...popularPlaces].forEach((place) => {
       if (place?.kakaoPlaceId) {
         nextLookup.set(place.kakaoPlaceId, place)
       }
     })
     placeLookupRef.current = nextLookup
-  }, [popularPlaces, searchPlaces])
+  }, [categoryPlaces, popularPlaces, searchPlaces])
+
+  useEffect(() => {
+    window.queueMicrotask(() => {
+      if (isMountedRef.current) {
+        loadCategoryPlaces()
+      }
+    })
+  }, [loadCategoryPlaces])
 
   useEffect(() => {
     window.queueMicrotask(() => {
@@ -603,6 +692,56 @@ function MapPage() {
 
     applyMapViewportPlan(getMapViewportPlan(searchPlaces, currentPosition))
   }, [applyMapViewportPlan, currentPosition, mapStatus, searchPlaces, searchStatus])
+
+  useEffect(() => {
+    if (mapStatus !== 'ready' || isPoiSearchActive || categoryPlacesStatus !== 'success' || categoryPlaces.length === 0) return
+
+    applyMapViewportPlan(getMapViewportPlan(categoryPlaces, currentPosition))
+  }, [applyMapViewportPlan, categoryPlaces, categoryPlacesStatus, currentPosition, isPoiSearchActive, mapStatus])
+
+  const handleCategorySelect = (categoryLabel) => {
+    const nextState = getCategorySelectionState(categoryLabel)
+    categoryPlacesRequestIdRef.current += 1
+    setSelectedCategory(nextState.selectedCategory)
+    setCategoryPlaces(nextState.categoryPlaces)
+    setCategoryPlacesError(nextState.categoryPlacesError)
+    setBoardError(nextState.boardError)
+
+    if (activeSearchQuery) {
+      setCategoryPlacesStatus('idle')
+      return
+    }
+
+    setSelectedPlaceId(nextState.selectedPlaceId)
+    setCategoryPlacesStatus(nextState.categoryPlacesStatus)
+    setIsSearchResultsOpen(false)
+
+    if (categoryLabel === selectedCategory) {
+      window.queueMicrotask(() => {
+        if (isMountedRef.current) {
+          loadCategoryPlaces()
+        }
+      })
+    }
+  }
+
+  const handleCategoryFilterWheel = useCallback((event) => {
+    const container = event.currentTarget
+    if (container.scrollWidth <= container.clientWidth) return
+
+    const delta =
+      Math.abs(event.deltaX) > Math.abs(event.deltaY)
+        ? event.deltaX
+        : event.deltaY
+    if (delta === 0) return
+
+    const maxScrollLeft = container.scrollWidth - container.clientWidth
+    const nextScrollLeft = Math.max(0, Math.min(container.scrollLeft + delta, maxScrollLeft))
+    if (nextScrollLeft === container.scrollLeft) return
+
+    event.preventDefault()
+    container.scrollLeft = nextScrollLeft
+  }, [])
 
   const handleOpenKakaoMap = () => {
     if (!selectedPlace?.kakaoMapUrl) return
@@ -687,13 +826,12 @@ function MapPage() {
             runPoiSearch()
           }}
         >
-          <Search size={17} strokeWidth={1.8} className="shrink-0 text-[#7A6558]" />
           <input
             type="search"
             value={searchInput}
             onChange={handleSearchInputChange}
             placeholder="장소를 검색해 보세요"
-            className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-[#2B1810] outline-none placeholder:text-[#9A8778]"
+            className="map-search-input min-w-0 flex-1 bg-transparent text-[15px] font-medium text-[#2B1810] outline-none placeholder:text-[#9A8778]"
             aria-label="장소 검색어"
           />
           {searchInput ? (
@@ -731,6 +869,40 @@ function MapPage() {
             onRetry={() => runPoiSearch({ query: activeSearchQuery || searchInput })}
             onSelectPlace={handleSearchResultSelect}
           />
+        ) : null}
+
+        <div className={MAP_CATEGORY_FILTER_SCROLL_CLASSES} onWheel={handleCategoryFilterWheel}>
+          {CATEGORY_FILTERS.map((item) => {
+            const CategoryIcon = CATEGORY_ICON_COMPONENTS[item.iconName] ?? MapPinned
+            const isSelected = selectedCategory === item.label
+
+            return (
+              <button
+                key={item.label}
+                type="button"
+                onClick={() => handleCategorySelect(item.label)}
+                aria-pressed={isSelected}
+                className={`${MAP_CATEGORY_FILTER_BUTTON_CLASSES} ${
+                  isSelected
+                    ? 'border-[#3D2415] bg-[#3D2415] text-white shadow-[0_6px_14px_rgba(61,36,21,0.18)]'
+                    : 'border-[#E2D6C8] bg-[#EEE6DA] text-[#5A4030]'
+                }`}
+              >
+                <CategoryIcon size={14} strokeWidth={1.9} className="shrink-0" />
+                <span className="whitespace-nowrap">{item.label}</span>
+              </button>
+            )
+          })}
+        </div>
+        {categoryPlacesStatus === 'error' && categoryPlacesError ? (
+          <p className="mt-2 rounded-full bg-white/90 px-3 py-1.5 text-[12px] font-medium text-[#A74831] shadow-[0_4px_10px_rgba(0,0,0,0.04)]">
+            {categoryPlacesError}
+          </p>
+        ) : null}
+        {categoryPlacesStatus === 'success' && selectedCategory && categoryPlaces.length === 0 ? (
+          <p className="mt-2 rounded-full bg-white/90 px-3 py-1.5 text-[12px] font-medium text-[#6B5343] shadow-[0_4px_10px_rgba(0,0,0,0.04)]">
+            선택한 카테고리의 장소가 아직 없어요.
+          </p>
         ) : null}
       </section>
 
