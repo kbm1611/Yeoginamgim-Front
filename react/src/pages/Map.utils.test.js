@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import {
   buildBoardRequestFromPlace,
   buildNearbyPlaceRequests,
+  buildPoiSearchRequest,
   buildPopularPlaceRequest,
   CATEGORY_FILTERS,
   MAP_BOTTOM_SHEET_BOTTOM_OFFSET_PX,
@@ -13,6 +14,8 @@ import {
   MAP_CATEGORY_FILTER_SCROLL_CLASSES,
   MAP_FLOATING_CONTROLS_GAP_PX,
   MAP_FLOATING_CONTROLS_TRANSITION_CLASSES,
+  MAP_SEARCH_RESULTS_LIST_CLASSES,
+  MAP_SEARCH_RESULTS_PANEL_CLASSES,
   MAP_PLACE_CARD_SCROLL_CLASSES,
   MAP_PLACE_LIST_SCROLL_CLASSES,
   MAP_CURRENT_LOCATION_LEVEL,
@@ -29,11 +32,14 @@ import {
   getMapBottomUiState,
   getMapViewportPlan,
   getMarkerPlaces,
+  getPlaceSelectionTransitionState,
   getPlaceInfoRows,
+  getSearchResultsPanelState,
   getPlaceCategoryMeta,
   inferPlaceCategoryKey,
   normalizePlaces,
   normalizePopularPlaces,
+  normalizeSearchPlaces,
 } from './Map.utils.js'
 
 const KAKAO_CATEGORY_CODES = [
@@ -163,6 +169,38 @@ test('buildPopularPlaceRequest creates a popular places lookup for the bottom sh
 test('buildPopularPlaceRequest skips lookup without a real user location', () => {
   assert.equal(buildPopularPlaceRequest({ latitude: null, longitude: 127.0559 }), null)
   assert.equal(buildPopularPlaceRequest({ latitude: 37.5447, longitude: undefined }), null)
+})
+
+test('buildPoiSearchRequest uses a trimmed keyword, current position radius, and selected category filter', () => {
+  const request = buildPoiSearchRequest({
+    query: '  seongsu coffee  ',
+    latitude: 37.5447,
+    longitude: 127.0559,
+    selectedCategory: '\uCE74\uD398',
+  })
+
+  assert.deepEqual(request, {
+    query: 'seongsu coffee',
+    latitude: 37.5447,
+    longitude: 127.0559,
+    radius: 1000,
+    category: 'CE7',
+    page: 1,
+    limit: 15,
+  })
+})
+
+test('buildPoiSearchRequest skips empty keyword or missing current position', () => {
+  assert.equal(buildPoiSearchRequest({
+    query: ' ',
+    latitude: 37.5447,
+    longitude: 127.0559,
+  }), null)
+  assert.equal(buildPoiSearchRequest({
+    query: 'coffee',
+    latitude: null,
+    longitude: 127.0559,
+  }), null)
 })
 
 test('category filters expose stable icon names for map controls', () => {
@@ -377,6 +415,67 @@ test('normalizePopularPlaces keeps distance as the primary bottom sheet sort', (
   )
 })
 
+test('normalizeSearchPlaces keeps keyword relevance ahead of distance and uses distance for close relevance ties', () => {
+  const places = normalizeSearchPlaces(
+    [
+      {
+        kakaoPlaceId: 'near-unrelated',
+        placeName: 'Nearby Pharmacy',
+        latitude: 37.5447,
+        longitude: 127.0559,
+        groupName: 'pharmacy',
+      },
+      {
+        kakaoPlaceId: 'far-relevant',
+        placeName: 'Seongsu Coffee Lab',
+        latitude: 37.5647,
+        longitude: 127.0559,
+        groupName: 'cafe',
+      },
+      {
+        kakaoPlaceId: 'near-relevant',
+        placeName: 'Seongsu Coffee Bar',
+        latitude: 37.5457,
+        longitude: 127.0559,
+        groupName: 'cafe',
+      },
+    ],
+    { latitude: 37.5447, longitude: 127.0559 },
+    'seongsu coffee'
+  )
+
+  assert.deepEqual(
+    places.map((place) => place.kakaoPlaceId),
+    ['near-relevant', 'far-relevant', 'near-unrelated']
+  )
+})
+
+test('normalizeSearchPlaces preserves Kakao accuracy order when local relevance is unknown', () => {
+  const places = normalizeSearchPlaces(
+    [
+      {
+        kakaoPlaceId: 'api-first-far',
+        placeName: 'Alpha Place',
+        latitude: 37.5647,
+        longitude: 127.0559,
+      },
+      {
+        kakaoPlaceId: 'api-second-near',
+        placeName: 'Beta Place',
+        latitude: 37.5447,
+        longitude: 127.0559,
+      },
+    ],
+    { latitude: 37.5447, longitude: 127.0559 },
+    'museum'
+  )
+
+  assert.deepEqual(
+    places.map((place) => place.kakaoPlaceId),
+    ['api-first-far', 'api-second-near']
+  )
+})
+
 test('place category metadata provides warm custom marker styles with a fallback', () => {
   assert.equal(PLACE_CATEGORY_META.default.backgroundColor, '#FFFDF8')
   assert.equal(getPlaceCategoryMeta('CE7').iconName, 'coffee')
@@ -437,6 +536,30 @@ test('marker places show popular markers until category results are active', () 
       selectedPlaceId: null,
     }),
     popularPlaces
+  )
+})
+
+test('marker places prefer POI search results while search is active', () => {
+  const searchPlaces = [
+    { kakaoPlaceId: 'search-1', placeName: 'Search One' },
+    { kakaoPlaceId: 'search-2', placeName: 'Search Two' },
+  ]
+  const categoryPlaces = [
+    { kakaoPlaceId: 'category-1', placeName: 'Category One' },
+  ]
+  const popularPlaces = [
+    { kakaoPlaceId: 'popular-1', placeName: 'Popular One' },
+  ]
+
+  assert.deepEqual(
+    getMarkerPlaces({
+      searchPlaces,
+      categoryPlaces,
+      popularPlaces,
+      selectedCategory: '\uCE74\uD398',
+      isSearchActive: true,
+    }).map((place) => place.kakaoPlaceId),
+    ['search-1', 'search-2']
   )
 })
 
@@ -592,6 +715,54 @@ test('category selection state clears the previous selected place before loading
   assert.equal(Object.hasOwn(state, 'isSheetOpen'), false)
   assert.equal(Object.hasOwn(state, 'popularPlaces'), false)
   assert.equal(Object.hasOwn(state, 'popularPlacesStatus'), false)
+})
+
+test('place selection transition resets the detail panel before opening the next place', () => {
+  assert.deepEqual(getPlaceSelectionTransitionState('next-place'), {
+    selectedPlaceId: null,
+    nextSelectedPlaceId: 'next-place',
+    openingPlaceId: null,
+    boardError: '',
+  })
+})
+
+test('search results panel renders only for open search feedback', () => {
+  assert.deepEqual(getSearchResultsPanelState({
+    isOpen: false,
+    searchStatus: 'success',
+    searchNotice: '',
+    resultCount: 3,
+  }), {
+    shouldRender: false,
+    hasResults: false,
+  })
+
+  assert.deepEqual(getSearchResultsPanelState({
+    isOpen: true,
+    searchStatus: 'idle',
+    searchNotice: '\uAC80\uC0C9\uC5B4\uB97C \uC785\uB825\uD574 \uC8FC\uC138\uC694.',
+    resultCount: 0,
+  }), {
+    shouldRender: true,
+    hasResults: false,
+  })
+
+  assert.deepEqual(getSearchResultsPanelState({
+    isOpen: true,
+    searchStatus: 'success',
+    searchNotice: '',
+    resultCount: 2,
+  }), {
+    shouldRender: true,
+    hasResults: true,
+  })
+})
+
+test('search result dropdown classes keep the list vertical and internally scrollable', () => {
+  assert.match(MAP_SEARCH_RESULTS_PANEL_CLASSES, /z-\[45\]/)
+  assert.match(MAP_SEARCH_RESULTS_LIST_CLASSES, /flex-col/)
+  assert.match(MAP_SEARCH_RESULTS_LIST_CLASSES, /overflow-y-auto/)
+  assert.match(MAP_SEARCH_RESULTS_LIST_CLASSES, /max-h-\[/)
 })
 
 test('bottom sheet animation classes use a slower eased transform with reduced motion support', () => {

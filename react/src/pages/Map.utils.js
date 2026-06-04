@@ -24,6 +24,10 @@ export const MAP_BOTTOM_SHEET_CONTENT_CLASSES = `${MAP_BOTTOM_SHEET_CONTENT_BASE
 export const MAP_BOTTOM_SHEET_CONTENT_CLOSED_CLASSES = `${MAP_BOTTOM_SHEET_CONTENT_BASE_CLASSES} pointer-events-none opacity-0 delay-0`
 export const MAP_PLACE_LIST_SCROLL_CLASSES = 'scrollbar-hide flex h-[calc(100%-34px)] snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-hidden scroll-smooth pb-1'
 export const MAP_PLACE_CARD_SCROLL_CLASSES = 'snap-start scroll-ml-1'
+export const MAP_SEARCH_RESULTS_PANEL_CLASSES =
+  'relative z-[45] mb-2 overflow-hidden rounded-[20px] border border-[#EDE4D8] bg-white/97 shadow-[0_10px_24px_rgba(61,36,21,0.12)] backdrop-blur-sm'
+export const MAP_SEARCH_RESULTS_LIST_CLASSES =
+  'scrollbar-hide flex max-h-[min(320px,calc(100dvh-260px))] flex-col overflow-y-auto overscroll-contain'
 export const MAP_CATEGORY_FILTER_SCROLL_CLASSES =
   'scrollbar-hide mt-3 flex w-full snap-x snap-proximity flex-nowrap gap-2 overflow-x-scroll overflow-y-hidden overscroll-x-contain scroll-smooth pb-1 whitespace-nowrap [touch-action:pan-x] [-webkit-overflow-scrolling:touch]'
 export const MAP_CATEGORY_FILTER_BUTTON_CLASSES =
@@ -272,16 +276,45 @@ export function buildPopularPlaceRequest({ latitude, longitude } = {}) {
   }
 }
 
+export function buildPoiSearchRequest({
+  query,
+  latitude,
+  longitude,
+  selectedCategory = null,
+} = {}) {
+  const safeQuery = String(query ?? '').trim()
+  const safeLatitude = toCoordinate(latitude)
+  const safeLongitude = toCoordinate(longitude)
+  if (!safeQuery || safeLatitude === null || safeLongitude === null) return null
+
+  const category = getSingleCategoryFilterCode(selectedCategory)
+  return {
+    query: safeQuery,
+    latitude: safeLatitude,
+    longitude: safeLongitude,
+    radius: NEARBY_RADIUS_METERS,
+    ...(category ? { category } : {}),
+    page: 1,
+    limit: NEARBY_LIMIT,
+  }
+}
+
 export function getMarkerPlaces({
+  searchPlaces = [],
+  isSearchActive = false,
   categoryPlaces = [],
   popularPlaces = [],
   selectedCategory = null,
   selectedPlaceId = null,
 } = {}) {
-  const markerPlaces = selectedCategory ? [...categoryPlaces] : [...popularPlaces]
+  const markerPlaces = isSearchActive
+    ? [...searchPlaces]
+    : selectedCategory
+      ? [...categoryPlaces]
+      : [...popularPlaces]
   const seenPlaceIds = new Set(markerPlaces.map((place) => place?.kakaoPlaceId).filter(Boolean))
 
-  if (selectedCategory && selectedPlaceId && !seenPlaceIds.has(selectedPlaceId)) {
+  if (!isSearchActive && selectedCategory && selectedPlaceId && !seenPlaceIds.has(selectedPlaceId)) {
     const selectedPopularPlace = popularPlaces.find((place) => place?.kakaoPlaceId === selectedPlaceId)
     if (selectedPopularPlace) {
       markerPlaces.push(selectedPopularPlace)
@@ -310,6 +343,30 @@ export function normalizePlaces(places, origin, limit = NEARBY_LIMIT) {
 
 export function normalizePopularPlaces(places, origin, limit = NEARBY_LIMIT) {
   return normalizePlaces(places, origin, limit)
+}
+
+export function normalizeSearchPlaces(places, origin, query, limit = NEARBY_LIMIT) {
+  const seenPlaceIds = new Set()
+  const flattenedPlaces = Array.isArray(places)
+    ? places.flatMap(flattenPlaceGroup)
+    : []
+
+  return flattenedPlaces
+    .map(({ place, requestCategory }, index) => {
+      const normalizedPlace = normalizePlace(place, origin, requestCategory)
+      if (!normalizedPlace?.kakaoPlaceId || seenPlaceIds.has(normalizedPlace.kakaoPlaceId)) return null
+      seenPlaceIds.add(normalizedPlace.kakaoPlaceId)
+
+      return {
+        place: normalizedPlace,
+        apiRank: index,
+        relevanceScore: getSearchRelevanceScore(normalizedPlace, query),
+      }
+    })
+    .filter(Boolean)
+    .sort(compareSearchResults)
+    .slice(0, limit)
+    .map((result) => result.place)
 }
 
 export function normalizePlace(place, origin, requestCategory = null) {
@@ -447,6 +504,29 @@ export function getCategorySelectionState(categoryLabel) {
   }
 }
 
+export function getPlaceSelectionTransitionState(kakaoPlaceId) {
+  return {
+    selectedPlaceId: null,
+    nextSelectedPlaceId: kakaoPlaceId ?? null,
+    openingPlaceId: null,
+    boardError: '',
+  }
+}
+
+export function getSearchResultsPanelState({
+  isOpen = false,
+  searchStatus = 'idle',
+  searchNotice = '',
+  resultCount = 0,
+} = {}) {
+  const shouldRender = Boolean(isOpen && (searchStatus !== 'idle' || searchNotice))
+
+  return {
+    shouldRender,
+    hasResults: Boolean(shouldRender && searchStatus === 'success' && resultCount > 0),
+  }
+}
+
 export function getPlaceInfoRows(place) {
   if (!place || typeof place !== 'object') return []
 
@@ -516,6 +596,17 @@ function getDisplayCategory(place) {
   return CATEGORY_LABELS[category] ?? '장소'
 }
 
+function getSingleCategoryFilterCode(selectedCategory) {
+  if (!selectedCategory) return null
+
+  const filter = CATEGORY_FILTERS.find((item) => item.label === selectedCategory)
+  if (filter) {
+    return filter.categories.length === 1 ? normalizeCategoryKey(filter.categories[0]) : null
+  }
+
+  return normalizeCategoryKey(selectedCategory)
+}
+
 function normalizeCategoryKey(value) {
   const category = normalizeCategoryText(value)
   if (!category || category === 'default') return null
@@ -565,6 +656,73 @@ function comparePlaces(left, right) {
   if (boardCompare !== 0) return boardCompare
 
   return left.placeName.localeCompare(right.placeName)
+}
+
+function compareSearchResults(left, right) {
+  const relevanceCompare = right.relevanceScore - left.relevanceScore
+  if (relevanceCompare !== 0) return relevanceCompare
+
+  if (left.relevanceScore <= 0 && right.relevanceScore <= 0) {
+    return left.apiRank - right.apiRank
+  }
+
+  const leftDistance = left.place.distanceMeters
+  const rightDistance = right.place.distanceMeters
+  if (leftDistance !== null && rightDistance !== null) {
+    const distanceCompare = leftDistance - rightDistance
+    if (distanceCompare !== 0) return distanceCompare
+  }
+
+  if (leftDistance !== null) return -1
+  if (rightDistance !== null) return 1
+
+  const rankCompare = left.apiRank - right.apiRank
+  if (rankCompare !== 0) return rankCompare
+
+  return left.place.placeName.localeCompare(right.place.placeName)
+}
+
+function getSearchRelevanceScore(place, query) {
+  const normalizedQuery = normalizeSearchText(query)
+  if (!normalizedQuery) return 0
+
+  const fields = {
+    name: normalizeSearchText(place?.placeName),
+    category: normalizeSearchText(place?.groupName),
+    address: normalizeSearchText(place?.address),
+  }
+  const tokens = getSearchTokens(query)
+  let score = 0
+
+  if (fields.name === normalizedQuery) score += 100
+  if (fields.name.startsWith(normalizedQuery)) score += 80
+  if (fields.name.includes(normalizedQuery)) score += 60
+  if (fields.category.includes(normalizedQuery)) score += 30
+  if (fields.address.includes(normalizedQuery)) score += 10
+
+  tokens.forEach((token) => {
+    if (fields.name.includes(token)) score += 8
+    if (fields.category.includes(token)) score += 4
+    if (fields.address.includes(token)) score += 2
+  })
+
+  return score
+}
+
+function getSearchTokens(query) {
+  return String(query ?? '')
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .map(normalizeSearchText)
+    .filter(Boolean)
+}
+
+function normalizeSearchText(value) {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '')
 }
 
 function createPlaceInfoRow(label, value) {
