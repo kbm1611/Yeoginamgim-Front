@@ -261,6 +261,14 @@ export const PLACE_MARKER_ICON_PATHS = {
   ],
 }
 
+export function handleUnauthorizedMapApiError(error, { clearAuthToken, navigate, location } = {}) {
+  if (error?.status !== 401) return false
+
+  clearAuthToken?.()
+  navigate?.('/login', { replace: true, state: { from: location } })
+  return true
+}
+
 export function buildNearbyPlaceRequests({ latitude, longitude, selectedCategory = null } = {}) {
   const safeLatitude = toCoordinate(latitude)
   const safeLongitude = toCoordinate(longitude)

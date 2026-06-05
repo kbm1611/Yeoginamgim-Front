@@ -35,6 +35,7 @@ import {
   getFloatingControlsBottom,
   getMapBottomUiState,
   getMapViewportPlan,
+  handleUnauthorizedMapApiError,
   getMarkerPlaces,
   getPlaceSelectionTransitionState,
   getPlaceInfoRows,
@@ -71,6 +72,42 @@ const SERVICE_CATEGORY_CODES = [
   'MT1',
   'EDU',
 ]
+
+test('handleUnauthorizedMapApiError clears auth and redirects to login with the current location', () => {
+  const calls = []
+  const location = { pathname: '/map', search: '?q=cafe' }
+
+  const handled = handleUnauthorizedMapApiError(
+    { status: 401 },
+    {
+      clearAuthToken: () => calls.push(['clearAuthToken']),
+      navigate: (...args) => calls.push(['navigate', ...args]),
+      location,
+    }
+  )
+
+  assert.equal(handled, true)
+  assert.deepEqual(calls, [
+    ['clearAuthToken'],
+    ['navigate', '/login', { replace: true, state: { from: location } }],
+  ])
+})
+
+test('handleUnauthorizedMapApiError leaves non-401 errors for the existing map error messages', () => {
+  const calls = []
+
+  const handled = handleUnauthorizedMapApiError(
+    { status: 500 },
+    {
+      clearAuthToken: () => calls.push('clearAuthToken'),
+      navigate: () => calls.push('navigate'),
+      location: { pathname: '/map' },
+    }
+  )
+
+  assert.equal(handled, false)
+  assert.deepEqual(calls, [])
+})
 
 test('buildNearbyPlaceRequests maps all filter to concrete backend categories', () => {
   const requests = buildNearbyPlaceRequests({

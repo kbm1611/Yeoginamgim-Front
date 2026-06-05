@@ -33,9 +33,10 @@ import {
   Utensils,
   X,
 } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { addFavoritePlace, fetchFavoritePlaces, removeFavoritePlace } from '../api/archive'
 import { buildBoardRequestFromPlace, fetchOrCreateBoardForPlace } from '../api/boards'
+import { clearAuthToken } from '../api/client'
 import { ensureKakaoMaps } from '../api/kakaoMaps'
 import { fetchNearbyPlaces, fetchPoiPlaces, fetchPopularPlaces } from '../api/places'
 import mainLogo from '../assets/logo/image_12-removebg-preview.png'
@@ -68,6 +69,7 @@ import {
   getCurrentLocationViewPlan,
   getCurrentPositionMarkerTitle,
   getFloatingControlsBottom,
+  handleUnauthorizedMapApiError,
   getMapBottomUiState,
   getMapViewportPlan,
   getMarkerPlaces,
@@ -112,6 +114,7 @@ const CATEGORY_ICON_COMPONENTS = {
 
 function MapPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const containerRef = useRef(null)
   const mapElementRef = useRef(null)
   const kakaoRef = useRef(null)
@@ -182,6 +185,14 @@ function MapPage() {
     resultCount: searchPlaces.length,
   })
   const popularPlacesPanelNotice = locationNotice || '현재 위치 기준으로 흔적이 많은 공간을 보여드려요.'
+  const handleUnauthorizedApiError = useCallback((error) => {
+    return handleUnauthorizedMapApiError(error, {
+      clearAuthToken,
+      navigate,
+      location,
+    })
+  }, [location, navigate])
+
   const clearMarkers = useCallback(() => {
     const kakao = kakaoRef.current
     markersRef.current.forEach(({ marker, element, handler }) => {
@@ -587,12 +598,14 @@ function MapPage() {
       )
       setFavoritePlaceIds(ids)
       setFavoriteError('')
-    } catch {
+    } catch (error) {
+      if (handleUnauthorizedApiError(error)) return
+
       if (isMountedRef.current) {
         setFavoriteError('즐겨찾기 정보를 불러오지 못했어요.')
       }
     }
-  }, [])
+  }, [handleUnauthorizedApiError])
 
   useEffect(() => {
     isMountedRef.current = true
@@ -825,7 +838,9 @@ function MapPage() {
       }
 
       navigate(`/board/${board.boardId}`)
-    } catch {
+    } catch (error) {
+      if (handleUnauthorizedApiError(error)) return
+
       if (isMountedRef.current) {
         setBoardError('보드로 이동하지 못했어요. 잠시 후 다시 시도해주세요.')
       }
@@ -863,7 +878,9 @@ function MapPage() {
         nextIds.add(kakaoPlaceId)
         return nextIds
       })
-    } catch {
+    } catch (error) {
+      if (handleUnauthorizedApiError(error)) return
+
       if (isMountedRef.current) {
         setFavoriteError(isFavorite ? '즐겨찾기를 해제하지 못했어요.' : '즐겨찾기에 저장하지 못했어요.')
       }
