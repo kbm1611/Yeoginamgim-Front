@@ -24,7 +24,18 @@ test('signup submit remains reachable without covering the last fields', () => {
   const signupFormRule = getRuleBody('.signup-form')
   const signupSubmitRule = getRuleBody('.signup-submit')
 
-  assert.match(signupFormRule, /padding-bottom:\s*calc\(/)
-  assert.match(signupSubmitRule, /position:\s*sticky/)
-  assert.match(signupSubmitRule, /bottom:\s*calc\(/)
+  assert.doesNotMatch(signupFormRule, /padding-bottom:\s*calc\(/)
+  assert.doesNotMatch(signupSubmitRule, /position:\s*(sticky|fixed)/)
+  assert.doesNotMatch(signupSubmitRule, /bottom:\s*calc\(/)
+  assert.match(signupSubmitRule, /width:\s*100%/)
+})
+
+test('profile image file input is hidden behind a styled selector', () => {
+  const fileInputRule = getRuleBody('.signup-file-input')
+  const fileSelectorRule = getRuleBody('.signup-file-selector')
+
+  assert.match(fileInputRule, /position:\s*absolute/)
+  assert.match(fileInputRule, /opacity:\s*0/)
+  assert.match(fileSelectorRule, /border:\s*1px solid #e7d9cc/)
+  assert.match(fileSelectorRule, /background:\s*#fffcf8/)
 })

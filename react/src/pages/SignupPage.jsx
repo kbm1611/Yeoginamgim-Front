@@ -12,11 +12,23 @@ const initialForm = {
   birthDate: '',
 }
 
+const initialEmailVerification = {
+  codeSent: false,
+  email: '',
+  error: '',
+  isSending: false,
+  isVerifying: false,
+  success: '',
+  verified: false,
+}
+
 const SIGNUP_SUCCESS_MESSAGE = '회원가입이 완료되었습니다. 로그인해주세요.'
+const EMAIL_FORMAT_ERROR_MESSAGE = '올바른 이메일 형식으로 입력해주세요.'
+const EMAIL_VERIFICATION_SEND_FAILURE_MESSAGE = '인증번호를 보낼 수 없어요. 이메일 주소를 다시 확인해주세요.'
 
 const signupErrorMessages = [
   ['email is required', '이메일을 입력해주세요.'],
-  ['email must be valid', '올바른 이메일 형식으로 입력해주세요.'],
+  ['email must be valid', EMAIL_FORMAT_ERROR_MESSAGE],
   ['email must be 255', '이메일은 255자 이하로 입력해주세요.'],
   ['password is required', '비밀번호를 입력해주세요.'],
   ['password must be between', '비밀번호는 8자 이상 255자 이하로 입력해주세요.'],
@@ -67,18 +79,13 @@ function SignupPage() {
   const [form, setForm] = useState(initialForm)
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [profileImageFile, setProfileImageFile] = useState(null)
   const [verificationCode, setVerificationCode] = useState('')
-  const [emailVerification, setEmailVerification] = useState({
-    email: '',
-    error: '',
-    isSending: false,
-    isVerifying: false,
-    success: '',
-    verified: false,
-  })
+  const [emailVerification, setEmailVerification] = useState(initialEmailVerification)
   const navigate = useNavigate()
   const normalizedEmail = form.email.trim().toLowerCase()
   const isEmailVerified = emailVerification.verified && emailVerification.email === normalizedEmail
+  const canShowVerificationCode = emailVerification.codeSent && emailVerification.email === normalizedEmail
   const canSubmitSignup = isEmailVerified && !isSubmitting && !emailVerification.isSending && !emailVerification.isVerifying
 
   const handleChange = (event) => {
@@ -89,14 +96,7 @@ function SignupPage() {
 
     if (name === 'email') {
       setVerificationCode('')
-      setEmailVerification({
-        email: '',
-        error: '',
-        isSending: false,
-        isVerifying: false,
-        success: '',
-        verified: false,
-      })
+      setEmailVerification(initialEmailVerification)
     }
   }
 
@@ -110,9 +110,14 @@ function SignupPage() {
     }))
   }
 
+  const handleProfileImageChange = (event) => {
+    setProfileImageFile(event.target.files?.[0] ?? null)
+    setError('')
+  }
+
   const validateEmailForVerification = () => {
     if (!normalizedEmail) return '이메일을 입력해주세요.'
-    if (!normalizedEmail.includes('@')) return '올바른 이메일 형식으로 입력해주세요.'
+    if (!normalizedEmail.includes('@')) return EMAIL_FORMAT_ERROR_MESSAGE
     return ''
   }
 
@@ -122,6 +127,7 @@ function SignupPage() {
     if (validationError) {
       setEmailVerification((current) => ({
         ...current,
+        codeSent: false,
         error: validationError,
         success: '',
         verified: false,
@@ -131,6 +137,7 @@ function SignupPage() {
 
     setError('')
     setEmailVerification({
+      codeSent: false,
       email: normalizedEmail,
       error: '',
       isSending: true,
@@ -143,6 +150,7 @@ function SignupPage() {
       const response = await sendEmailVerification(normalizedEmail)
       setVerificationCode('')
       setEmailVerification({
+        codeSent: true,
         email: normalizedEmail,
         error: '',
         isSending: false,
@@ -150,10 +158,11 @@ function SignupPage() {
         success: response?.message || '인증번호를 이메일로 보냈습니다.',
         verified: false,
       })
-    } catch (verificationError) {
+    } catch {
       setEmailVerification({
+        codeSent: false,
         email: normalizedEmail,
-        error: getFriendlyVerificationError(verificationError),
+        error: EMAIL_VERIFICATION_SEND_FAILURE_MESSAGE,
         isSending: false,
         isVerifying: false,
         success: '',
@@ -200,6 +209,7 @@ function SignupPage() {
     try {
       const response = await verifyEmailVerification(normalizedEmail, verificationCode)
       setEmailVerification({
+        codeSent: true,
         email: normalizedEmail,
         error: '',
         isSending: false,
@@ -209,6 +219,7 @@ function SignupPage() {
       })
     } catch (verificationError) {
       setEmailVerification({
+        codeSent: true,
         email: normalizedEmail,
         error: getFriendlyVerificationError(verificationError),
         isSending: false,
@@ -221,7 +232,7 @@ function SignupPage() {
 
   const validateForm = () => {
     if (!form.email.trim()) return '이메일을 입력해주세요.'
-    if (!form.email.includes('@')) return '올바른 이메일 형식으로 입력해주세요.'
+    if (!form.email.includes('@')) return EMAIL_FORMAT_ERROR_MESSAGE
     if (!isEmailVerified) return '이메일 인증을 완료해주세요.'
     if (form.password.length < 8) return '비밀번호는 8자 이상 입력해주세요.'
     if (!form.nickname.trim()) return '닉네임을 입력해주세요.'
@@ -247,6 +258,9 @@ function SignupPage() {
     signupData.append('email', email)
     signupData.append('password', form.password)
     signupData.append('nickname', form.nickname.trim())
+    if (profileImageFile) {
+      signupData.append('profileUploadFile', profileImageFile)
+    }
     if (form.birthDate) {
       signupData.append('birthDate', form.birthDate)
     }
@@ -315,36 +329,38 @@ function SignupPage() {
             </div>
           </label>
 
-          <label className="signup-field">
-            <span>인증번호</span>
-            <div className="signup-inline-control">
-              <input
-                name="verificationCode"
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={6}
-                placeholder="6자리 숫자"
-                value={verificationCode}
-                onChange={handleVerificationCodeChange}
-                disabled={isSubmitting || emailVerification.isSending || emailVerification.isVerifying || isEmailVerified}
-              />
-              <button
-                type="button"
-                className="signup-secondary-button"
-                onClick={handleVerifyEmail}
-                disabled={
-                  isSubmitting ||
-                  emailVerification.isSending ||
-                  emailVerification.isVerifying ||
-                  isEmailVerified ||
-                  verificationCode.length !== 6
-                }
-              >
-                {emailVerification.isVerifying ? '확인 중' : '인증 확인'}
-              </button>
-            </div>
-          </label>
+          {canShowVerificationCode && (
+            <label className="signup-field signup-verification-field">
+              <span>인증번호</span>
+              <div className="signup-inline-control">
+                <input
+                  name="verificationCode"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  placeholder="6자리 숫자"
+                  value={verificationCode}
+                  onChange={handleVerificationCodeChange}
+                  disabled={isSubmitting || emailVerification.isSending || emailVerification.isVerifying || isEmailVerified}
+                />
+                <button
+                  type="button"
+                  className="signup-secondary-button"
+                  onClick={handleVerifyEmail}
+                  disabled={
+                    isSubmitting ||
+                    emailVerification.isSending ||
+                    emailVerification.isVerifying ||
+                    isEmailVerified ||
+                    verificationCode.length !== 6
+                  }
+                >
+                  {emailVerification.isVerifying ? '확인 중' : '인증 확인'}
+                </button>
+              </div>
+            </label>
+          )}
 
           <label className="signup-field">
             <span>비밀번호</span>
@@ -371,6 +387,25 @@ function SignupPage() {
               disabled={isSubmitting}
             />
           </label>
+
+          <div className="signup-field signup-profile-field">
+            <span>프로필 사진</span>
+            <input
+              id="profileUploadFile"
+              className="signup-file-input"
+              name="profileUploadFile"
+              type="file"
+              accept="image/*"
+              onChange={handleProfileImageChange}
+              disabled={isSubmitting}
+            />
+            <label className="signup-file-selector" htmlFor="profileUploadFile" aria-disabled={isSubmitting}>
+              <span className="signup-file-action">프로필 사진 선택</span>
+              <span className="signup-file-name">
+                {profileImageFile ? `${profileImageFile.name} 선택됨` : '선택하지 않아도 가입할 수 있어요'}
+              </span>
+            </label>
+          </div>
 
           <label className="signup-field">
             <span>생일</span>
