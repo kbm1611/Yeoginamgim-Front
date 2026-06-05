@@ -12,6 +12,7 @@ import OAuthCallbackPage from './pages/OAuthCallbackPage'
 import OnboardingPage from './pages/OnboardingPage'
 import PlaceDetail from './pages/PlaceDetail'
 import PostItEditor from './pages/PostItEditor'
+import TraceDetail from './pages/TraceDetail'
 import SignupPage from './pages/SignupPage'
 import SplashPage from './pages/SplashPage'
 
@@ -62,6 +63,7 @@ function AnimatedRoutes() {
               </RequireAuth>
             }
           />
+          <Route path="trace/:traceId" element={<TraceDetail />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/splash" replace />} />

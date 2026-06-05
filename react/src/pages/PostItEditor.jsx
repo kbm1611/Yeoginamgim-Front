@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
 import postitYellow from '../assets/postit/postit.png'
+import polaroidBg from '../assets/poloaroid/폴라로이드.png'
 import bgImage from '../assets/배경.png'
 import { X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -67,11 +68,10 @@ const POSTIT_TOOLS = [
   { key: 'decor', label: '꾸미기', Icon: IconDecor },
 ]
 
-// 포토카드 모드 툴 (사진 추가됨)
+// 포토카드 모드 툴 (사진 + 텍스트만)
 const PHOTO_TOOLS = [
   { key: 'photo', label: '사진',   Icon: IconPhoto },
   { key: 'text',  label: '텍스트', Icon: IconText },
-  { key: 'pen',   label: '펜',     Icon: IconPen },
   { key: 'decor', label: '꾸미기', Icon: IconDecor },
 ]
 
@@ -341,11 +341,12 @@ function DrawingCanvas({ active, penColor, penSize, eraser, canvasRef, container
 // ─── PostItPreview ────────────────────────────────────────────────────────────
 
 function PostItPreview({
+  previewRef,
   textObjects, selectedTextId, editingTextId,
   onCanvasClick, onSelectText, onStartEditText, onEndEditText, onChangeText, onMoveText,
   penActive, penColor, penSize, eraser, canvasRef,
 }) {
-  const containerRef = useRef(null)
+  const containerRef = previewRef
 
   return (
     /*
@@ -357,22 +358,32 @@ function PostItPreview({
      *   transform 없음 → 이 div가 absolute 자식들의 명확한 containing block.
      *   overflow:hidden이 transform 간섭 없이 정상 작동.
      */
-    <div style={{ transform: 'rotate(-1.5deg)' }}>
-      <div
-        ref={containerRef}
-        style={{
-          position: 'relative',
-          overflow: 'hidden',
-          width: '92%',
-        }}
-        onClick={penActive ? undefined : onCanvasClick}
-      >
-        {/* ① postit-bg: flow에 놔서 컨테이너 높이를 자연스럽게 결정 */}
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+    <div
+      ref={containerRef}
+      style={{
+        position: 'relative',
+        overflow: 'hidden',
+        width: 'min(75vw, 300px)',
+        height: 'min(75vw, 300px)',
+        transform: 'rotate(-1.5deg)',
+        flexShrink: 0,
+      }}
+      onClick={penActive ? undefined : onCanvasClick}
+    >
+        {/* ① postit-bg: 정사각형에 꽉 */}
         <img
           src={postitYellow}
           alt=""
           draggable={false}
-          style={{ display: 'block', width: '100%', mixBlendMode: 'multiply' }}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            objectPosition: 'center top',
+          }}
         />
 
         {/* ② pen-canvas: z:2, absolute inset:0 */}
@@ -410,7 +421,7 @@ function PostItPreview({
             />
           ))}
         </div>
-      </div>
+    </div>
     </div>
   )
 }
@@ -418,109 +429,124 @@ function PostItPreview({
 // ─── PolaroidPreview ──────────────────────────────────────────────────────────
 
 function PolaroidPreview({
+  previewRef,
   selectedPhoto, captionText, onCaptionChange, onAddPhoto,
   penActive, penColor, penSize, eraser, canvasRef,
   textObjects, selectedTextId, editingTextId,
   onSelectText, onStartEditText, onEndEditText, onChangeText, onMoveText, onCanvasClick,
 }) {
-  const containerRef = useRef(null)
-
-  const PHOTO_H = 214
-
   return (
-    <div style={{ transform: 'rotate(-1deg)' }}>
-      <div
-        ref={containerRef}
-        className="relative bg-white"
+    <div
+      ref={previewRef}
+      style={{
+        position: 'relative',
+        width: 'min(60vw, 240px)',
+        aspectRatio: '2 / 3',
+        transform: 'rotate(-1deg)',
+        flexShrink: 0,
+      }}
+      onClick={penActive ? undefined : onCanvasClick}
+    >
+      {/* 폴라로이드 PNG 프레임 */}
+      <img
+        src={polaroidBg}
+        alt=""
         style={{
-          width: 250,
-          padding: '12px 12px 56px',
-          borderRadius: 4,
-          boxShadow: '0 10px 36px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.10)',
-          overflow: 'hidden',
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          pointerEvents: 'none',
+          zIndex: 3,
         }}
-        onClick={penActive ? undefined : onCanvasClick}
+      />
+
+      {/* 사진 영역 — PNG 프레임 안쪽 */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '9%',
+          left: '9%',
+          right: '9%',
+          bottom: '22%',
+          overflow: 'hidden',
+          zIndex: 1,
+        }}
       >
-        {/* ① 사진 영역 — z-index:2 (펜 캔버스 위) */}
-        <div
-          className="relative overflow-hidden"
-          style={{ height: PHOTO_H, borderRadius: 2, backgroundColor: '#EEE7DC', zIndex: 2, position: 'relative' }}
-        >
-          {selectedPhoto ? (
-            <>
-              <img src={selectedPhoto} alt="" className="h-full w-full object-cover" />
-              <button
-                type="button"
-                onClick={onAddPhoto}
-                className="absolute bottom-2 right-2 flex items-center gap-1 rounded-full bg-black/40 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-sm"
-                style={{ pointerEvents: penActive ? 'none' : 'auto', zIndex: 10 }}
-              >
-                변경
-              </button>
-            </>
-          ) : (
+        {selectedPhoto ? (
+          <>
+            <img src={selectedPhoto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); onAddPhoto() }}
-              className="flex h-full w-full flex-col items-center justify-center gap-2.5 text-[#A89080]"
-              style={{ pointerEvents: penActive ? 'none' : 'auto' }}
+              onClick={onAddPhoto}
+              style={{
+                position: 'absolute', bottom: 6, right: 6,
+                background: 'rgba(0,0,0,0.4)', color: '#fff',
+                border: 'none', borderRadius: 20, padding: '3px 10px',
+                fontSize: 11, cursor: 'pointer',
+                pointerEvents: penActive ? 'none' : 'auto',
+              }}
             >
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#E0D5C8]">
-                <IconPhoto />
-              </div>
-              <span className="text-[13px] font-medium">사진 추가</span>
+              변경
             </button>
-          )}
-        </div>
-
-        {/* ② 캡션 영역 */}
-        <div
-          className="absolute bottom-0 left-0 right-0 flex items-center justify-center px-4 pb-4 pt-2"
-          style={{ pointerEvents: penActive ? 'none' : 'auto', zIndex: 3 }}
-        >
-          <div
-            contentEditable
-            suppressContentEditableWarning
-            onInput={(e) => onCaptionChange(e.currentTarget.textContent ?? '')}
-            onClick={(e) => e.stopPropagation()}
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onAddPhoto() }}
             style={{
-              fontFamily: "'Nanum Pen Script','Gaegu',cursive",
-              fontSize: 20, color: '#2A1A0E', lineHeight: 1.5,
-              textAlign: 'center', minWidth: 60, minHeight: 28,
-              outline: 'none', background: 'transparent',
-              whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+              width: '100%', height: '100%', display: 'flex',
+              flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              gap: 8, background: 'transparent', border: 'none', cursor: 'pointer',
+              color: '#A89080', pointerEvents: penActive ? 'none' : 'auto',
             }}
           >
-            {captionText || null}
-          </div>
-        </div>
+            <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#E0D5C8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <IconPhoto />
+            </div>
+            <span style={{ fontSize: 12 }}>사진 추가</span>
+          </button>
+        )}
+      </div>
 
-        {/* ③ 펜 드로잉 캔버스 — z:1, 사진(z:2) 아래에 그려져 흰 영역에만 보임 */}
+      {/* 하단 캡션+펜+텍스트 영역 — 사진 침범 안 함 */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: '9%',
+          right: '9%',
+          height: '22%',
+          zIndex: 4,
+          overflow: 'hidden',
+        }}
+      >
+        {/* 캡션 텍스트 */}
+        <div
+          contentEditable
+          suppressContentEditableWarning
+          onInput={(e) => onCaptionChange(e.currentTarget.textContent ?? '')}
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            fontFamily: "'Nanum Pen Script','Gaegu',cursive",
+            fontSize: 16, color: '#2A1A0E', lineHeight: 1.4,
+            textAlign: 'center', minHeight: 24,
+            outline: 'none', background: 'transparent',
+            whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+            padding: '8px 4px',
+            pointerEvents: penActive ? 'none' : 'auto',
+          }}
+        />
+
+        {/* 펜 — 하단 영역에만 */}
         <DrawingCanvas
           active={penActive}
           penColor={penColor}
           penSize={penSize}
           eraser={eraser}
           canvasRef={canvasRef}
-          containerRef={containerRef}
+          containerRef={{ current: null }}
         />
-
-        {/* ④ TextObject — containerRef에 직접 배치 */}
-        {(textObjects ?? []).map((obj) => (
-          <TextObject
-            key={obj.id}
-            obj={obj}
-            selected={selectedTextId === obj.id}
-            editing={editingTextId === obj.id}
-            containerRef={containerRef}
-            onSelect={() => onSelectText(obj.id)}
-            onStartEdit={() => onStartEditText(obj.id)}
-            onEndEdit={onEndEditText}
-            onChange={onChangeText}
-            onMove={onMoveText}
-            penActive={penActive}
-          />
-        ))}
       </div>
     </div>
   )
@@ -831,7 +857,7 @@ function PostItEditor() {
   const { id } = useParams()
   const boardId = id ?? 'default'
 
-  const [type, setType] = useState(location.state?.initialTab === 'postit' ? 'postit' : 'polaroid')
+  const [type, setType] = useState(location.state?.initialTab === 'polaroid' ? 'polaroid' : 'postit')
   const [selectedPhoto, setSelectedPhoto] = useState(null)
   const [captionText, setCaptionText] = useState('')
 
@@ -843,6 +869,7 @@ function PostItEditor() {
   const [postitBg, setPostitBg] = useState('#F5EDD5')
   const postitCanvasRef = useRef(null)
   const polaroidCanvasRef = useRef(null)
+  const previewRef = useRef(null)  // 캡처 대상 ref
 
   const clearCanvas = () => {
     const canvas = (type === 'polaroid' ? polaroidCanvasRef : postitCanvasRef).current
@@ -872,16 +899,29 @@ function PostItEditor() {
     )
   }, [textColor, fontSize, fontFamily, textAlign, selectedTextId])
 
-  // 텍스트 버튼 = 패널 열기/닫기 토글
+  // 텍스트 버튼 = 패널 열기/닫기 토글 + text 선택 시 바로 텍스트 오브젝트 추가
   const handleTool = (key) => {
-    setActiveTool((prev) => (prev === key ? null : key))
+    setActiveTool((prev) => {
+      if (prev === key) return null
+      if (key === 'text') {
+        // 툴 선택과 동시에 텍스트 오브젝트 즉시 추가
+        const newId = Date.now()
+        const yPct = type === 'polaroid' ? 90 : 45
+        setTextObjects((p) => [
+          ...p,
+          { id: newId, xPct: 50, yPct, text: '', color: textColor, fontSize, fontFamily, align: textAlign },
+        ])
+        setSelectedTextId(newId)
+        setEditingTextId(newId)
+      }
+      return key
+    })
   }
 
   // 텍스트 추가 버튼 = 오브젝트 생성 + 텍스트 시트 유지
   const handleAddText = () => {
     const newId = Date.now()
-    // polaroid: 사진 아래 캡션 영역(약 85% 지점), postit: 중앙
-    const yPct = type === 'polaroid' ? 86 : 45
+    const yPct = type === 'polaroid' ? 90 : 45
     setTextObjects((prev) => [
       ...prev,
       { id: newId, xPct: 50, yPct, text: '', color: textColor, fontSize, fontFamily, align: textAlign },
@@ -924,41 +964,119 @@ function PostItEditor() {
     setEditingTextId(null)
   }
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
     const baseId = Date.now()
-    const content = textObjects.map((o) => o.text).join('\n')
 
-    console.log('📝 남기기 클릭:', {
-      textObjects: textObjects.map(o => ({ id: o.id, text: o.text })),
-      content,
-      type,
+    setSelectedTextId(null)
+    setEditingTextId(null)
+    await new Promise((r) => setTimeout(r, 80))
+
+    const loadImageAsBlob = (src) => new Promise((resolve, reject) => {
+      fetch(src)
+        .then(r => r.blob())
+        .then(blob => {
+          const url = URL.createObjectURL(blob)
+          const img = new Image()
+          img.onload = () => { URL.revokeObjectURL(url); resolve(img) }
+          img.onerror = reject
+          img.src = url
+        })
+        .catch(reject)
     })
+
+    let capturedImage = null
+    try {
+      if (type === 'postit') {
+        // 포스트잇: 600x600 캔버스에 PNG + 펜 + 텍스트 합성
+        const SIZE = 600
+        const canvas = document.createElement('canvas')
+        canvas.width = SIZE
+        canvas.height = SIZE
+        const ctx = canvas.getContext('2d')
+
+        const bgImg = await loadImageAsBlob(postitYellow)
+        const srcSize = Math.min(bgImg.naturalWidth, bgImg.naturalHeight)
+        ctx.drawImage(bgImg, 0, 0, srcSize, srcSize, 0, 0, SIZE, SIZE)
+
+        const drawingCanvas = postitCanvasRef.current
+        if (drawingCanvas?.width > 0) {
+          ctx.drawImage(drawingCanvas, 0, 0, SIZE, SIZE)
+        }
+
+        textObjects.forEach((obj) => {
+          const x = (obj.xPct / 100) * SIZE
+          const y = (obj.yPct / 100) * SIZE
+          ctx.save()
+          ctx.font = `${(obj.fontSize ?? 24) * (SIZE / 300)}px ${obj.fontFamily ?? 'sans-serif'}`
+          ctx.fillStyle = obj.color ?? '#2A1E14'
+          ctx.textAlign = obj.align ?? 'center'
+          ctx.textBaseline = 'middle'
+          const lines = (obj.text ?? '').split('\n')
+          const lineH = (obj.fontSize ?? 24) * 1.3 * (SIZE / 300)
+          lines.forEach((line, li) => {
+            ctx.fillText(line, x, y + (li - (lines.length - 1) / 2) * lineH)
+          })
+          ctx.restore()
+        })
+
+        capturedImage = canvas.toDataURL('image/png')
+
+      } else {
+        // 폴라로이드: 400x600 캔버스에 프레임 + 사진 + 캡션 합성
+        const W = 400, H = 600
+        const canvas = document.createElement('canvas')
+        canvas.width = W
+        canvas.height = H
+        const ctx = canvas.getContext('2d')
+
+        // 사진 먼저 그리기 (프레임 안쪽 영역)
+        if (selectedPhoto) {
+          const photoImg = await loadImageAsBlob(selectedPhoto).catch(() => null)
+          if (photoImg) {
+            const px = W * 0.09, py = H * 0.09
+            const pw = W * 0.82, ph = H * 0.69
+            ctx.save()
+            ctx.rect(px, py, pw, ph)
+            ctx.clip()
+            ctx.drawImage(photoImg, px, py, pw, ph)
+            ctx.restore()
+          }
+        }
+
+        // 폴라로이드 프레임 PNG 위에 덮기
+        const frameImg = await loadImageAsBlob(polaroidBg)
+        ctx.drawImage(frameImg, 0, 0, W, H)
+
+        // 캡션
+        if (captionText) {
+          ctx.save()
+          ctx.font = `${20}px 'Nanum Pen Script', cursive`
+          ctx.fillStyle = '#2A1A0E'
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+          ctx.fillText(captionText, W / 2, H * 0.92)
+          ctx.restore()
+        }
+
+        capturedImage = canvas.toDataURL('image/png')
+      }
+    } catch (e) {
+      console.warn('캡처 실패:', e)
+    }
 
     navigate(`/board/${boardId}`, {
       state: {
-        placementDraft:
-          type === 'polaroid'
-            ? {
-                id: `polaroid-${baseId}`,
-                type: 'polaroid',
-                content: captionText,
-                media: { image: selectedPhoto ?? MOCK_PHOTOS[0], dateLabel: today() },
-                style: { color: textColor, fontSize, fontFamily },
-                createdAt: new Date().toISOString(),
-              }
-            : {
-                id: `postit-${baseId}`,
-                type: 'postit',
-                content,
-                style: {
-                  paperColor: postitBg,
-                  textColor,
-                  fontSize,
-                  fontFamily,
-                  align: textAlign,
-                },
-                createdAt: new Date().toISOString(),
-              },
+        placementDraft: {
+          id: `${type}-${baseId}`,
+          type,
+          capturedImage,
+          content: type === 'polaroid' ? captionText : textObjects.map((o) => o.text).join('\n'),
+          media: type === 'polaroid' ? { image: selectedPhoto ?? '', dateLabel: today() } : undefined,
+          style: type === 'polaroid'
+            ? { color: textColor, fontSize, fontFamily }
+            : { paperColor: postitBg, textColor, fontSize, fontFamily, align: textAlign },
+          createdAt: new Date().toISOString(),
+        },
       },
     })
   }
@@ -1066,7 +1184,14 @@ function PostItEditor() {
         <button
           type="button"
           onClick={handleComplete}
-          style={{ borderRadius: 999, backgroundColor: '#2C1A0E', padding: '8px 20px', fontSize: 13, fontWeight: 700, color: '#fff' }}
+          disabled={type === 'polaroid' && !selectedPhoto}
+          style={{
+            borderRadius: 999,
+            backgroundColor: (type === 'polaroid' && !selectedPhoto) ? '#C0B0A0' : '#2C1A0E',
+            padding: '8px 20px', fontSize: 13, fontWeight: 700, color: '#fff',
+            cursor: (type === 'polaroid' && !selectedPhoto) ? 'not-allowed' : 'pointer',
+            opacity: 1,
+          }}
         >
           남기기
         </button>
@@ -1130,19 +1255,20 @@ function PostItEditor() {
         {/* 포스트잇/폴라로이드 중앙 배치
             옵션 시트가 열릴 때 paddingBottom을 시트 높이만큼 줘서 포스트잇이 가려지지 않게 */}
         <motion.div
-          animate={{ paddingBottom: panelOpen ? 220 : 12 }}
+          animate={{ paddingBottom: panelOpen ? 220 : 20 }}
           transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
           style={{
+            position: 'absolute',
+            inset: 0,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            height: '100%',
-            padding: '12px 20px',
-            paddingBottom: 12,
+            padding: '20px',
           }}
         >
           {type === 'polaroid' ? (
             <PolaroidPreview
+              previewRef={previewRef}
               selectedPhoto={selectedPhoto}
               captionText={captionText}
               onCaptionChange={setCaptionText}
@@ -1164,6 +1290,7 @@ function PostItEditor() {
             />
           ) : (
             <PostItPreview
+              previewRef={previewRef}
               textObjects={textObjects}
               selectedTextId={selectedTextId}
               editingTextId={editingTextId}

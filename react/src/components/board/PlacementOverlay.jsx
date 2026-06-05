@@ -53,8 +53,25 @@ function getOccupied(posts) {
   return set
 }
 
-// 드래프트 미리보기 카드
+// 드래프트 미리보기 — 캡처된 이미지를 그대로 표시
 function DraftPreview({ draft, style }) {
+  if (draft.capturedImage) {
+    return (
+      <img
+        src={draft.capturedImage}
+        alt=""
+        style={{
+          width: 120,
+          height: 'auto',
+          transform: 'rotate(-2deg)',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
+          ...style,
+        }}
+      />
+    )
+  }
+
+  // fallback: 캡처 실패 시
   const isPostit = draft.type !== 'polaroid'
   return (
     <div
@@ -68,128 +85,71 @@ function DraftPreview({ draft, style }) {
         alignItems: 'center',
         justifyContent: 'center',
         padding: 10,
-        border: isPostit ? 'none' : '1px solid #e0d5c8',
         transform: 'rotate(-2deg)',
         ...style,
       }}
     >
-      <p
-        style={{
-          fontSize: 12,
-          color: '#2A1E14',
-          textAlign: 'center',
-          lineHeight: 1.4,
-          fontFamily: "'Nanum Pen Script', 'Gaegu', cursive",
-          overflow: 'hidden',
-          maxHeight: 80,
-          wordBreak: 'break-word',
-          margin: 0,
-        }}
-      >
-        {draft.content || '(내용 없음)'}
+      <p style={{ fontSize: 12, color: '#2A1E14', textAlign: 'center', margin: 0 }}>
+        {draft.content || ''}
       </p>
     </div>
   )
 }
 
 export default function PlacementOverlay({ draft, posts, transformRef, onPlace, onCancel }) {
-  const [pointerPos, setPointerPos] = useState(null)
+  const [pos, setPos] = useState(null)
   const [targetCell, setTargetCell] = useState(null)
   const [snapping, setSnapping] = useState(false)
-  const [snapPos, setSnapPos] = useState(null)
-  const dragStartRef = useRef(null)
+  const isDragging = useRef(false)
   const overlayRef = useRef(null)
   const occupied = getOccupied(posts)
 
-  // 화면 좌표 → 타겟 셀 계산
-  const updateTarget = (screenX, screenY) => {
-    const canvas = screenToCanvas(screenX, screenY, transformRef)
+  const getXY = (e) => {
+    if (e.touches?.length) return { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    return { x: e.clientX, y: e.clientY }
+  }
+
+  const updatePos = (x, y) => {
+    const canvas = screenToCanvas(x, y, transformRef)
     const rough = canvasToCell(canvas.x, canvas.y)
     const cell = findNearestEmpty(rough.row, rough.col, occupied)
     setTargetCell(cell)
-    setPointerPos({ x: screenX, y: screenY })
-    setSnapPos(null)
+    setPos({ x, y })
   }
 
-  // 포인터 다운: 드래그 시작
-  const handleMouseDown = (e) => {
-    if (e.button !== 0) return  // left button only
-    const rect = overlayRef.current?.getBoundingClientRect()
-    if (!rect) return
-    dragStartRef.current = { x: e.clientX, y: e.clientY }
-    updateTarget(e.clientX, e.clientY)
-  }
-
-  // 포인터 무브: 드래그 중 위치 업데이트
-  const handleMouseMove = (e) => {
-    if (!dragStartRef.current) return
-    updateTarget(e.clientX, e.clientY)
-  }
-
-  // 포인터 업: 배치 완료
-  const handleMouseUp = () => {
-    if (!dragStartRef.current || !targetCell) {
-      dragStartRef.current = null
-      return
-    }
-
-    dragStartRef.current = null
-    setSnapPos(getSnapPos())
-    setSnapping(true)
-
-    // snap 애니메이션 후 배치 → onPlace에서 overlay 닫기 처리
-    setTimeout(() => {
-      onPlace(targetCell)
-    }, 200)
-  }
-
-  // 터치 이벤트 (모바일)
-  const handleTouchStart = (e) => {
-    if (!e.touches[0]) return
-    const touch = e.touches[0]
-    dragStartRef.current = { x: touch.clientX, y: touch.clientY }
-    updateTarget(touch.clientX, touch.clientY)
-  }
-
-  const handleTouchMove = (e) => {
-    if (!dragStartRef.current || !e.touches[0]) return
+  const handleDown = (e) => {
+    if (e.button !== undefined && e.button !== 0) return
     e.preventDefault()
-    const touch = e.touches[0]
-    updateTarget(touch.clientX, touch.clientY)
+    e.stopPropagation()
+    isDragging.current = true
+    setSnapping(false)
+    const { x, y } = getXY(e)
+    updatePos(x, y)
   }
 
-  const handleTouchEnd = () => {
-    if (!dragStartRef.current || !targetCell) {
-      dragStartRef.current = null
-      return
-    }
+  const handleMove = (e) => {
+    if (!isDragging.current) return
+    e.preventDefault()
+    const { x, y } = getXY(e)
+    updatePos(x, y)
+  }
 
-    dragStartRef.current = null
-    setSnapPos(getSnapPos())
+  const handleUp = (e) => {
+    if (!isDragging.current) return
+    isDragging.current = false
+    if (!targetCell) return
     setSnapping(true)
-
-    // snap 애니메이션 후 배치 → onPlace에서 overlay 닫기 처리
-    setTimeout(() => {
-      onPlace(targetCell)
-    }, 200)
+    setTimeout(() => onPlace(targetCell), 300)
   }
 
-  // snap 위치 계산
   const getSnapPos = () => {
-    if (!targetCell || !transformRef.current) return null
-    const state = transformRef.current.state
-    if (!state) return null
-
+    if (!targetCell || !transformRef.current?.state) return null
     const { x: cx, y: cy } = cellToCenter(targetCell.row, targetCell.col)
-    const { scale, positionX, positionY } = state
-
-    return {
-      x: cx * scale + positionX,
-      y: cy * scale + positionY,
-    }
+    const { scale, positionX, positionY } = transformRef.current.state
+    return { x: cx * scale + positionX, y: cy * scale + positionY }
   }
 
-  const displayPos = snapping && snapPos ? snapPos : pointerPos
+  const displayPos = snapping ? getSnapPos() : pos
 
   return (
     <div
@@ -200,14 +160,16 @@ export default function PlacementOverlay({ draft, posts, transformRef, onPlace, 
         zIndex: 30,
         touchAction: 'none',
         userSelect: 'none',
+        cursor: isDragging.current ? 'grabbing' : 'grab',
       }}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
+      onMouseDown={handleDown}
+      onMouseMove={handleMove}
+      onMouseUp={handleUp}
+      onMouseLeave={handleUp}
+      onTouchStart={handleDown}
+      onTouchMove={handleMove}
+      onTouchEnd={handleUp}
+      onTouchCancel={handleUp}
     >
       {/* 배경 오버레이 */}
       <div
@@ -226,11 +188,14 @@ export default function PlacementOverlay({ draft, posts, transformRef, onPlace, 
           style={{
             position: 'fixed',
             left: displayPos.x,
-            top: displayPos.y,
-            transform: 'translate(-50%, -50%)',
+            top: displayPos.y - 20, // 손가락보다 살짝 위
+            transform: 'translate(-50%, -50%) scale(1.05)',
             pointerEvents: 'none',
-            transition: snapping ? 'left 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), top 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)' : 'none',
+            transition: snapping
+              ? 'left 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), top 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
+              : 'none',
             zIndex: 2,
+            filter: 'drop-shadow(0 12px 24px rgba(0,0,0,0.3))',
           }}
         >
           <DraftPreview draft={draft} />
@@ -238,7 +203,7 @@ export default function PlacementOverlay({ draft, posts, transformRef, onPlace, 
       )}
 
       {/* 초기 상태: 안내 메시지 */}
-      {!pointerPos && (
+      {!pos && (
         <div
           style={{
             position: 'absolute',
