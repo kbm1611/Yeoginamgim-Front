@@ -15,6 +15,7 @@ import { API_BASE_URL } from '../api/client'
 import { createTraceReport } from '../api/reports'
 import { addTraceLike, fetchBoardTraces, removeTraceLike, createTrace, uploadTraceImage } from '../api/traces'
 import BoardCanvas from '../components/board/BoardCanvas'
+import BottomNavigation from '../components/BottomNavigation'
 import boardBg from '../assets/image.png'
 
 const POSTIT_COLOR_BY_HEX = {
@@ -463,12 +464,13 @@ function BoardDetail() {
         <button
           type="button"
           onClick={handleAdd}
-          className="absolute bottom-6 right-4 z-20 flex items-center gap-2 rounded-full bg-[#3B2A1E] px-5 py-3 shadow-[0_6px_20px_rgba(58,36,24,0.35)]"
+          className="absolute bottom-4 right-4 z-20 flex items-center gap-2 rounded-full bg-[#3B2A1E] px-5 py-3 shadow-[0_6px_20px_rgba(58,36,24,0.35)]"
         >
           <PencilLine size={16} strokeWidth={2} className="text-white" />
           <span className="text-[14px] font-semibold text-white">흔적 남기기</span>
         </button>
       </div>
+      <BottomNavigation />
     </main>
   )
 }
