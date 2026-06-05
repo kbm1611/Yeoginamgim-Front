@@ -1,11 +1,28 @@
-import { apiClient, buildApiUrl, clearAuthToken, setAuthToken } from './client'
+import {
+  AUTH_TOKEN_STORAGE_ERROR_MESSAGE,
+  apiClient,
+  buildApiUrl,
+  clearAuthToken,
+  setAuthToken,
+} from './client'
+
+export class AuthTokenStorageError extends Error {
+  constructor() {
+    super(AUTH_TOKEN_STORAGE_ERROR_MESSAGE)
+    this.name = 'AuthTokenStorageError'
+    this.code = 'AUTH_TOKEN_STORAGE_UNAVAILABLE'
+  }
+}
 
 // 로그인
 export async function login(credentials) {
   const response = await apiClient.post('/api/auth/login', credentials)
 
   if (response?.token) {
-    setAuthToken(response.token)
+    const saved = setAuthToken(response.token)
+    if (!saved) {
+      throw new AuthTokenStorageError()
+    }
   }
 
   return response
@@ -39,4 +56,4 @@ export function redirectToGoogleOAuth() {
 }
 
 // client의 토큰 helper 재 export
-export { clearAuthToken, setAuthToken }
+export { AUTH_TOKEN_STORAGE_ERROR_MESSAGE, clearAuthToken, setAuthToken }

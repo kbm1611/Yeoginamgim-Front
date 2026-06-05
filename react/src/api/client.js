@@ -1,5 +1,7 @@
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
 export const AUTH_TOKEN_STORAGE_KEY = 'yeoginamgim.authToken'
+export const AUTH_TOKEN_STORAGE_ERROR_MESSAGE =
+  '\ube0c\ub77c\uc6b0\uc800 \uc800\uc7a5\uc18c\ub97c \uc0ac\uc6a9\ud560 \uc218 \uc5c6\uc5b4 \ub85c\uadf8\uc778\uc744 \uc644\ub8cc\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. \uc2dc\ud06c\ub9bf \ubaa8\ub4dc\ub098 \uc800\uc7a5\uc18c \ucc28\ub2e8 \uc124\uc815\uc744 \ud574\uc81c\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574\uc8fc\uc138\uc694.'
 
 // Api 에러 표준 클래스
 export class ApiError extends Error {
@@ -15,8 +17,16 @@ export class ApiError extends Error {
 
 // localStorage에서 토큰 가져오기
 export function getAuthToken() {
+  const localToken = readStorageToken(() => window.localStorage)
+  if (localToken) return localToken
+
+  return readStorageToken(() => window.sessionStorage)
+}
+
+function readStorageToken(getStorage) {
   try {
-    return window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY)
+    const storage = getStorage()
+    return storage.getItem(AUTH_TOKEN_STORAGE_KEY)
   } catch {
     return null
   }
@@ -24,24 +34,39 @@ export function getAuthToken() {
 
 // localStorage에 토큰 저장
 export function setAuthToken(token) {
-  if (!token) return
+  if (!token) return false
 
-  window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token)
+  if (writeStorageToken(() => window.localStorage, token)) {
+    removeStorageToken(() => window.sessionStorage)
+    return true
+  }
+
+  return writeStorageToken(() => window.sessionStorage, token)
+}
+
+function writeStorageToken(getStorage, token) {
+  try {
+    const storage = getStorage()
+    storage.setItem(AUTH_TOKEN_STORAGE_KEY, token)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function removeStorageToken(getStorage) {
+  try {
+    const storage = getStorage()
+    storage.removeItem(AUTH_TOKEN_STORAGE_KEY)
+  } catch {
+    // Storage can be unavailable in restricted browser contexts.
+  }
 }
 
 // 토큰 비우기(로그아웃)
 export function clearAuthToken() {
-  try {
-    window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY)
-  } catch {
-    // Storage can be unavailable in restricted browser contexts.
-  }
-
-  try {
-    window.sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY)
-  } catch {
-    // Storage can be unavailable in restricted browser contexts.
-  }
+  removeStorageToken(() => window.localStorage)
+  removeStorageToken(() => window.sessionStorage)
 
   if (typeof document !== 'undefined') {
     document.cookie = `${AUTH_TOKEN_STORAGE_KEY}=; Max-Age=0; path=/`

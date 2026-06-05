@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { setAuthToken } from '../api/auth'
+import { AUTH_TOKEN_STORAGE_ERROR_MESSAGE, setAuthToken } from '../api/auth'
 
 function getFriendlyOAuthError(error) {
   const message = String(error ?? '').trim()
@@ -35,17 +35,26 @@ function OAuthCallbackPage() {
       oauthError: hashParams.get('error') ?? queryParams.get('error'),
     }
   }, [location.hash, location.search])
+  const tokenStorageStatus = useMemo(() => {
+    if (!token) return 'idle'
+
+    return setAuthToken(token) ? 'saved' : 'failed'
+  }, [token])
 
   useEffect(() => {
-    if (!token) {
+    if (tokenStorageStatus !== 'saved') {
       return
     }
 
-    setAuthToken(token)
     navigate('/home', { replace: true })
-  }, [navigate, token])
+  }, [navigate, tokenStorageStatus])
 
-  const error = token ? '' : getFriendlyOAuthError(oauthError)
+  const error =
+    tokenStorageStatus === 'failed'
+      ? AUTH_TOKEN_STORAGE_ERROR_MESSAGE
+      : token
+        ? ''
+        : getFriendlyOAuthError(oauthError)
 
   return (
     <main className="app-device flex items-center justify-center bg-[#F7F2EA] px-6 text-center text-[#3b2a21]">

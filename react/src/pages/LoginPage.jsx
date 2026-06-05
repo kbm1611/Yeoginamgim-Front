@@ -1,7 +1,12 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { login, redirectToGoogleOAuth, redirectToKakaoOAuth } from '../api/auth'
+import {
+  AUTH_TOKEN_STORAGE_ERROR_MESSAGE,
+  login,
+  redirectToGoogleOAuth,
+  redirectToKakaoOAuth,
+} from '../api/auth'
 import loginBgImage from '../assets/auth/login-bg.png'
 import '../css/login.css'
 
@@ -39,6 +44,10 @@ function KakaoIcon() {
 }
 
 function getFriendlyLoginError(error) {
+  if (error?.code === 'AUTH_TOKEN_STORAGE_UNAVAILABLE') {
+    return AUTH_TOKEN_STORAGE_ERROR_MESSAGE
+  }
+
   const message = String(error?.message ?? '').trim()
   const normalized = message.toLowerCase()
   const matched = loginErrorMessages.find(([key]) => normalized.includes(key))

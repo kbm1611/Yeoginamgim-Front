@@ -14,7 +14,8 @@ assert.match(app, /<Route path="\/oauth\/callback" element={<OAuthCallbackPage \
 assert.match(app, /RequireAuth/)
 
 const loginPage = read('src/pages/LoginPage.jsx')
-assert.match(loginPage, /import \{ login/)
+assert.match(loginPage, /import \{[\s\S]*login/)
+assert.match(loginPage, /AUTH_TOKEN_STORAGE_ERROR_MESSAGE/)
 assert.match(loginPage, /to="\/signup"/)
 assert.match(loginPage, /name="email"/)
 assert.match(loginPage, /name="password"/)
@@ -46,6 +47,8 @@ assert.match(usersApi, /\/api\/user\/me/)
 
 const oauthCallbackPage = read('src/pages/OAuthCallbackPage.jsx')
 assert.match(oauthCallbackPage, /setAuthToken/)
+assert.match(oauthCallbackPage, /tokenStorageStatus/)
+assert.match(oauthCallbackPage, /AUTH_TOKEN_STORAGE_ERROR_MESSAGE/)
 assert.match(oauthCallbackPage, /URLSearchParams/)
 assert.match(oauthCallbackPage, /hashParams\.get\('error'\)/)
 assert.match(oauthCallbackPage, /getFriendlyOAuthError/)
