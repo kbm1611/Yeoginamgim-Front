@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Link, useNavigate } from 'react-router-dom'
 import { sendEmailVerification, verifyEmailVerification } from '../api/auth'
@@ -11,6 +11,8 @@ const initialForm = {
   nickname: '',
   birthDate: '',
 }
+
+const SIGNUP_SUCCESS_MESSAGE = '회원가입이 완료되었습니다. 로그인해주세요.'
 
 const signupErrorMessages = [
   ['email is required', '이메일을 입력해주세요.'],
@@ -64,7 +66,6 @@ function getFriendlyVerificationError(error) {
 function SignupPage() {
   const [form, setForm] = useState(initialForm)
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [verificationCode, setVerificationCode] = useState('')
   const [emailVerification, setEmailVerification] = useState({
@@ -75,27 +76,10 @@ function SignupPage() {
     success: '',
     verified: false,
   })
-  const signupRedirectTimeoutRef = useRef(null)
   const navigate = useNavigate()
   const normalizedEmail = form.email.trim().toLowerCase()
   const isEmailVerified = emailVerification.verified && emailVerification.email === normalizedEmail
   const canSubmitSignup = isEmailVerified && !isSubmitting && !emailVerification.isSending && !emailVerification.isVerifying
-
-  const clearSignupRedirectTimeout = () => {
-    if (signupRedirectTimeoutRef.current !== null) {
-      window.clearTimeout(signupRedirectTimeoutRef.current)
-      signupRedirectTimeoutRef.current = null
-    }
-  }
-
-  useEffect(() => {
-    return () => {
-      if (signupRedirectTimeoutRef.current !== null) {
-        window.clearTimeout(signupRedirectTimeoutRef.current)
-        signupRedirectTimeoutRef.current = null
-      }
-    }
-  }, [])
 
   const handleChange = (event) => {
     const { name, value } = event.target
@@ -146,7 +130,6 @@ function SignupPage() {
     }
 
     setError('')
-    setSuccess('')
     setEmailVerification({
       email: normalizedEmail,
       error: '',
@@ -204,7 +187,6 @@ function SignupPage() {
     }
 
     setError('')
-    setSuccess('')
     setEmailVerification((current) => ({
       ...current,
       email: normalizedEmail,
@@ -251,12 +233,11 @@ function SignupPage() {
 
   const handleSubmit = async (event) => {
     event.preventDefault()
-    clearSignupRedirectTimeout()
 
     const validationError = validateForm()
 
     if (validationError) {
-      setSuccess('')
+      setEmailVerification((current) => ({ ...current, success: '' }))
       setError(validationError)
       return
     }
@@ -271,20 +252,15 @@ function SignupPage() {
     }
 
     setError('')
-    setSuccess('')
+    setEmailVerification((current) => ({ ...current, success: '' }))
     setIsSubmitting(true)
 
     try {
       await signupUser(signupData)
-      const message = '회원가입이 완료되었습니다. 로그인해주세요.'
-      setSuccess(message)
-      signupRedirectTimeoutRef.current = window.setTimeout(() => {
-        signupRedirectTimeoutRef.current = null
-        navigate('/login', {
-          replace: true,
-          state: { signupEmail: email, message },
-        })
-      }, 500)
+      navigate('/login', {
+        replace: true,
+        state: { signupEmail: email, signupMessage: SIGNUP_SUCCESS_MESSAGE },
+      })
     } catch (signupError) {
       setError(getFriendlySignupError(signupError))
       setIsSubmitting(false)
@@ -414,7 +390,6 @@ function SignupPage() {
           <div className="signup-status" aria-live="polite">
             {emailVerification.success && <p className="signup-success">{emailVerification.success}</p>}
             {emailVerification.error && <p className="signup-error">{emailVerification.error}</p>}
-            {success && <p className="signup-success">{success}</p>}
             {error && <p className="signup-error">{error}</p>}
           </div>
 

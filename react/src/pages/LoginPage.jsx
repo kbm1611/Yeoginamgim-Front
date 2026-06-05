@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
@@ -63,18 +63,52 @@ function getFriendlyLoginError(error) {
 function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
+  const historyUserState = window.history.state?.usr ?? {}
   const intendedPath = location.state?.from?.pathname ?? '/home'
-  const signupEmail = location.state?.signupEmail ?? ''
-  const signupMessage = location.state?.message ?? ''
+  const signupEmail = location.state?.signupEmail ?? historyUserState.signupEmail ?? ''
+  const signupMessage =
+    location.state?.signupMessage ??
+    location.state?.message ??
+    historyUserState.signupMessage ??
+    historyUserState.message ??
+    ''
   const [form, setForm] = useState(() => ({ ...initialForm, email: signupEmail }))
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [signupNotice, setSignupNotice] = useState(() => signupMessage)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  useEffect(() => {
+    const clearSignupMessageState = window.setTimeout(() => {
+      const currentHistoryUserState = window.history.state?.usr ?? {}
+      const currentSignupMessage =
+        location.state?.signupMessage ??
+        location.state?.message ??
+        currentHistoryUserState.signupMessage ??
+        currentHistoryUserState.message ??
+        ''
+
+      if (!currentSignupMessage) return
+
+      setSignupNotice((current) => current || currentSignupMessage)
+
+      const sanitizedLocationState = {
+        ...currentHistoryUserState,
+        ...location.state,
+        signupMessage: undefined,
+        message: undefined,
+      }
+      navigate(location.pathname, { replace: true, state: sanitizedLocationState })
+    }, 0)
+
+    return () => window.clearTimeout(clearSignupMessageState)
+  }, [location.pathname, location.state, navigate])
 
   const handleChange = (event) => {
     const { name, value } = event.target
     setForm((current) => ({ ...current, [name]: value }))
     setError('')
+    setSignupNotice('')
   }
 
   const validateForm = () => {
@@ -90,12 +124,14 @@ function LoginPage() {
 
     if (validationError) {
       setSuccess('')
+      setSignupNotice('')
       setError(validationError)
       return
     }
 
     setError('')
     setSuccess('')
+    setSignupNotice('')
     setIsSubmitting(true)
 
     try {
@@ -158,7 +194,7 @@ function LoginPage() {
           </label>
 
           <div className="login-status" aria-live="polite">
-            {(success || signupMessage) && <p className="login-success">{success || signupMessage}</p>}
+            {(success || signupNotice) && <p className="login-success">{success || signupNotice}</p>}
             {error && <p className="login-error">{error}</p>}
           </div>
 
