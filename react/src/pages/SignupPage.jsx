@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { Link, useNavigate } from 'react-router-dom'
 import { sendEmailVerification, verifyEmailVerification } from '../api/auth'
 import { signupUser } from '../api/users'
+import { isEmailVerificationSendSucceeded, isValidSignupEmail } from './SignupPage.emailVerification'
 import '../css/signup.css'
 
 const initialForm = {
@@ -24,6 +25,7 @@ const initialEmailVerification = {
 
 const SIGNUP_SUCCESS_MESSAGE = '회원가입이 완료되었습니다. 로그인해주세요.'
 const EMAIL_FORMAT_ERROR_MESSAGE = '올바른 이메일 형식으로 입력해주세요.'
+const EMAIL_VERIFICATION_SEND_SUCCESS_MESSAGE = '인증번호를 이메일로 보냈습니다.'
 const EMAIL_VERIFICATION_SEND_FAILURE_MESSAGE = '인증번호를 보낼 수 없어요. 이메일 주소를 다시 확인해주세요.'
 
 const signupErrorMessages = [
@@ -117,7 +119,7 @@ function SignupPage() {
 
   const validateEmailForVerification = () => {
     if (!normalizedEmail) return '이메일을 입력해주세요.'
-    if (!normalizedEmail.includes('@')) return EMAIL_FORMAT_ERROR_MESSAGE
+    if (!isValidSignupEmail(normalizedEmail)) return EMAIL_FORMAT_ERROR_MESSAGE
     return ''
   }
 
@@ -148,6 +150,19 @@ function SignupPage() {
 
     try {
       const response = await sendEmailVerification(normalizedEmail)
+      if (!isEmailVerificationSendSucceeded(response)) {
+        setEmailVerification({
+          codeSent: false,
+          email: normalizedEmail,
+          error: EMAIL_VERIFICATION_SEND_FAILURE_MESSAGE,
+          isSending: false,
+          isVerifying: false,
+          success: '',
+          verified: false,
+        })
+        return
+      }
+
       setVerificationCode('')
       setEmailVerification({
         codeSent: true,
@@ -155,7 +170,7 @@ function SignupPage() {
         error: '',
         isSending: false,
         isVerifying: false,
-        success: response?.message || '인증번호를 이메일로 보냈습니다.',
+        success: EMAIL_VERIFICATION_SEND_SUCCESS_MESSAGE,
         verified: false,
       })
     } catch {
@@ -232,7 +247,7 @@ function SignupPage() {
 
   const validateForm = () => {
     if (!form.email.trim()) return '이메일을 입력해주세요.'
-    if (!form.email.includes('@')) return EMAIL_FORMAT_ERROR_MESSAGE
+    if (!isValidSignupEmail(normalizedEmail)) return EMAIL_FORMAT_ERROR_MESSAGE
     if (!isEmailVerified) return '이메일 인증을 완료해주세요.'
     if (form.password.length < 8) return '비밀번호는 8자 이상 입력해주세요.'
     if (!form.nickname.trim()) return '닉네임을 입력해주세요.'
