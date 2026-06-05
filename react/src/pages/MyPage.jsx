@@ -17,7 +17,7 @@ import { fetchArchiveBoards, fetchMyTraces } from '../api/archive'
 import { logout } from '../api/auth'
 import { API_BASE_URL, clearAuthToken, getAuthToken } from '../api/client'
 import { deleteMyAccount, fetchMyInfo, updateMyInfo } from '../api/users'
-import { normalizeMyPageData } from './MyPage.utils'
+import { getVisibleProfileImageUrl, normalizeMyPageData } from './MyPage.utils'
 
 const WITHDRAWAL_CONFIRMATION = '회원탈퇴'
 
@@ -43,6 +43,7 @@ function MyPage() {
   const [withdrawConfirmation, setWithdrawConfirmation] = useState('')
   const [withdrawStatus, setWithdrawStatus] = useState({ type: '', message: '' })
   const [isWithdrawing, setIsWithdrawing] = useState(false)
+  const [failedProfileImageUrl, setFailedProfileImageUrl] = useState('')
   const fileInputRef = useRef(null)
 
   const loadMyPage = useCallback(async () => {
@@ -95,7 +96,11 @@ function MyPage() {
 
   const profile = pageState.data?.profile
   const stats = pageState.data?.stats
-  const profileImageUrl = useMemo(() => resolveMediaUrl(profile?.profileImageUrl), [profile?.profileImageUrl])
+  const rawProfileImageUrl = profile?.profileImageUrl ?? ''
+  const profileImageUrl = useMemo(
+    () => getVisibleProfileImageUrl(rawProfileImageUrl, rawProfileImageUrl === failedProfileImageUrl, API_BASE_URL),
+    [rawProfileImageUrl, failedProfileImageUrl]
+  )
   const isLocalAccount = String(profile?.provider ?? 'LOCAL').toUpperCase() === 'LOCAL'
 
   const resetEditState = () => {
@@ -248,6 +253,7 @@ function MyPage() {
                   <img
                     src={profileImageUrl}
                     alt={profile.nickname}
+                    onError={() => setFailedProfileImageUrl(rawProfileImageUrl)}
                     className="h-16 w-16 rounded-full border border-[#eadfce] object-cover"
                   />
                 ) : (
@@ -561,12 +567,6 @@ function MyPageError({ message, onRetry, onLogout }) {
       </div>
     </div>
   )
-}
-
-function resolveMediaUrl(path) {
-  if (!path) return ''
-  if (/^https?:\/\//i.test(path)) return path
-  return new URL(path, API_BASE_URL).toString()
 }
 
 function onlySixDigits(value) {

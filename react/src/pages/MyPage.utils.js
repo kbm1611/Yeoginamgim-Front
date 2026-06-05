@@ -24,6 +24,13 @@ export function normalizeMyPageData({
   }
 }
 
+export function getVisibleProfileImageUrl(profileImageUrl, imageLoadFailed, apiBaseUrl) {
+  if (imageLoadFailed || !profileImageUrl) return ''
+  if (/^https?:\/\//i.test(profileImageUrl)) return profileImageUrl
+
+  return new URL(profileImageUrl, apiBaseUrl).toString()
+}
+
 function getDisplayNickname(user) {
   const nickname = String(user?.nickname ?? '').trim()
   if (nickname) return nickname

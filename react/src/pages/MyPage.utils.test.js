@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { normalizeMyPageData } from './MyPage.utils.js'
+import { getVisibleProfileImageUrl, normalizeMyPageData } from './MyPage.utils.js'
 
 test('normalizeMyPageData builds profile and stats from API responses', () => {
   const result = normalizeMyPageData({
@@ -69,4 +69,24 @@ test('normalizeMyPageData handles empty API responses without invented values', 
     archiveBoardCount: 0,
     receivedLikeCount: 0,
   })
+})
+
+test('getVisibleProfileImageUrl returns empty when the current profile image failed to load', () => {
+  const result = getVisibleProfileImageUrl(
+    'https://lh3.googleusercontent.com/a/profile=s96-c',
+    true,
+    'http://localhost:8080',
+  )
+
+  assert.equal(result, '')
+})
+
+test('getVisibleProfileImageUrl resolves local upload paths against the API base URL', () => {
+  const result = getVisibleProfileImageUrl(
+    '/upload/profile/me.png',
+    false,
+    'http://localhost:8080',
+  )
+
+  assert.equal(result, 'http://localhost:8080/upload/profile/me.png')
 })
