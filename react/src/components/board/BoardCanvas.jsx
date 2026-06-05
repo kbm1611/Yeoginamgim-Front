@@ -1,7 +1,8 @@
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { Flag, Heart } from 'lucide-react'
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
+import TraceBottomSheet from './TraceBottomSheet'
 import postitYellow from '../../assets/postit/postit.png'
 import polaroidBg from '../../assets/poloaroid/폴라로이드.png'
 
@@ -34,9 +35,9 @@ function layoutPosts(posts) {
     const row = post.cell?.row ?? Math.floor(i / 2)
     const s = i + 1
 
-    const dx = (seeded(s * 1.31 + 2.71) - 0.5) * 24
-    const dy = (seeded(s * 2.13 + 5.37) - 0.5) * 24
-    const rotate = (seeded(s * 3.71 + 8.13) - 0.5) * 7
+    const dx = (seeded(s * 1.31 + 2.71) - 0.5) * 52
+    const dy = (seeded(s * 2.13 + 5.37) - 0.5) * 40
+    const rotate = (seeded(s * 3.71 + 8.13) - 0.5) * 14
     const tapeRotate = (seeded(s * 4.23 + 1.09) - 0.5) * 5
     const tapeColor = TAPE_COLORS[i % TAPE_COLORS.length]
     const stagger = col === 1 ? COL_STAGGER : 0
@@ -375,36 +376,96 @@ function useBoardTransform(transformRef, onZoomChange, initialScale) {
     }
   }, [onWheel, onTouchMove, onPointerMove, onPointerUp])
 
-  return { transform, containerRef, onPointerDown, onPointerMove, onPointerUp, onTouchStart, onTouchEnd }
+  return { transform, stateRef, containerRef, onPointerDown, onPointerMove, onPointerUp, onTouchStart, onTouchEnd }
 }
 
-function BoardCanvas({ posts, onAdd, transformRef, onZoomChange, onToggleLike, onReport }) {
-  const navigate = useNavigate()
+function BoardCanvas({ posts, onAdd, transformRef, onZoomChange, onToggleLike, onReport, onPostDeleted, newPostId, onNewPostFocused }) {
   const { id: boardId } = useParams()
   const laid = useMemo(() => layoutPosts(posts), [posts])
   const rows = Math.ceil(posts.length / 2)
   const canvasH = Math.max(1200, rows * ROW_H + 400)
+  const [selectedPost, setSelectedPost] = useState(null)
+  const [highlightId, setHighlightId] = useState(null)
 
   const vw = typeof window !== 'undefined' ? window.innerWidth : 390
   const initialScale = Math.min(0.9, (vw - 16) / CANVAS_W)
 
-  const { transform, containerRef, onPointerDown, onPointerMove, onPointerUp, onTouchStart, onTouchEnd } =
+  const { transform, stateRef, containerRef, onPointerDown, onPointerMove, onPointerUp, onTouchStart, onTouchEnd } =
     useBoardTransform(transformRef, onZoomChange, initialScale)
 
-  const pointerDownPos = useRef(null)
-  const handleCardPointerDown = useCallback((e) => {
-    pointerDownPos.current = { x: e.clientX, y: e.clientY }
-    onPointerDown(e) // 카드 클릭해도 패닝 시작
+  // 새 흔적 저장 완료 → 해당 위치로 카메라 이동 + 강조
+  useEffect(() => {
+    if (!newPostId) return
+    const post = laid.find(p => p.id === newPostId)
+    if (!post) return
+
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
+
+    const scale = stateRef.current.scale
+    // 포스트잇 중앙이 화면 중앙에 오도록
+    const targetX = rect.width / 2 - (post._x + (post._cardW ?? CARD_W_CONST) / 2) * scale
+    const targetY = rect.height / 2 - (post._y + (post._cardW ?? CARD_W_CONST) / 2) * scale
+
+    // 부드럽게 이동
+    const start = { x: stateRef.current.x, y: stateRef.current.y }
+    const duration = 600
+    const startTime = performance.now()
+
+    const animate = (now) => {
+      const t = Math.min((now - startTime) / duration, 1)
+      const ease = 1 - Math.pow(1 - t, 3) // ease-out cubic
+      stateRef.current = {
+        ...stateRef.current,
+        x: start.x + (targetX - start.x) * ease,
+        y: start.y + (targetY - start.y) * ease,
+      }
+      if (containerRef.current) {
+        const canvasEl = containerRef.current.querySelector('[data-board-canvas]')
+        if (canvasEl) {
+          canvasEl.style.transform = `translate(${stateRef.current.x}px, ${stateRef.current.y}px) scale(${scale})`
+        }
+      }
+      if (t < 1) requestAnimationFrame(animate)
+      else {
+        setHighlightId(newPostId)
+        setTimeout(() => { setHighlightId(null); onNewPostFocused?.() }, 1500)
+      }
+    }
+    requestAnimationFrame(animate)
+  }, [newPostId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const pointerDownInfo = useRef(null)
+
+  const handleContainerPointerDown = useCallback((e) => {
+    pointerDownInfo.current = { x: e.clientX, y: e.clientY }
+    onPointerDown(e)
   }, [onPointerDown])
 
-  const handleCardClick = useCallback((post, e) => {
-    if (pointerDownPos.current) {
-      const dx = Math.abs(e.clientX - pointerDownPos.current.x)
-      const dy = Math.abs(e.clientY - pointerDownPos.current.y)
-      if (dx > 6 || dy > 6) return // 드래그였으면 무시
+  const handleContainerClick = useCallback((e) => {
+    if (!pointerDownInfo.current) return
+    const dx = Math.abs(e.clientX - pointerDownInfo.current.x)
+    const dy = Math.abs(e.clientY - pointerDownInfo.current.y)
+    if (dx > 8 || dy > 8) return
+
+    const { x: tx, y: ty, scale } = stateRef.current
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
+
+    const cx = (e.clientX - rect.left - tx) / scale
+    const cy = (e.clientY - rect.top - ty) / scale
+
+    for (let i = laid.length - 1; i >= 0; i--) {
+      const post = laid[i]
+      const cardW = post._cardW ?? CARD_W_CONST
+      const w = cardW
+      const h = post.type === 'polaroid' ? cardW * 1.5 : cardW
+      if (cx >= post._x && cx <= post._x + w && cy >= post._y && cy <= post._y + h) {
+        setSelectedPost(post)
+        return
+      }
     }
-    navigate(`/board/${boardId}/trace/${post.id}`, { state: { post } })
-  }, [navigate, boardId])
+  }, [laid, stateRef, containerRef])
 
   if (posts.length === 0) {
     return <EmptyBoard onAdd={onAdd} />
@@ -414,11 +475,13 @@ function BoardCanvas({ posts, onAdd, transformRef, onZoomChange, onToggleLike, o
     <div
       ref={containerRef}
       style={{ width: '100%', height: '100%', overflow: 'hidden', cursor: 'grab', touchAction: 'none' }}
-      onPointerDown={onPointerDown}
+      onPointerDown={handleContainerPointerDown}
+      onClick={handleContainerClick}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
       <div
+        data-board-canvas
         style={{
           position: 'absolute',
           transformOrigin: '0 0',
@@ -426,27 +489,35 @@ function BoardCanvas({ posts, onAdd, transformRef, onZoomChange, onToggleLike, o
           width: CANVAS_W,
           height: canvasH,
           willChange: 'transform',
+          pointerEvents: 'none',
         }}
       >
         {laid.map((post) => (
           <div
             key={post.id}
-            onPointerDown={handleCardPointerDown}
-            onClick={(e) => handleCardClick(post, e)}
-            style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+            style={{
+              transition: highlightId === post.id ? 'transform 0.3s' : 'none',
+              transform: highlightId === post.id ? 'scale(1.08)' : 'scale(1)',
+              filter: highlightId === post.id ? 'drop-shadow(0 0 12px rgba(255,200,50,0.8))' : 'none',
+            }}
           >
-            <div style={{ pointerEvents: 'auto', display: 'contents', cursor: 'grab' }}>
-              {post.capturedImage ? (
-                <CapturedCard post={post} />
-              ) : post.type === 'polaroid' ? (
-                <PolaroidCard post={post} onToggleLike={onToggleLike} onReport={onReport} />
-              ) : (
-                <PostItCard post={post} onToggleLike={onToggleLike} onReport={onReport} />
-              )}
-            </div>
+            {post.capturedImage ? (
+              <CapturedCard post={post} />
+            ) : post.type === 'polaroid' ? (
+              <PolaroidCard post={post} onToggleLike={onToggleLike} onReport={onReport} />
+            ) : (
+              <PostItCard post={post} onToggleLike={onToggleLike} onReport={onReport} />
+            )}
           </div>
         ))}
       </div>
+      {selectedPost && (
+        <TraceBottomSheet
+          post={selectedPost}
+          onClose={() => setSelectedPost(null)}
+          onDeleted={(id) => { onPostDeleted?.(id); setSelectedPost(null) }}
+        />
+      )}
     </div>
   )
 }

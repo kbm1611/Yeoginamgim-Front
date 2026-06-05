@@ -1,22 +1,28 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ChevronLeft, Heart, Flag, Pencil, Trash2 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { addTraceLike, removeTraceLike, deleteTrace } from '../api/traces'
 import { createTraceReport } from '../api/reports'
+import { fetchMyInfo } from '../api/users'
 
 function TraceDetail() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { boardId } = useParams()
+  const { id: boardId } = useParams()
   const post = location.state?.post
 
   const [liked, setLiked] = useState(post?.liked ?? false)
   const [likes, setLikes] = useState(post?.likes ?? 0)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [myNickname, setMyNickname] = useState(null)
 
-  // 임시로 내 카드 여부 판단 (나중에 로그인 유저 ID와 비교)
-  const isMyPost = post?.id?.startsWith('postit-') || post?.id?.startsWith('polaroid-') || post?.id?.startsWith('local-')
+  useEffect(() => {
+    fetchMyInfo().then(info => setMyNickname(info.nickname)).catch(() => {})
+  }, [])
+
+  // 내 닉네임과 흔적 작성자 닉네임 비교
+  const isMyPost = myNickname && post?.nickname && myNickname === post.nickname
 
   if (!post) {
     return (

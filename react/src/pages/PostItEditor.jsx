@@ -590,18 +590,6 @@ function PhotoPanel({ selectedPhoto, onSelect }) {
 function TextToolPanel({ textColor, onTextColor, fontSize, onFontSize, fontFamily, onFontFamily, textAlign, onTextAlign, onAddText }) {
   return (
     <div className="px-5 pt-2 pb-5 space-y-4">
-      {/* 텍스트 추가 버튼 */}
-      <button
-        type="button"
-        onClick={onAddText}
-        className="flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-[14px] font-bold text-white transition active:opacity-80"
-        style={{ backgroundColor: '#2C1A0E' }}
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        텍스트 추가
-      </button>
       {/* 글꼴 */}
       <div>
         <p className="mb-2 text-[12px] font-semibold text-[#6B5A4C]">글꼴</p>
