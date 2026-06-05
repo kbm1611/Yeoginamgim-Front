@@ -16,7 +16,6 @@ import { API_BASE_URL } from '../api/client'
 import { createTraceReport } from '../api/reports'
 import { addTraceLike, fetchBoardTraces, removeTraceLike, createTrace, uploadTraceImage } from '../api/traces'
 import BoardCanvas from '../components/board/BoardCanvas'
-import PlacementOverlay from '../components/board/PlacementOverlay'
 import boardBg from '../assets/image.png'
 
 const POSTIT_COLOR_BY_HEX = {
@@ -255,7 +254,7 @@ function BoardDetail() {
       setPosts([])
 
       try {
-        const mockData = await fetchBoardTraces(boardId, { sort, limit: 100 })
+        const data = await fetchBoardTraces(boardId, { sort, limit: 100 })
 
         if (ignore) return
         setPosts((data.traces ?? []).map(traceToPost))
