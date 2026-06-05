@@ -90,6 +90,35 @@
   opacity: 0.72;
 }
 
+.signup-inline-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 118px;
+  gap: 8px;
+}
+
+.signup-inline-control input {
+  min-width: 0;
+}
+
+.signup-secondary-button {
+  min-height: 56px;
+  border: 1px solid #d8c4b2;
+  border-radius: 18px;
+  padding: 0 12px;
+  background: #f4ebe2;
+  color: #6b3a18;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 18px;
+  box-shadow: 0 3px 12px rgba(74, 49, 36, 0.05);
+}
+
+.signup-secondary-button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
 .signup-status {
   min-height: 20px;
 }
@@ -129,6 +158,7 @@
 }
 
 .signup-back-link:focus-visible,
+.signup-secondary-button:focus-visible,
 .signup-submit:focus-visible {
   outline: 2px solid rgba(122, 66, 24, 0.32);
   outline-offset: 3px;
@@ -137,5 +167,13 @@
 @media (max-width: 430px) {
   .signup-page {
     padding: calc(24px + env(safe-area-inset-top)) 22px calc(18px + env(safe-area-inset-bottom));
+  }
+
+  .signup-inline-control {
+    grid-template-columns: 1fr;
+  }
+
+  .signup-secondary-button {
+    min-height: 48px;
   }
 }

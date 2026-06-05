@@ -35,6 +35,14 @@ export async function logout() {
   return response
 }
 
+export function sendEmailVerification(email) {
+  return apiClient.post('/api/auth/email/send', { email })
+}
+
+export function verifyEmailVerification(email, code) {
+  return apiClient.post('/api/auth/email/verify', { email, code })
+}
+
 // 백엔드 Kakao OAuth 시작 URL 생성
 export function getKakaoOAuthUrl() {
   return buildApiUrl('/api/auth/oauth/kakao').toString()
