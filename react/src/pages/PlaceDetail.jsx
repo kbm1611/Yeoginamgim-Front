@@ -10,73 +10,33 @@ import {
   MapPin,
   MoreHorizontal,
   Share,
-  Star,
   User,
 } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { fetchBoardDetailForRouteId } from '../api/boards'
+import { API_BASE_URL } from '../api/client'
+import { fetchBoardTraces } from '../api/traces'
 import {
+  buildPlaceDetailFromBoardDetail,
+  buildRecentTraceCards,
   getPlaceDetailRows,
   getTraceCountText,
-  mergeBoardDetailIntoPlace,
   resolveBoardNavigationId,
 } from './PlaceDetail.utils'
 
-// ??? Mock Data ????????????????????????????????????????????????????????????????
-
-const mockPlace = {
-  name: '성수의 작은 카페',
-  address: '서울 성동구 연무장길 13',
-  category: '카페',
-  kakaoPlaceId: '',
-  latitude: null,
-  longitude: null,
-  phone: '',
-  savedCount: 85,
-  stats: { traces: 0, todayVisit: 37, likes: '2.4k' },
-  intro: '창가 자리가 좋고 조용히 머물기 좋은 공간입니다.\n이곳에 남겨진 흔적을 천천히 둘러보세요.',
-  tags: [
-    { label: '#카페', emoji: '커피', bg: '#F2EBE0', text: '#5C4230', border: '#E4D5C4' },
-    { label: '#조용해요', emoji: '쉼', bg: '#E5EFE2', text: '#3D5C38', border: '#C8DEC4' },
-    { label: '#머물기좋은', emoji: '공간', bg: '#DDE8F5', text: '#2B4D73', border: '#BACEEA' },
-  ],
-  images: [
-    'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=800&q=80',
-  ],
-  totalImages: 1,
-}
-
-const mockTraces = [
-  {
-    id: 1,
-    type: 'photo',
-    image: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=400&q=80',
-    text: '따뜻한 커피가 좋았던 아침',
-    user: 'daily_sun',
-    time: '2시간 전',
-    likes: 23,
-  },
-  {
-    id: 2,
-    type: 'note',
-    noteBg: '#F5EDD5',
-    text: '조용히 쉬어가기 좋은 자리',
-    date: '2024.06.09',
-    user: 'mood_yeon',
-    time: '6시간 전',
-    likes: 12,
-  },
-]
-
 // ??? Components ???????????????????????????????????????????????????????????????
 
-function HeroImage({ src, totalImages }) {
+function HeroPlaceholder() {
   return (
-    <div className="relative h-[260px] w-full overflow-hidden">
-      <img src={src} alt="장소 이미지" className="h-full w-full object-cover" />
-      {/* ?대?吏 移댁슫??諛곗? ???대?吏 ?곗륫 ?섎떒, 寃뱀묠 ?곸뿭 ??*/}
-      <div className="absolute bottom-8 right-3 rounded-full bg-black/45 px-2.5 py-[3px] text-[12px] font-medium text-white backdrop-blur-sm">
-        1/{totalImages}
+    <div className="flex h-[220px] w-full items-center justify-center bg-[#EFE4D7] px-5">
+      <div className="flex flex-col items-center text-center text-[#8A6F58]">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/75">
+          <MapPin size={24} strokeWidth={1.8} />
+        </div>
+        <p className="mt-3 text-[14px] font-semibold">대표 이미지 없음</p>
+        <p className="mt-1 text-[12px] font-medium text-[#9A8573]">
+          장소 사진은 아직 제공되지 않습니다.
+        </p>
       </div>
     </div>
   )
@@ -92,7 +52,6 @@ function PlaceInfoCard({ place, traceStatus }) {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex items-center gap-2">
             <h1 className="min-w-0 truncate text-[24px] font-bold leading-tight text-[#3B2A1E]">{place.name}</h1>
-            <Star size={18} className="shrink-0 fill-[#F5C842] text-[#F5C842]" />
           </div>
           <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#FFF8ED] px-2.5 py-1 text-[11px] font-semibold text-[#7A5A2E]">
             <ClipboardList size={11} strokeWidth={1.8} />
@@ -107,13 +66,6 @@ function PlaceInfoCard({ place, traceStatus }) {
           <span className="rounded-full bg-[#F5F0EA] px-2.5 py-1 text-[12px] font-medium text-[#6B5344]">
             {place.category || '카테고리 없음'}
           </span>
-          <button
-            type="button"
-            className="flex shrink-0 items-center gap-1 rounded-full border border-[#E0D4C5] bg-[#F5F0EA] px-2.5 py-1 text-[12px] font-medium text-[#5C4A3B]"
-          >
-            <Bookmark size={12} strokeWidth={1.8} />
-            저장 {place.savedCount ?? 0}
-          </button>
         </div>
       </div>
 
@@ -135,47 +87,22 @@ function PlaceInfoCard({ place, traceStatus }) {
   )
 }
 
-function IntroBox({ intro }) {
+function PlaceMetadataEmptyState() {
   return (
-    <div className="relative mx-5 mt-4 overflow-hidden rounded-2xl border border-[#EBE1D6] bg-white px-4 py-4 shadow-[0_2px_8px_rgba(60,42,30,0.05)]">
-      <p className="whitespace-pre-line text-[14px] leading-[1.85] text-[#4A3728]">{intro}</p>
-      {/* 苑??μ떇 */}
-      <div className="pointer-events-none absolute bottom-3 right-3 select-none text-[28px] opacity-20">
-        ??
-      </div>
-    </div>
-  )
-}
-
-function MoodTags({ tags }) {
-  return (
-    <div className="mt-5 px-5">
-      <h2 className="mb-3 text-[16px] font-bold text-[#3B2A1E]">遺꾩쐞湲??쒓렇</h2>
-      <div className="flex flex-wrap gap-2">
-        {tags.map((tag) => (
-          <span
-            key={tag.label}
-            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium"
-            style={{
-              backgroundColor: tag.bg,
-              color: tag.text,
-              border: `1px solid ${tag.border}`,
-            }}
-          >
-            <span className="text-[14px]">{tag.emoji}</span>
-            {tag.label}
-          </span>
-        ))}
-      </div>
-    </div>
+    <section className="mx-5 mt-4 rounded-[14px] border border-dashed border-[#E3D6C8] bg-[#FFFDF9] px-4 py-4">
+      <h2 className="text-[14px] font-bold text-[#4A3728]">추가 장소 정보 없음</h2>
+      <p className="mt-1 text-[12px] font-medium leading-relaxed text-[#8B7A6B]">
+        대표 이미지, 소개글, 분위기 태그는 아직 제공되지 않습니다.
+      </p>
+    </section>
   )
 }
 
 function RecentTraceCard({ trace }) {
-  if (trace.type === 'photo') {
+  if (trace.type === 'photo' && trace.image) {
     return (
       <article className="w-[148px] shrink-0 overflow-hidden rounded-2xl bg-white shadow-[0_2px_10px_rgba(60,42,30,0.10)]">
-        <img src={trace.image} alt="" className="h-[120px] w-full object-cover" />
+        <img src={resolveTraceImageUrl(trace.image)} alt="" className="h-[120px] w-full object-cover" />
         <div className="px-2.5 py-2">
           <p className="truncate text-[12px] font-medium text-[#3B2A1E]">{trace.text}</p>
           <p className="mt-0.5 text-[11px] text-[#8B7A6B]">{trace.user}</p>
@@ -221,30 +148,87 @@ function RecentTraceCard({ trace }) {
   )
 }
 
-function RecentTraceList({ traces, onMore }) {
+function RecentTraceStatusCard({ message }) {
+  return (
+    <div className="mx-5 rounded-[14px] border border-[#EFE5DA] bg-white px-4 py-5 text-center text-[13px] font-medium text-[#7D6E62] shadow-[0_2px_8px_rgba(60,42,30,0.05)]">
+      {message}
+    </div>
+  )
+}
+
+function RecentTraceList({ traces, status, errorMessage, onMore }) {
+  const hasTraces = status === 'ready' && traces.length > 0
+
   return (
     <div className="mt-6">
       <div className="mb-3 flex items-center justify-between px-5">
         <h2 className="text-[16px] font-bold text-[#3B2A1E]">최근 흔적</h2>
-        <button
-          type="button"
-          onClick={onMore}
-          className="flex items-center gap-0.5 text-[13px] font-medium text-[#6B5A4C]"
-        >
-          더보기
-          <ChevronRight size={14} strokeWidth={2} />
-        </button>
+        {hasTraces ? (
+          <button
+            type="button"
+            onClick={onMore}
+            className="flex items-center gap-0.5 text-[13px] font-medium text-[#6B5A4C]"
+          >
+            더보기
+            <ChevronRight size={14} strokeWidth={2} />
+          </button>
+        ) : null}
       </div>
-      {/* 媛濡??ㅽ겕濡?*/}
-      <div
-        className="flex gap-3 overflow-x-auto px-5 pb-2"
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-      >
-        {traces.map((trace) => (
-          <RecentTraceCard key={trace.id} trace={trace} />
-        ))}
+      {status === 'loading' ? <RecentTraceStatusCard message="최근 흔적을 불러오는 중입니다." /> : null}
+      {status === 'error' ? (
+        <RecentTraceStatusCard message={errorMessage || '최근 흔적을 불러오지 못했습니다.'} />
+      ) : null}
+      {status === 'ready' && traces.length === 0 ? (
+        <RecentTraceStatusCard message="아직 남겨진 흔적이 없습니다." />
+      ) : null}
+      {hasTraces ? (
+        <div
+          className="flex gap-3 overflow-x-auto px-5 pb-2"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
+          {traces.map((trace) => (
+            <RecentTraceCard key={trace.id} trace={trace} />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function resolveTraceImageUrl(path) {
+  if (!path) return ''
+  if (/^https?:\/\//i.test(path)) return path
+  if (/^[a-zA-Z]:[\\/]/.test(path)) return ''
+  if (path.startsWith('/')) return `${API_BASE_URL}${path}`
+
+  return path
+}
+
+function PlaceDetailState({ title, message, children }) {
+  return (
+    <div className="flex min-h-[420px] items-center justify-center px-5 py-10">
+      <div className="w-full rounded-[18px] border border-[#EBE1D6] bg-white px-5 py-6 text-center shadow-[0_2px_10px_rgba(60,42,30,0.08)]">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#F5F0EA] text-[#7A5A2E]">
+          <MapPin size={22} strokeWidth={1.8} />
+        </div>
+        <h1 className="mt-4 text-[18px] font-bold text-[#3B2A1E]">{title}</h1>
+        <p className="mt-2 text-[13px] font-medium leading-relaxed text-[#8B7A6B]">{message}</p>
+        {children ? <div className="mt-5 flex gap-2">{children}</div> : null}
       </div>
     </div>
+  )
+}
+
+function StateButton({ children, variant = 'primary', onClick }) {
+  const className =
+    variant === 'secondary'
+      ? 'flex-1 rounded-full border border-[#D8CDBF] bg-white px-4 py-3 text-[13px] font-bold text-[#5C4A3B]'
+      : 'flex-1 rounded-full bg-[#3A2418] px-4 py-3 text-[13px] font-bold text-white'
+
+  return (
+    <button type="button" onClick={onClick} className={className}>
+      {children}
+    </button>
   )
 }
 
@@ -311,18 +295,28 @@ function PlaceDetailScreen() {
   const navigate = useNavigate()
   const { id } = useParams()
   const [boardDetail, setBoardDetail] = useState(null)
-  const [boardDetailStatus, setBoardDetailStatus] = useState(id ? 'loading' : 'ready')
-  const place = mergeBoardDetailIntoPlace(mockPlace, boardDetail)
+  const [boardDetailStatus, setBoardDetailStatus] = useState(id ? 'loading' : 'error')
+  const [recentTraces, setRecentTraces] = useState([])
+  const [recentTracesStatus, setRecentTracesStatus] = useState('idle')
+  const [recentTracesError, setRecentTracesError] = useState('')
+  const place = boardDetailStatus === 'ready' ? buildPlaceDetailFromBoardDetail(boardDetail) : null
   const boardNavigationId = resolveBoardNavigationId(id, boardDetail)
 
   useEffect(() => {
-    if (!id) {
-      return
-    }
-
     let ignore = false
 
     async function loadBoardDetail() {
+      if (!id) {
+        if (!ignore) {
+          setBoardDetail(null)
+          setBoardDetailStatus('error')
+        }
+        return
+      }
+
+      setBoardDetail(null)
+      setBoardDetailStatus('loading')
+
       try {
         const detail = await fetchBoardDetailForRouteId(id)
         if (!ignore) {
@@ -343,6 +337,99 @@ function PlaceDetailScreen() {
       ignore = true
     }
   }, [id])
+
+  useEffect(() => {
+    const boardId = boardDetail?.boardId
+    let ignore = false
+
+    async function loadRecentTraces() {
+      if (boardDetailStatus !== 'ready' || !boardId) {
+        if (!ignore) {
+          setRecentTraces([])
+          setRecentTracesError('')
+          setRecentTracesStatus(boardDetailStatus === 'ready' ? 'ready' : 'idle')
+        }
+        return
+      }
+
+      setRecentTraces([])
+      setRecentTracesError('')
+      setRecentTracesStatus('loading')
+
+      try {
+        const data = await fetchBoardTraces(boardId, { sort: 'latest', limit: 2 })
+        if (ignore) return
+
+        setRecentTraces(buildRecentTraceCards(data))
+        setRecentTracesStatus('ready')
+      } catch (error) {
+        if (ignore) return
+
+        setRecentTraces([])
+        setRecentTracesError(error?.message || '최근 흔적을 불러오지 못했습니다.')
+        setRecentTracesStatus('error')
+      }
+    }
+
+    loadRecentTraces()
+
+    return () => {
+      ignore = true
+    }
+  }, [boardDetail?.boardId, boardDetailStatus])
+
+  const renderContent = () => {
+    if (boardDetailStatus === 'loading') {
+      return (
+        <PlaceDetailState
+          title="장소 정보를 불러오는 중입니다"
+          message="실제 장소 상세 정보를 확인하고 있습니다."
+        />
+      )
+    }
+
+    if (boardDetailStatus === 'error') {
+      return (
+        <PlaceDetailState
+          title="장소 정보를 불러오지 못했습니다"
+          message="임시 장소 정보로 대체하지 않고, 실제 응답을 다시 확인해야 합니다."
+        >
+          <StateButton variant="secondary" onClick={() => navigate(-1)}>뒤로가기</StateButton>
+          {id ? <StateButton onClick={() => navigate(`/board/${id}`)}>보드로 이동</StateButton> : null}
+        </PlaceDetailState>
+      )
+    }
+
+    if (!place) {
+      return (
+        <PlaceDetailState
+          title="표시할 장소 정보가 없습니다"
+          message="보드 응답에 장소 이름이 없어 상세 화면을 구성할 수 없습니다."
+        >
+          <StateButton variant="secondary" onClick={() => navigate(-1)}>뒤로가기</StateButton>
+          <StateButton onClick={() => navigate(`/board/${boardNavigationId}`)}>보드로 이동</StateButton>
+        </PlaceDetailState>
+      )
+    }
+
+    return (
+      <>
+        <HeroPlaceholder />
+
+        <div className="-mt-6 rounded-t-[28px] bg-white shadow-[0_-4px_16px_rgba(0,0,0,0.10)]">
+          <PlaceInfoCard place={place} traceStatus={boardDetailStatus} />
+          <PlaceMetadataEmptyState />
+          <RecentTraceList
+            traces={recentTraces}
+            status={recentTracesStatus}
+            errorMessage={recentTracesError}
+            onMore={() => navigate(`/board/${boardNavigationId}`)}
+          />
+          <div className="h-36" />
+        </div>
+      </>
+    )
+  }
 
   return (
     <motion.div
@@ -374,21 +461,7 @@ function PlaceDetailScreen() {
 
       {/* ?? ?ㅽ겕濡?蹂몃Ц ?? */}
       <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
-        {/* Hero ?대?吏 */}
-        <HeroImage src={place.images[0]} totalImages={place.totalImages} />
-
-        {/* ?뺣낫 移대뱶 ??Hero???댁쭩 寃뱀튂寃?(紐⑺몴 ?대?吏 湲곗? ~24px) */}
-        <div className="-mt-6 rounded-t-[28px] bg-white shadow-[0_-4px_16px_rgba(0,0,0,0.10)]">
-          <PlaceInfoCard place={place} traceStatus={boardDetailStatus} />
-          <IntroBox intro={place.intro} />
-          <MoodTags tags={place.tags} />
-          <RecentTraceList
-            traces={mockTraces}
-            onMore={() => navigate(`/board/${boardNavigationId}`)}
-          />
-          {/* ?섎떒 ?ъ쑀 怨듦컙 ??CTA(56px) + ?⑤뵫(12px) + ?ㅻ퉬(72px) = 140px */}
-          <div className="h-36" />
-        </div>
+        {renderContent()}
       </div>
 
       {/* ?? ?섎떒 怨좎젙 ?곸뿭 ?? */}
