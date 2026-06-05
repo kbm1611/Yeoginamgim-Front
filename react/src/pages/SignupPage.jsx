@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Link, useNavigate } from 'react-router-dom'
 import { signupUser } from '../api/users'
@@ -42,7 +42,24 @@ function SignupPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const signupRedirectTimeoutRef = useRef(null)
   const navigate = useNavigate()
+
+  const clearSignupRedirectTimeout = () => {
+    if (signupRedirectTimeoutRef.current !== null) {
+      window.clearTimeout(signupRedirectTimeoutRef.current)
+      signupRedirectTimeoutRef.current = null
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      if (signupRedirectTimeoutRef.current !== null) {
+        window.clearTimeout(signupRedirectTimeoutRef.current)
+        signupRedirectTimeoutRef.current = null
+      }
+    }
+  }, [])
 
   const handleChange = (event) => {
     const { name, value } = event.target
@@ -64,6 +81,8 @@ function SignupPage() {
 
   const handleSubmit = async (event) => {
     event.preventDefault()
+    clearSignupRedirectTimeout()
+
     const validationError = validateForm()
 
     if (validationError) {
@@ -89,7 +108,8 @@ function SignupPage() {
       await signupUser(signupData)
       const message = '회원가입이 완료되었습니다. 로그인해주세요.'
       setSuccess(message)
-      window.setTimeout(() => {
+      signupRedirectTimeoutRef.current = window.setTimeout(() => {
+        signupRedirectTimeoutRef.current = null
         navigate('/login', {
           replace: true,
           state: { signupEmail: email, message },
