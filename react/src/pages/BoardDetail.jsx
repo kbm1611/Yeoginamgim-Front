@@ -9,12 +9,13 @@ import {
   Search,
   SlidersHorizontal,
 } from 'lucide-react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { fetchBoardDetail } from '../api/boards'
 import { API_BASE_URL } from '../api/client'
 import { createTraceReport } from '../api/reports'
-import { addTraceLike, fetchBoardTraces, removeTraceLike } from '../api/traces'
+import { addTraceLike, fetchBoardTraces, removeTraceLike, createTrace, uploadTraceImage } from '../api/traces'
 import BoardCanvas from '../components/board/BoardCanvas'
+import PlacementOverlay from '../components/board/PlacementOverlay'
 import boardBg from '../assets/image.png'
 
 const POSTIT_COLOR_BY_HEX = {
@@ -80,6 +81,7 @@ function traceToPost(trace) {
     id: trace.traceId ?? element.elementId,
     type: isPolaroid ? 'polaroid' : 'postit',
     content: element.textContent ?? '',
+    capturedImage: resolveImageUrl(element.imageUrl),  // 서버 이미지 → 보드에 표시
     media: isPolaroid
       ? {
           image: resolveImageUrl(element.imageUrl),
@@ -96,9 +98,9 @@ function traceToPost(trace) {
           ...style,
           paperColor: resolvePaperColor(style),
         },
-    position: {
-      x: trace.traceX,
-      y: trace.traceY,
+    cell: {
+      col: trace.traceX ?? 0,
+      row: trace.traceY ?? 0,
     },
     createdAt: trace.createdAt,
     likes: trace.likeCount ?? 0,
@@ -212,6 +214,12 @@ function BoardDetail() {
   const [zoom, setZoom] = useState(100)
   const transformRef = useRef(null)
 
+  const [placementDraft, setPlacementDraft] = useState(() => {
+    const draft = location.state?.placementDraft ?? null
+    if (draft) setTimeout(() => window.history.replaceState({}, ''), 0)
+    return draft
+  })
+
   useEffect(() => {
     let ignore = false
 
@@ -246,11 +254,7 @@ function BoardDetail() {
       setPosts([])
 
       try {
-        // 백엔드 없이 빈 데이터로 테스트
-        const mockData = { traces: [] }
-
-        // 실제 API 호출:
-        // const mockData = await fetchBoardTraces(boardId, { sort, limit: 100 })
+        const mockData = await fetchBoardTraces(boardId, { sort, limit: 100 })
 
         if (ignore) return
         setPosts((mockData.traces ?? []).map(traceToPost))
@@ -267,35 +271,44 @@ function BoardDetail() {
     return () => { ignore = true }
   }, [boardId, sort])
 
-  const headerPlaceName = boardDetail?.place?.placeName ?? id ?? '?μ냼 蹂대뱶'
+  const headerPlaceName = boardDetail?.place?.placeName ?? id ?? '장소 보드'
 
   const handleAdd = () => navigate(`/board/${boardId}/postit`)
 
-  // 배치 확정 — UI 즉시 업데이트, 서버는 비동기
-  const handlePlace = (cell) => {
+  const handlePlace = async (cell) => {
     if (!placementDraft) return
-    const newPost = {
-      ...placementDraft,
-      id: placementDraft.id ?? `local-${Date.now()}`,
-      cell,
-      likes: 0,
-      liked: false,
-      createdAt: new Date().toISOString(),
-    }
-
-    console.log('📍 배치됨:', {
-      id: newPost.id,
-      type: newPost.type,
-      cell,
-      content: newPost.content?.slice(0, 20)
-    })
-
-    // UI 즉시 업데이트: overlay 닫고 보드에 배치됨
-    setLocalPosts((prev) => [...prev, newPost])
     setPlacementDraft(null)
 
-    // TODO: 서버 저장 (비동기, 실패해도 UI는 유지)
-    // createTrace(boardId, { ...newPost, traceX: cell.col, traceY: cell.row })
+    try {
+      // 1. 캡처 이미지 업로드
+      let imageUrl = null
+      if (placementDraft.capturedImage) {
+        const res = await fetch(placementDraft.capturedImage)
+        const blob = await res.blob()
+        const file = new File([blob], 'trace.png', { type: 'image/png' })
+        const uploaded = await uploadTraceImage(file)
+        imageUrl = uploaded.imageUrl ?? uploaded.url ?? null
+      }
+
+      // 2. 흔적 생성
+      const contentType = placementDraft.type === 'polaroid' ? 'POLAROID' : 'POST_IT'
+      await createTrace(boardId, {
+        traceX: cell.col,
+        traceY: cell.row,
+        elements: [{
+          contentType,
+          textContent: placementDraft.content ?? '',
+          imageUrl: imageUrl ?? placementDraft.media?.image ?? null,
+          styleJson: JSON.stringify(placementDraft.style ?? {}),
+        }],
+      })
+
+      // 3. 저장 성공 → 목록 새로고침
+      const fresh = await fetchBoardTraces(boardId, { sort, limit: 100 })
+      setPosts((fresh.traces ?? []).map(traceToPost))
+    } catch (e) {
+      console.warn('흔적 저장 실패:', e)
+    }
   }
 
   const handleCancelPlacement = () => setPlacementDraft(null)
@@ -341,20 +354,10 @@ function BoardDetail() {
       )
     }
 
-    if (errorMessage) {
-      return (
-        <div className="flex h-full items-center justify-center px-8 text-center">
-          <div className="rounded-[8px] bg-white/85 px-5 py-4 text-[#5C4030] shadow-md backdrop-blur-sm">
-            <p className="text-[16px] font-semibold">?붿쟻??遺덈윭?ㅼ? 紐삵뻽?듬땲??</p>
-            <p className="mt-2 break-words text-[13px] text-[#8A6A58]">{errorMessage}</p>
-          </div>
-        </div>
-      )
-    }
 
     return (
       <BoardCanvas
-        posts={allPosts}
+        posts={posts}
         onAdd={handleAdd}
         transformRef={transformRef}
         onZoomChange={setZoom}
@@ -386,7 +389,7 @@ function BoardDetail() {
         {placementDraft && (
           <PlacementOverlay
             draft={placementDraft}
-            posts={allPosts}
+            posts={posts}
             transformRef={transformRef}
             onPlace={handlePlace}
             onCancel={handleCancelPlacement}

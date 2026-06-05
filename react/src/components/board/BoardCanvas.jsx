@@ -1,6 +1,7 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useCallback, useRef } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { Flag, Heart } from 'lucide-react'
-import { TransformComponent, TransformWrapper } from 'react-zoom-pan-pinch'
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
 import postitYellow from '../../assets/postit/postit.png'
 import polaroidBg from '../../assets/poloaroid/폴라로이드.png'
 
@@ -214,129 +215,37 @@ function TraceActions({ post, onToggleLike, onReport }) {
   )
 }
 
-function PolaroidCard({ post, onToggleLike, onReport }) {
-  const [imageFailed, setImageFailed] = useState(false)
-  const imageSrc = post.media?.image
-  const captionLength = post.content?.length ?? 0
-  const savedFontSize = Number(post.style?.fontSize)
-  const captionFontSize = Number.isFinite(savedFontSize) && savedFontSize > 0 ? savedFontSize : captionLength > 40 ? 24 : 30
-  const captionFontFamily = post.style?.fontFamily ?? "'Nanum Pen Script', 'Gaegu', cursive"
-
-  return (
-    <article
-      className="absolute"
-      style={{
-        left: post._x,
-        top: post._y,
-        width: 320,
-        transform: `rotate(${post._rotate}deg)`,
-        borderRadius: 10,
-        boxShadow: '0 6px 22px rgba(42,28,20,0.20), 0 2px 6px rgba(42,28,20,0.10)',
-        backgroundImage: `url(${polaroidBg})`,
-        backgroundSize: '100% 100%',
-        backgroundColor: 'transparent',
-      }}
-    >
-      <Tape color={post._tapeColor} rotate={post._tapeRotate} />
-      <div className="p-[10px] pb-0">
-        {imageSrc && !imageFailed ? (
-          <img
-            src={imageSrc}
-            alt=""
-            loading="lazy"
-            className="h-[250px] w-full rounded-[6px] object-cover"
-            onError={() => setImageFailed(true)}
-          />
-        ) : (
-          <div className="flex h-[250px] w-full items-center justify-center rounded-[6px] bg-[#EEE7DC] text-[15px] font-semibold text-[#8A6A58]">
-            이미지 없음
-          </div>
-        )}
-      </div>
-      <div className="px-3 pb-4 pt-2 text-center">
-        <p
-          className="break-words leading-[1.25]"
-          style={{
-            color: post.style?.color ?? '#1E1712',
-            fontFamily: captionFontFamily,
-            fontSize: captionFontSize,
-          }}
-        >
-          {post.content}
-        </p>
-        <p
-          className="mt-1 text-[17px] text-[#7A6357]"
-          style={{ fontFamily: "'Nanum Pen Script', 'Gaegu', cursive" }}
-        >
-          {post.media?.dateLabel}
-        </p>
-      </div>
-      <TraceActions post={post} onToggleLike={onToggleLike} onReport={onReport} />
-    </article>
-  )
-}
-
-// POST_IT 전용 컴포넌트 — 노란 포스트잇 PNG만 렌더링
-function BoardPostIt({ post, onToggleLike, onReport }) {
-  const contentLength = post.content?.length ?? 0
-  const savedFontSize = Number(post.style?.fontSize)
-  const fontSize = Number.isFinite(savedFontSize) && savedFontSize > 0
-    ? savedFontSize
-    : contentLength > 60 ? 24 : contentLength > 35 ? 29 : 34
-  const fontFamily = post.style?.fontFamily ?? "'Nanum Pen Script', 'Gaegu', cursive"
+// 모든 카드 — capturedImage를 그대로 표시
+function TraceCard({ post }) {
   const cardW = post._cardW ?? CARD_W_CONST
+  const isPolaroid = post.type === 'polaroid'
+  const w = cardW
+  const h = isPolaroid ? cardW * 1.5 : cardW
+
+  if (!post.capturedImage) return null
 
   return (
-    <div
+    <img
+      src={post.capturedImage}
+      alt=""
       style={{
         position: 'absolute',
         left: post._x,
         top: post._y,
-        width: cardW,
-        height: cardW,
+        width: w,
+        height: h,
+        objectFit: 'fill',
         transform: `rotate(${post._rotate}deg)`,
-        backgroundImage: `url(${postitYellow})`,
-        backgroundSize: 'contain',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat',
-        boxShadow: '0 6px 20px rgba(42,28,20,0.18), 0 2px 6px rgba(42,28,20,0.10)',
+        boxShadow: '0 6px 20px rgba(42,28,20,0.15)',
+        transformOrigin: 'top left',
       }}
-    >
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '24px',
-        }}
-      >
-        <p
-          style={{
-            color: post.style?.textColor ?? '#2A1E14',
-            fontFamily,
-            fontSize,
-            margin: 0,
-            lineHeight: 1.3,
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-            textAlign: 'center',
-            maxHeight: '100%',
-            overflow: 'hidden',
-          }}
-        >
-          {post.content}
-        </p>
-      </div>
-
-      <TraceActions post={post} onToggleLike={onToggleLike} onReport={onReport} />
-    </div>
+    />
   )
 }
 
-// 호환성 유지 (기존 PostItCard 이름 사용)
-const PostItCard = BoardPostIt
+const PostItCard = TraceCard
+const PolaroidCard = TraceCard
+const CapturedCard = TraceCard
 
 function EmptyBoard({ onAdd }) {
   return (
@@ -358,50 +267,206 @@ function EmptyBoard({ onAdd }) {
   )
 }
 
+// 피그마 스타일 줌/패닝 훅
+function useBoardTransform(transformRef, onZoomChange, initialScale) {
+  const [transform, setTransform] = useState({ x: 0, y: 0, scale: initialScale })
+  const stateRef = useRef({ x: 0, y: 0, scale: initialScale })
+  const panStart = useRef(null)
+  const pinchRef = useRef(null)
+  const containerRef = useRef(null)
+
+  // transformRef에 현재 상태 노출 (PlacementOverlay가 읽음)
+  useEffect(() => {
+    if (transformRef) {
+      transformRef.current = {
+        state: { scale: stateRef.current.scale, positionX: stateRef.current.x, positionY: stateRef.current.y },
+        zoomIn: (step = 0.25) => applyZoom(stateRef.current.scale + step, null),
+        zoomOut: (step = 0.25) => applyZoom(stateRef.current.scale - step, null),
+      }
+    }
+  })
+
+  const applyZoom = useCallback((nextScale, origin) => {
+    const MIN = 0.3, MAX = 3.0
+    nextScale = Math.min(MAX, Math.max(MIN, nextScale))
+    const { x, y, scale } = stateRef.current
+
+    let nextX = x, nextY = y
+    if (origin) {
+      // origin(화면 좌표) 기준으로 줌
+      const ratio = nextScale / scale
+      nextX = origin.x - (origin.x - x) * ratio
+      nextY = origin.y - (origin.y - y) * ratio
+    }
+
+    stateRef.current = { x: nextX, y: nextY, scale: nextScale }
+    setTransform({ x: nextX, y: nextY, scale: nextScale })
+    onZoomChange?.(Math.round(nextScale / initialScale * 100))
+  }, [initialScale, onZoomChange])
+
+  const onWheel = useCallback((e) => {
+    e.preventDefault()
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const origin = { x: e.clientX - rect.left, y: e.clientY - rect.top }
+    const delta = -e.deltaY * 0.001
+    applyZoom(stateRef.current.scale * (1 + delta), origin)
+  }, [applyZoom])
+
+  const onPointerDown = useCallback((e) => {
+    if (e.button !== 0) return
+    panStart.current = { px: e.clientX, py: e.clientY, x: stateRef.current.x, y: stateRef.current.y }
+  }, [])
+
+  const onPointerMove = useCallback((e) => {
+    if (!panStart.current) return
+    const dx = e.clientX - panStart.current.px
+    const dy = e.clientY - panStart.current.py
+    const next = { ...stateRef.current, x: panStart.current.x + dx, y: panStart.current.y + dy }
+    stateRef.current = next
+    setTransform({ ...next })
+  }, [])
+
+  const onPointerUp = useCallback(() => {
+    panStart.current = null
+  }, [])
+
+  const onTouchStart = useCallback((e) => {
+    if (e.touches.length === 2) {
+      panStart.current = null
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      pinchRef.current = {
+        dist: Math.hypot(dx, dy),
+        scale: stateRef.current.scale,
+        mx: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+        my: (e.touches[0].clientY + e.touches[1].clientY) / 2,
+      }
+    } else if (e.touches.length === 1) {
+      pinchRef.current = null
+      panStart.current = { px: e.touches[0].clientX, py: e.touches[0].clientY, x: stateRef.current.x, y: stateRef.current.y }
+    }
+  }, [])
+
+  const onTouchMove = useCallback((e) => {
+    e.preventDefault()
+    if (e.touches.length === 2 && pinchRef.current) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      const dist = Math.hypot(dx, dy)
+      const nextScale = pinchRef.current.scale * (dist / pinchRef.current.dist)
+      const rect = containerRef.current?.getBoundingClientRect()
+      const origin = rect ? {
+        x: pinchRef.current.mx - rect.left,
+        y: pinchRef.current.my - rect.top,
+      } : null
+      applyZoom(nextScale, origin)
+    } else if (e.touches.length === 1 && panStart.current) {
+      const dx = e.touches[0].clientX - panStart.current.px
+      const dy = e.touches[0].clientY - panStart.current.py
+      const next = { ...stateRef.current, x: panStart.current.x + dx, y: panStart.current.y + dy }
+      stateRef.current = next
+      setTransform({ ...next })
+    }
+  }, [applyZoom])
+
+  const onTouchEnd = useCallback(() => {
+    pinchRef.current = null
+    panStart.current = null
+  }, [])
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+
+    el.addEventListener('wheel', onWheel, { passive: false })
+    el.addEventListener('touchmove', onTouchMove, { passive: false })
+
+    // window에서 pointermove/up 처리 → 카드 위에서 드래그해도 패닝 동작
+    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointerup', onPointerUp)
+
+    return () => {
+      el.removeEventListener('wheel', onWheel)
+      el.removeEventListener('touchmove', onTouchMove)
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', onPointerUp)
+    }
+  }, [onWheel, onTouchMove, onPointerMove, onPointerUp])
+
+  return { transform, containerRef, onPointerDown, onPointerMove, onPointerUp, onTouchStart, onTouchEnd }
+}
+
 function BoardCanvas({ posts, onAdd, transformRef, onZoomChange, onToggleLike, onReport }) {
+  const navigate = useNavigate()
+  const { id: boardId } = useParams()
   const laid = useMemo(() => layoutPosts(posts), [posts])
   const rows = Math.ceil(posts.length / 2)
   const canvasH = Math.max(1200, rows * ROW_H + 400)
+
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 390
+  const initialScale = Math.min(0.9, (vw - 16) / CANVAS_W)
+
+  const { transform, containerRef, onPointerDown, onPointerMove, onPointerUp, onTouchStart, onTouchEnd } =
+    useBoardTransform(transformRef, onZoomChange, initialScale)
+
+  const pointerDownPos = useRef(null)
+  const handleCardPointerDown = useCallback((e) => {
+    pointerDownPos.current = { x: e.clientX, y: e.clientY }
+    onPointerDown(e) // 카드 클릭해도 패닝 시작
+  }, [onPointerDown])
+
+  const handleCardClick = useCallback((post, e) => {
+    if (pointerDownPos.current) {
+      const dx = Math.abs(e.clientX - pointerDownPos.current.x)
+      const dy = Math.abs(e.clientY - pointerDownPos.current.y)
+      if (dx > 6 || dy > 6) return // 드래그였으면 무시
+    }
+    navigate(`/board/${boardId}/trace/${post.id}`, { state: { post } })
+  }, [navigate, boardId])
 
   if (posts.length === 0) {
     return <EmptyBoard onAdd={onAdd} />
   }
 
-  // 화면 너비 기준 scale 계산: 캔버스 480px이 화면에 딱 맞게
-  const vw = typeof window !== 'undefined' ? window.innerWidth : 390
-  const scale = Math.min(0.9, (vw - 16) / CANVAS_W)  // 좌우 8px 여백
-  const posX = 0
-  const posY = 0  // 첫 번째 포스트잇부터 바로 보이게
-
   return (
-    <TransformWrapper
-      ref={transformRef}
-      minScale={Math.min(scale, 0.5)}
-      maxScale={2.0}
-      initialScale={scale}
-      initialPositionX={posX}
-      initialPositionY={posY}
-      limitToBounds
-      wheel={{ step: 0.06, smoothStep: 0.003 }}
-      pinch={{ step: 5 }}
-      panning={{ velocityDisabled: false }}
-      doubleClick={{ disabled: true }}
-      onTransformed={(_, state) => {
-        onZoomChange?.(Math.round(state.scale * (100 / scale)))
-      }}
+    <div
+      ref={containerRef}
+      style={{ width: '100%', height: '100%', overflow: 'hidden', cursor: 'grab', touchAction: 'none' }}
+      onPointerDown={onPointerDown}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
     >
-      <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }}>
-        <div className="relative" style={{ width: CANVAS_W, height: canvasH }}>
-          {laid.map((post) =>
-            post.type === 'polaroid' ? (
-              <PolaroidCard key={post.id} post={post} onToggleLike={onToggleLike} onReport={onReport} />
-            ) : (
-              <PostItCard key={post.id} post={post} onToggleLike={onToggleLike} onReport={onReport} />
-            ),
-          )}
-        </div>
-      </TransformComponent>
-    </TransformWrapper>
+      <div
+        style={{
+          position: 'absolute',
+          transformOrigin: '0 0',
+          transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
+          width: CANVAS_W,
+          height: canvasH,
+          willChange: 'transform',
+        }}
+      >
+        {laid.map((post) => (
+          <div
+            key={post.id}
+            onPointerDown={handleCardPointerDown}
+            onClick={(e) => handleCardClick(post, e)}
+            style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+          >
+            <div style={{ pointerEvents: 'auto', display: 'contents', cursor: 'grab' }}>
+              {post.capturedImage ? (
+                <CapturedCard post={post} />
+              ) : post.type === 'polaroid' ? (
+                <PolaroidCard post={post} onToggleLike={onToggleLike} onReport={onReport} />
+              ) : (
+                <PostItCard post={post} onToggleLike={onToggleLike} onReport={onReport} />
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
 
