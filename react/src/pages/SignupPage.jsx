@@ -336,6 +336,7 @@ function SignupPage() {
                   emailVerification.isSending ||
                   emailVerification.isVerifying ||
                   !normalizedEmail ||
+                  canShowVerificationCode ||
                   isEmailVerified
                 }
               >

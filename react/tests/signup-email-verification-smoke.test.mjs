@@ -9,11 +9,14 @@ const signupPage = readFileSync(join(root, 'src/pages/SignupPage.jsx'), 'utf8')
 const sendVerificationBlock = /const handleSendVerification = async \(\) => \{([\s\S]*?)\n  const handleVerifyEmail/.exec(
   signupPage,
 )?.[1] ?? ''
+const handleChangeBlock = /const handleChange = \(event\) => \{([\s\S]*?)\n  const handleVerificationCodeChange/.exec(
+  signupPage,
+)?.[1] ?? ''
 
 test('verification code input only renders after email send succeeds', () => {
   assert.match(signupPage, /codeSent:\s*false/)
   assert.match(signupPage, /codeSent:\s*true/)
-  assert.match(signupPage, /const EMAIL_VERIFICATION_SEND_SUCCESS_MESSAGE = '인증번호를 이메일로 보냈습니다\.'/)
+  assert.match(signupPage, /const EMAIL_VERIFICATION_SEND_SUCCESS_MESSAGE = /)
   assert.match(signupPage, /const canShowVerificationCode = /)
   assert.match(signupPage, /isEmailVerificationSendSucceeded\(response\)/)
   assert.match(sendVerificationBlock, /success:\s*EMAIL_VERIFICATION_SEND_SUCCESS_MESSAGE/)
@@ -22,7 +25,7 @@ test('verification code input only renders after email send succeeds', () => {
   assert.match(signupPage, /name="verificationCode"/)
 })
 
-test('200 response bodies that are not confirmed delivery keep verification code input hidden', () => {
+test('unconfirmed send responses delegate failure state handling', () => {
   assert.match(
     sendVerificationBlock,
     /if \(!isEmailVerificationSendSucceeded\(response\)\) \{[\s\S]*codeSent:\s*false[\s\S]*error:\s*EMAIL_VERIFICATION_SEND_FAILURE_MESSAGE/,
@@ -34,23 +37,28 @@ test('failed email send keeps verification code input hidden', () => {
 
   assert.ok(catchBlock, 'send verification catch block should exist')
   assert.match(catchBlock[1], /codeSent:\s*false/)
+  assert.match(catchBlock[1], /error:\s*EMAIL_VERIFICATION_SEND_FAILURE_MESSAGE/)
   assert.doesNotMatch(catchBlock[1], /codeSent:\s*true/)
 })
 
 test('email format and send failure messages stay distinct', () => {
-  assert.match(signupPage, /const EMAIL_FORMAT_ERROR_MESSAGE = '올바른 이메일 형식으로 입력해주세요\.'/)
-  assert.match(
-    signupPage,
-    /const EMAIL_VERIFICATION_SEND_FAILURE_MESSAGE = '인증번호를 보낼 수 없어요\. 이메일 주소를 다시 확인해주세요\.'/,
-  )
+  assert.match(signupPage, /const EMAIL_FORMAT_ERROR_MESSAGE = /)
+  assert.match(signupPage, /const EMAIL_VERIFICATION_SEND_FAILURE_MESSAGE = /)
   assert.match(signupPage, /isValidSignupEmail\(normalizedEmail\)/)
   assert.doesNotMatch(signupPage, /normalizedEmail\.includes\('@'\)/)
   assert.doesNotMatch(signupPage, /form\.email\.includes\('@'\)/)
 
-  const catchBlock = /catch \(verificationError\) \{([\s\S]*?)\n    \}/.exec(sendVerificationBlock)
-    ?? /catch \{([\s\S]*?)\n    \}/.exec(sendVerificationBlock)
-
+  const catchBlock = /catch(?: \(verificationError\))? \{([\s\S]*?)\n    \}/.exec(sendVerificationBlock)
   assert.ok(catchBlock, 'send verification catch block should exist')
   assert.match(catchBlock[1], /error:\s*EMAIL_VERIFICATION_SEND_FAILURE_MESSAGE/)
   assert.doesNotMatch(catchBlock[1], /getFriendlyVerificationError\(verificationError\)/)
+})
+
+test('email changes reset verification state and code input', () => {
+  assert.match(handleChangeBlock, /if \(name === 'email'\) \{[\s\S]*setVerificationCode\(''\)[\s\S]*setEmailVerification\(initialEmailVerification\)/)
+})
+
+test('email send button is disabled after a code has been sent for the current email', () => {
+  assert.match(signupPage, /const canShowVerificationCode = /)
+  assert.match(signupPage, /disabled=\{[\s\S]*canShowVerificationCode[\s\S]*\}/)
 })

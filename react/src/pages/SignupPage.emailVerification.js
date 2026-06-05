@@ -2,11 +2,11 @@ const FAILURE_STATUS_VALUES = new Set(['fail', 'failed', 'failure', 'error', 'in
 const SUCCESS_STATUS_VALUES = new Set(['ok', 'success', 'succeeded', 'sent'])
 
 const FAILURE_MESSAGE_PATTERNS = [
-  /실패/,
-  /오류/,
-  /찾을 수 없/,
-  /보낼 수 없/,
-  /전송할 수 없/,
+  /\uc2e4\ud328/,
+  /\uc624\ub958/,
+  /\ucc3e\uc744\s*\uc218\s*\uc5c6/,
+  /\ubcf4\ub0bc\s*\uc218\s*\uc5c6/,
+  /\uc804\uc1a1.*\uc2e4\ud328/,
   /failed?/i,
   /failure/i,
   /error/i,
@@ -19,10 +19,10 @@ const FAILURE_MESSAGE_PATTERNS = [
 ]
 
 const SUCCESS_MESSAGE_PATTERNS = [
-  /발송되었습니다/,
-  /발송됐습니다/,
-  /보냈습니다/,
-  /전송되었습니다/,
+  /\ubc1c\uc1a1\ub418\uc5c8\uc2b5\ub2c8\ub2e4/,
+  /\ubc1c\uc1a1\ud588\uc2b5\ub2c8\ub2e4/,
+  /\ubcf4\ub0c8\uc2b5\ub2c8\ub2e4/,
+  /\uc804\uc1a1\ub418\uc5c8\uc2b5\ub2c8\ub2e4/,
   /sent/i,
   /success/i,
   /succeeded/i,
