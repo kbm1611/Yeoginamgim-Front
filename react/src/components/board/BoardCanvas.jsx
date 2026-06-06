@@ -1,9 +1,7 @@
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Flag, Heart } from 'lucide-react'
-import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
-import postitYellow from '../../assets/postit/postit.png'
-import polaroidBg from '../../assets/poloaroid/폴라로이드.png'
+import { getApiErrorMessage } from '../../api/errors'
 
 import { CANVAS_W, COL_X, ROW_H, COL_STAGGER, CARD_W as CARD_W_CONST } from './PlacementGrid'
 
@@ -53,23 +51,17 @@ function layoutPosts(posts) {
   })
 }
 
-function Tape({ color, rotate }) {
-  return (
-    <div
-      className="absolute left-1/2 top-0 z-10 h-[22px] w-[68px] rounded-[3px]"
-      style={{
-        backgroundColor: color,
-        transform: `translateX(-50%) translateY(-11px) rotate(${rotate}deg)`,
-      }}
-    />
-  )
-}
-
 function getActionErrorMessage(error) {
-  if (error?.status === 401) return '로그인이 필요합니다.'
-  if (error?.status === 409) return '이미 신고한 흔적입니다.'
-
-  return error?.message ?? '처리하지 못했습니다.'
+  return getApiErrorMessage(error, {
+    fallback: '처리하지 못했습니다.',
+    statusMessages: {
+      401: '로그인이 필요합니다.',
+      403: '이 작업을 수행할 권한이 없습니다.',
+      404: '흔적을 찾을 수 없습니다.',
+      409: '이미 신고했거나 상태가 변경된 흔적입니다.',
+      500: '처리하지 못했습니다. 잠시 후 다시 시도해주세요.',
+    },
+  })
 }
 
 function TraceActions({ post, onToggleLike, onReport }) {
@@ -257,16 +249,6 @@ function useBoardTransform(transformRef, onZoomChange, initialScale) {
   const containerRef = useRef(null)
 
   // transformRef에 현재 상태 노출 (PlacementOverlay가 읽음)
-  useEffect(() => {
-    if (transformRef) {
-      transformRef.current = {
-        state: { scale: stateRef.current.scale, positionX: stateRef.current.x, positionY: stateRef.current.y },
-        zoomIn: (step = 0.25) => applyZoom(stateRef.current.scale + step, null),
-        zoomOut: (step = 0.25) => applyZoom(stateRef.current.scale - step, null),
-      }
-    }
-  })
-
   const applyZoom = useCallback((nextScale, origin) => {
     const MIN = 0.3, MAX = 3.0
     nextScale = Math.min(MAX, Math.max(MIN, nextScale))
@@ -284,6 +266,16 @@ function useBoardTransform(transformRef, onZoomChange, initialScale) {
     setTransform({ x: nextX, y: nextY, scale: nextScale })
     onZoomChange?.(Math.round(nextScale / initialScale * 100))
   }, [initialScale, onZoomChange])
+
+  useEffect(() => {
+    if (transformRef) {
+      transformRef.current = {
+        state: { scale: stateRef.current.scale, positionX: stateRef.current.x, positionY: stateRef.current.y },
+        zoomIn: (step = 0.25) => applyZoom(stateRef.current.scale + step, null),
+        zoomOut: (step = 0.25) => applyZoom(stateRef.current.scale - step, null),
+      }
+    }
+  }, [applyZoom, transformRef])
 
   const onWheel = useCallback((e) => {
     e.preventDefault()
@@ -388,7 +380,7 @@ function BoardCanvas({ posts, onAdd, transformRef, onZoomChange, onToggleLike, o
   const vw = typeof window !== 'undefined' ? window.innerWidth : 390
   const initialScale = Math.min(0.9, (vw - 16) / CANVAS_W)
 
-  const { transform, containerRef, onPointerDown, onPointerMove, onPointerUp, onTouchStart, onTouchEnd } =
+  const { transform, containerRef, onPointerDown, onTouchStart, onTouchEnd } =
     useBoardTransform(transformRef, onZoomChange, initialScale)
 
   const pointerDownPos = useRef(null)
@@ -443,6 +435,16 @@ function BoardCanvas({ posts, onAdd, transformRef, onZoomChange, onToggleLike, o
               ) : (
                 <PostItCard post={post} onToggleLike={onToggleLike} onReport={onReport} />
               )}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: post._x + post._cardW - 12,
+                  top: post._y + (post.type === 'polaroid' ? post._cardW * 1.5 : post._cardW) - 8,
+                  pointerEvents: 'auto',
+                }}
+              >
+                <TraceActions post={post} onToggleLike={onToggleLike} onReport={onReport} />
+              </div>
             </div>
           </div>
         ))}
