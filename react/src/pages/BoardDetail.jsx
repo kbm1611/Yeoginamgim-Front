@@ -11,12 +11,12 @@ import {
 } from 'lucide-react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { fetchBoardDetail } from '../api/boards'
-import PlacementOverlay from '../components/board/PlacementOverlay'
 import { API_BASE_URL, clearAuthToken } from '../api/client'
 import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
 import { createTraceReport } from '../api/reports'
 import { addTraceLike, fetchBoardTraces, removeTraceLike, createTrace, uploadTraceImage } from '../api/traces'
 import BoardCanvas from '../components/board/BoardCanvas'
+import BottomNavigation from '../components/BottomNavigation'
 import boardBg from '../assets/image.png'
 
 const POSTIT_COLOR_BY_HEX = {
@@ -214,7 +214,6 @@ function BoardDetail() {
   const [errorMessage, setErrorMessage] = useState('')
   const [boardDetailErrorMessage, setBoardDetailErrorMessage] = useState('')
   const [actionMessage, setActionMessage] = useState('')
-  const [isSavingPlacement, setIsSavingPlacement] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
   const [zoom, setZoom] = useState(100)
   const transformRef = useRef(null)
@@ -224,6 +223,8 @@ function BoardDetail() {
     if (draft) setTimeout(() => window.history.replaceState({}, ''), 0)
     return draft
   })
+  const [isSaving, setIsSaving] = useState(false)
+  const [newPostId, setNewPostId] = useState(null)
 
   useEffect(() => {
     let ignore = false
@@ -311,10 +312,10 @@ function BoardDetail() {
   const handleAdd = () => navigate(`/board/${boardId}/postit`)
 
   const handlePlace = async (cell) => {
-    if (!placementDraft || isSavingPlacement) return
+    if (!placementDraft || isSaving) return
+    setIsSaving(true)
     setPlacementDraft(null)
     setActionMessage('')
-    setIsSavingPlacement(true)
 
     try {
       // 1. 캡처 이미지 업로드
@@ -342,7 +343,11 @@ function BoardDetail() {
 
       // 3. 저장 성공 → 목록 새로고침
       const fresh = await fetchBoardTraces(boardId, { sort, limit: 100 })
-      setPosts((fresh.traces ?? []).map(traceToPost))
+      const newPosts = (fresh.traces ?? []).map(traceToPost)
+      setPosts(newPosts)
+      // 새로 추가된 흔적 찾기 (traceX=col, traceY=row로 매칭)
+      const saved = newPosts.find(p => p.cell?.col === cell.col && p.cell?.row === cell.row)
+      if (saved) setNewPostId(saved.id)
       setActionMessage('')
     } catch (error) {
       if (handleUnauthorizedApiError(error, {
@@ -362,11 +367,32 @@ function BoardDetail() {
         },
       }))
     } finally {
-      setIsSavingPlacement(false)
+      setIsSaving(false)
     }
   }
 
-  const handleCancelPlacement = () => setPlacementDraft(null)
+  // 보드 진입 시 placementDraft 있으면 자동 배치
+  useEffect(() => {
+    if (!placementDraft || isLoading || isSaving) return
+
+    // 점유된 셀 계산
+    const occupied = new Set(posts.map(p => `${p.cell?.row ?? 0}-${p.cell?.col ?? 0}`))
+
+    // BFS로 빈 셀 탐색
+    const findEmpty = () => {
+      for (let row = 0; row < 50; row++) {
+        for (let col = 0; col < 2; col++) {
+          if (!occupied.has(`${row}-${col}`)) return { row, col }
+        }
+      }
+      return { row: 0, col: 0 }
+    }
+
+    const cell = findEmpty()
+    const timerId = window.setTimeout(() => handlePlace(cell), 0)
+    return () => window.clearTimeout(timerId)
+  }, [placementDraft, isLoading]) // eslint-disable-line react-hooks/exhaustive-deps
+
 
   const handleToggleLike = async (post) => {
     const result = post.liked ? await removeTraceLike(post.id) : await addTraceLike(post.id)
@@ -403,8 +429,33 @@ function BoardDetail() {
   const renderBoardContent = () => {
     if (isLoading) {
       return (
-        <div className="flex h-full items-center justify-center text-[18px] font-semibold text-[#5C4030]">
-          흔적을 불러오는 중...
+        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+          {[
+            { top: '8%', left: '8%', w: 180, h: 180, rotate: -3 },
+            { top: '8%', left: '55%', w: 180, h: 180, rotate: 2 },
+            { top: '42%', left: '8%', w: 180, h: 180, rotate: 1 },
+            { top: '42%', left: '55%', w: 180, h: 180, rotate: -2 },
+          ].map((s, i) => (
+            <div
+              key={i}
+              style={{
+                position: 'absolute',
+                top: s.top, left: s.left,
+                width: s.w, height: s.h,
+                borderRadius: 4,
+                transform: `rotate(${s.rotate}deg)`,
+                background: 'linear-gradient(90deg, #EDE5DA 25%, #F5EFE6 50%, #EDE5DA 75%)',
+                backgroundSize: '200% 100%',
+                animation: 'shimmer 1.5s infinite',
+              }}
+            />
+          ))}
+          <style>{`
+            @keyframes shimmer {
+              0% { background-position: 200% 0; }
+              100% { background-position: -200% 0; }
+            }
+          `}</style>
         </div>
       )
     }
@@ -433,6 +484,9 @@ function BoardDetail() {
         onZoomChange={setZoom}
         onToggleLike={handleToggleLike}
         onReport={handleCreateReport}
+        onPostDeleted={(id) => setPosts(prev => prev.filter(p => p.id !== id))}
+        newPostId={newPostId}
+        onNewPostFocused={() => setNewPostId(null)}
       />
     )
   }
@@ -461,15 +515,17 @@ function BoardDetail() {
           </div>
         ) : null}
 
-        {/* 배치 모드 오버레이 */}
-        {placementDraft && (
-          <PlacementOverlay
-            draft={placementDraft}
-            posts={posts}
-            transformRef={transformRef}
-            onPlace={handlePlace}
-            onCancel={handleCancelPlacement}
-          />
+        {/* 저장 중 토스트 */}
+        {isSaving && (
+          <div style={{
+            position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)',
+            backgroundColor: 'rgba(42,28,20,0.85)', color: '#fff',
+            padding: '10px 20px', borderRadius: 24, fontSize: 13, fontWeight: 600,
+            zIndex: 50, backdropFilter: 'blur(8px)',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+          }}>
+            흔적을 저장하는 중...
+          </div>
         )}
 
         {!isLoading && !errorMessage ? (
@@ -481,13 +537,14 @@ function BoardDetail() {
         <button
           type="button"
           onClick={handleAdd}
-          disabled={isSavingPlacement}
-          className="absolute bottom-6 right-4 z-20 flex items-center gap-2 rounded-full bg-[#3B2A1E] px-5 py-3 shadow-[0_6px_20px_rgba(58,36,24,0.35)]"
+          disabled={isSaving}
+          className="absolute bottom-4 right-4 z-20 flex items-center gap-2 rounded-full bg-[#3B2A1E] px-5 py-3 shadow-[0_6px_20px_rgba(58,36,24,0.35)] disabled:opacity-60"
         >
           <PencilLine size={16} strokeWidth={2} className="text-white" />
           <span className="text-[14px] font-semibold text-white">흔적 남기기</span>
         </button>
       </div>
+      <BottomNavigation />
     </main>
   )
 }

@@ -1,28 +1,50 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ChevronLeft, Flag, Heart, Pencil, Trash2 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { clearAuthToken } from '../api/client'
 import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
 import { addTraceLike, deleteTrace, removeTraceLike } from '../api/traces'
+import { fetchMyInfo } from '../api/users'
 
 function TraceDetail() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { boardId } = useParams()
+  const { id: boardId } = useParams()
   const post = location.state?.post
 
   const [liked, setLiked] = useState(post?.liked ?? false)
   const [likes, setLikes] = useState(post?.likes ?? 0)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [myNickname, setMyNickname] = useState(null)
   const [actionError, setActionError] = useState('')
   const [isLikePending, setIsLikePending] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  const isMyPost =
-    post?.id?.startsWith('postit-') ||
-    post?.id?.startsWith('polaroid-') ||
-    post?.id?.startsWith('local-')
+  useEffect(() => {
+    let ignore = false
+
+    async function loadMyInfo() {
+      try {
+        const info = await fetchMyInfo()
+        if (!ignore) setMyNickname(info.nickname)
+      } catch (error) {
+        if (ignore) return
+        handleUnauthorizedApiError(error, {
+          clearToken: clearAuthToken,
+          navigate,
+          location,
+          redirect: true,
+        })
+      }
+    }
+
+    loadMyInfo()
+    return () => { ignore = true }
+  }, [location, navigate])
+
+  // 내 닉네임과 흔적 작성자 닉네임 비교
+  const isMyPost = myNickname && post?.nickname && myNickname === post.nickname
 
   if (!post) {
     return (
