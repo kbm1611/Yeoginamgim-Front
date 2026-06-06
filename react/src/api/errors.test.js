@@ -43,7 +43,15 @@ test('getApiErrorMessage supports screen status overrides when server message is
 test('getApiErrorMessage returns a network message for fetch failures without status', () => {
   const message = getApiErrorMessage(new TypeError('Failed to fetch'))
 
-  assert.equal(message, '네트워크 연결을 확인한 뒤 다시 시도해 주세요.')
+  assert.equal(message, '네트워크 연결을 확인해 주세요.')
+})
+
+test('getApiErrorMessage uses the map-wide default status messages', () => {
+  assert.equal(getApiErrorMessage({ status: 401, body: {} }), '로그인이 필요합니다.')
+  assert.equal(getApiErrorMessage({ status: 403, body: {} }), '권한이 없습니다.')
+  assert.equal(getApiErrorMessage({ status: 404, body: {} }), '데이터를 찾을 수 없습니다.')
+  assert.equal(getApiErrorMessage({ status: 409, body: {} }), '이미 처리된 요청입니다.')
+  assert.equal(getApiErrorMessage({ status: 500, body: {} }), '서버 문제가 발생했습니다.')
 })
 
 test('handleUnauthorizedApiError clears auth and redirects only when requested', () => {
