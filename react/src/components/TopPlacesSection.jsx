@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ChevronRight, Loader2, RefreshCw, UserRound } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { fetchOrCreateBoardForPlace } from '../api/boards'
+import { getApiErrorMessage } from '../api/errors'
 import { fetchPopularPlaces } from '../api/places'
 import { ALL_DISTRICTS_LABEL, buildHomePlaceParams } from '../pages/HomePage.utils'
 
@@ -69,6 +70,7 @@ function TopPlacesSection({ period, district, locationStatus = 'idle', onRefresh
   const [errorMessage, setErrorMessage] = useState('')
   const [openingPlaceId, setOpeningPlaceId] = useState(null)
   const [boardError, setBoardError] = useState('')
+  const [retryKey, setRetryKey] = useState(0)
   const districtLabel = district || ALL_DISTRICTS_LABEL
 
   useEffect(() => {
@@ -97,11 +99,17 @@ function TopPlacesSection({ period, district, locationStatus = 'idle', onRefresh
 
         setPlaces(popularPlaces.map(toTopPlace))
         setStatus('ready')
-      } catch {
+      } catch (error) {
         if (ignored) return
 
         setPlaces([])
-        setErrorMessage('인기 공간을 불러오지 못했습니다.')
+        setErrorMessage(getApiErrorMessage(error, {
+          fallback: '인기 공간을 불러오지 못했습니다.',
+          statusMessages: {
+            404: '아직 보여줄 인기 공간이 없습니다.',
+            500: '인기 공간을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.',
+          },
+        }))
         setStatus('error')
       }
     }
@@ -111,7 +119,7 @@ function TopPlacesSection({ period, district, locationStatus = 'idle', onRefresh
     return () => {
       ignored = true
     }
-  }, [districtLabel, locationStatus, period])
+  }, [districtLabel, locationStatus, period, retryKey])
 
   const handleShowMore = () => {
     navigate('/map')
@@ -139,9 +147,18 @@ function TopPlacesSection({ period, district, locationStatus = 'idle', onRefresh
       }
 
       navigate(`/board/${board.boardId}`)
-    } catch {
+    } catch (error) {
       if (isMountedRef.current) {
-        setBoardError('보드로 이동하지 못했습니다. 잠시 후 다시 시도해주세요.')
+        setBoardError(getApiErrorMessage(error, {
+          fallback: '보드로 이동하지 못했습니다. 잠시 후 다시 시도해주세요.',
+          statusMessages: {
+            401: '로그인이 필요합니다. 로그인 후 다시 시도해주세요.',
+            403: '이 보드에 접근할 권한이 없습니다.',
+            404: '장소 보드를 찾지 못했습니다.',
+            409: '보드 상태가 변경되었습니다. 다시 시도해주세요.',
+            500: '보드로 이동하지 못했습니다. 잠시 후 다시 시도해주세요.',
+          },
+        }))
       }
     } finally {
       if (isMountedRef.current) {
@@ -186,7 +203,9 @@ function TopPlacesSection({ period, district, locationStatus = 'idle', onRefresh
       ) : null}
 
       {status === 'loading' && <StatusCard message="인기 공간을 불러오는 중입니다." />}
-      {status === 'error' && <StatusCard message={errorMessage} />}
+      {status === 'error' && (
+        <StatusCard message={errorMessage} actionLabel="다시 시도" onAction={() => setRetryKey((value) => value + 1)} />
+      )}
       {status === 'ready' && places.length === 0 && <StatusCard message={`${districtLabel}의 인기 공간이 아직 없습니다.`} />}
 
       {status === 'ready' && places.length > 0 && (
@@ -232,10 +251,19 @@ function TopPlacesSection({ period, district, locationStatus = 'idle', onRefresh
   )
 }
 
-function StatusCard({ message }) {
+function StatusCard({ message, actionLabel, onAction }) {
   return (
     <div className="mx-5 mb-3 rounded-[12px] bg-white px-4 py-6 text-center text-[13px] text-[#7D6E62] shadow-[0_5px_14px_rgba(0,0,0,0.05)]">
       {message}
+      {actionLabel && onAction ? (
+        <button
+          type="button"
+          onClick={onAction}
+          className="mt-3 rounded-full bg-[#3D2415] px-4 py-2 text-[12px] font-bold text-white"
+        >
+          {actionLabel}
+        </button>
+      ) : null}
     </div>
   )
 }
