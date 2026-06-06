@@ -18,6 +18,7 @@ import { addTraceLike, fetchBoardTraces, removeTraceLike, createTrace, uploadTra
 import BoardCanvas from '../components/board/BoardCanvas'
 import BottomNavigation from '../components/BottomNavigation'
 import boardBg from '../assets/image.png'
+import { normalizeTraceCell } from './BoardDetail.utils'
 
 const POSTIT_COLOR_BY_HEX = {
   '#fff8dc': 'cream',
@@ -99,10 +100,7 @@ function traceToPost(trace) {
           ...style,
           paperColor: resolvePaperColor(style),
         },
-    cell: {
-      col: trace.traceX ?? 0,
-      row: trace.traceY ?? 0,
-    },
+    cell: normalizeTraceCell(trace),
     createdAt: trace.createdAt,
     likes: trace.likeCount ?? 0,
     liked: trace.liked === true,

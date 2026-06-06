@@ -4,22 +4,69 @@ import { ChevronLeft, Flag, Heart, Pencil, Trash2 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { clearAuthToken } from '../api/client'
 import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
-import { addTraceLike, deleteTrace, removeTraceLike } from '../api/traces'
+import { addTraceLike, deleteTrace, fetchTrace, removeTraceLike } from '../api/traces'
 import { fetchMyInfo } from '../api/users'
+import { traceToPost } from './tracePost.utils'
 
 function TraceDetail() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { id: boardId } = useParams()
-  const post = location.state?.post
+  const { id: boardId, traceId } = useParams()
+  const [post, setPost] = useState(location.state?.post ?? null)
 
   const [liked, setLiked] = useState(post?.liked ?? false)
   const [likes, setLikes] = useState(post?.likes ?? 0)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [myNickname, setMyNickname] = useState(null)
   const [actionError, setActionError] = useState('')
+  const [isLoadingTrace, setIsLoadingTrace] = useState(!location.state?.post)
+  const [traceError, setTraceError] = useState('')
   const [isLikePending, setIsLikePending] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+
+  useEffect(() => {
+    if (location.state?.post || !traceId) return
+
+    let ignore = false
+
+    async function loadTrace() {
+      setIsLoadingTrace(true)
+      setTraceError('')
+
+      try {
+        const trace = await fetchTrace(traceId)
+        if (!ignore) {
+          const nextPost = traceToPost(trace)
+          setPost(nextPost)
+          setLiked(nextPost.liked ?? false)
+          setLikes(nextPost.likes ?? 0)
+        }
+      } catch (error) {
+        if (ignore) return
+
+        if (handleUnauthorizedApiError(error, {
+          clearToken: clearAuthToken,
+          navigate,
+          location,
+          redirect: true,
+        })) return
+
+        setTraceError(getApiErrorMessage(error, {
+          fallback: '흔적을 불러오지 못했습니다. 다시 시도해주세요.',
+          statusMessages: {
+            403: '흔적을 볼 권한이 없습니다.',
+            404: '흔적을 찾을 수 없습니다.',
+            500: '흔적을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.',
+          },
+        }))
+      } finally {
+        if (!ignore) setIsLoadingTrace(false)
+      }
+    }
+
+    loadTrace()
+    return () => { ignore = true }
+  }, [location, navigate, traceId])
 
   useEffect(() => {
     let ignore = false
@@ -34,7 +81,6 @@ function TraceDetail() {
           clearToken: clearAuthToken,
           navigate,
           location,
-          redirect: true,
         })
       }
     }
@@ -46,10 +92,18 @@ function TraceDetail() {
   // 내 닉네임과 흔적 작성자 닉네임 비교
   const isMyPost = myNickname && post?.nickname && myNickname === post.nickname
 
+  if (isLoadingTrace) {
+    return (
+      <div className="app-device flex flex-col items-center justify-center">
+        <p className="text-[#5C4030]">흔적을 불러오는 중입니다.</p>
+      </div>
+    )
+  }
+
   if (!post) {
     return (
       <div className="app-device flex flex-col items-center justify-center">
-        <p className="text-[#5C4030]">흔적을 찾을 수 없습니다.</p>
+        <p className="text-[#5C4030]">{traceError || '흔적을 찾을 수 없습니다.'}</p>
         <button type="button" onClick={() => navigate(-1)} className="mt-4 text-[#3B2A1E] underline">
           돌아가기
         </button>

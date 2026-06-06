@@ -100,10 +100,12 @@ function PlaceMetadataEmptyState() {
 }
 
 function RecentTraceCard({ trace }) {
-  if (trace.type === 'photo' && trace.image) {
+  const imageUrl = resolveTraceImageUrl(trace.image)
+
+  if (trace.type === 'photo' && imageUrl) {
     return (
       <article className="w-[148px] shrink-0 overflow-hidden rounded-2xl bg-white shadow-[0_2px_10px_rgba(60,42,30,0.10)]">
-        <img src={resolveTraceImageUrl(trace.image)} alt="" className="h-[120px] w-full object-cover" />
+        <img src={imageUrl} alt="" className="h-[120px] w-full object-cover" />
         <div className="px-2.5 py-2">
           <p className="truncate text-[12px] font-medium text-[#3B2A1E]">{trace.text}</p>
           <p className="mt-0.5 text-[11px] text-[#8B7A6B]">{trace.user}</p>
