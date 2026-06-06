@@ -1,0 +1,81 @@
+import { useCallback } from 'react'
+import { MapPinned } from 'lucide-react'
+import {
+  CATEGORY_FILTERS,
+  MAP_CATEGORY_FILTER_BUTTON_CLASSES,
+  MAP_CATEGORY_FILTER_SCROLL_CLASSES,
+} from '../../../pages/Map.utils'
+import { CATEGORY_ICON_COMPONENTS } from '../mapIcons'
+
+function CategoryFilter({
+  selectedCategory,
+  disabled = false,
+  status,
+  error,
+  isEmpty = false,
+  onSelect,
+}) {
+  const handleWheel = useCallback((event) => {
+    const container = event.currentTarget
+    if (container.scrollWidth <= container.clientWidth) return
+
+    const delta =
+      Math.abs(event.deltaX) > Math.abs(event.deltaY)
+        ? event.deltaX
+        : event.deltaY
+    if (delta === 0) return
+
+    const maxScrollLeft = container.scrollWidth - container.clientWidth
+    const nextScrollLeft = Math.max(0, Math.min(container.scrollLeft + delta, maxScrollLeft))
+    if (nextScrollLeft === container.scrollLeft) return
+
+    event.preventDefault()
+    container.scrollLeft = nextScrollLeft
+  }, [])
+
+  return (
+    <>
+      <div className={MAP_CATEGORY_FILTER_SCROLL_CLASSES} onWheel={handleWheel}>
+        {CATEGORY_FILTERS.map((item) => {
+          const CategoryIcon = CATEGORY_ICON_COMPONENTS[item.iconName] ?? MapPinned
+          const isSelected = selectedCategory === item.label
+
+          return (
+            <button
+              key={item.label}
+              type="button"
+              onClick={() => onSelect(item.label)}
+              disabled={disabled}
+              aria-disabled={disabled}
+              aria-pressed={isSelected}
+              aria-label={`${item.label} 카테고리`}
+              className={`${MAP_CATEGORY_FILTER_BUTTON_CLASSES} ${
+                disabled
+                  ? 'cursor-not-allowed border-[#E2D6C8] bg-[#EEE6DA] text-[#8D7A6B] opacity-60'
+                  : isSelected
+                    ? 'border-[#3D2415] bg-[#3D2415] text-white shadow-[0_6px_14px_rgba(61,36,21,0.18)]'
+                    : 'border-[#E2D6C8] bg-[#EEE6DA] text-[#5A4030]'
+              }`}
+            >
+              <CategoryIcon size={14} strokeWidth={1.9} className="shrink-0" />
+              <span className="whitespace-nowrap">{item.label}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {status === 'error' && error ? (
+        <p className="mt-2 rounded-full bg-white/90 px-3 py-1.5 text-[12px] font-medium text-[#A74831] shadow-[0_4px_10px_rgba(0,0,0,0.04)]">
+          {error}
+        </p>
+      ) : null}
+      {status === 'success' && selectedCategory && isEmpty ? (
+        <p className="mt-2 rounded-full bg-white/90 px-3 py-1.5 text-[12px] font-medium text-[#6B5343] shadow-[0_4px_10px_rgba(0,0,0,0.04)]">
+          선택한 카테고리의 장소가 아직 없어요.
+        </p>
+      ) : null}
+    </>
+  )
+}
+
+export default CategoryFilter
