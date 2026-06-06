@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ChevronRight, Image as ImageIcon, MessageCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { getApiErrorMessage } from '../api/errors'
 import { fetchRecentTraces } from '../api/traces'
 import { ALL_DISTRICTS_LABEL, buildHomeTraceParams } from '../pages/HomePage.utils'
 
@@ -9,6 +10,7 @@ function RecentTracesSection({ period, district }) {
   const [traces, setTraces] = useState([])
   const [status, setStatus] = useState('idle')
   const [errorMessage, setErrorMessage] = useState('')
+  const [retryKey, setRetryKey] = useState(0)
   const districtLabel = district || ALL_DISTRICTS_LABEL
 
   useEffect(() => {
@@ -24,11 +26,17 @@ function RecentTracesSection({ period, district }) {
 
         setTraces(Array.isArray(recentTraces) ? recentTraces : [])
         setStatus('ready')
-      } catch {
+      } catch (error) {
         if (ignored) return
 
         setTraces([])
-        setErrorMessage('최근 흔적을 불러오지 못했습니다.')
+        setErrorMessage(getApiErrorMessage(error, {
+          fallback: '최근 흔적을 불러오지 못했습니다.',
+          statusMessages: {
+            404: '아직 보여줄 최근 흔적이 없습니다.',
+            500: '최근 흔적을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.',
+          },
+        }))
         setStatus('error')
       }
     }
@@ -38,7 +46,7 @@ function RecentTracesSection({ period, district }) {
     return () => {
       ignored = true
     }
-  }, [districtLabel, period])
+  }, [districtLabel, period, retryKey])
 
   const handleTraceClick = (trace) => {
     if (trace?.boardId) {
@@ -60,7 +68,9 @@ function RecentTracesSection({ period, district }) {
       <p className="mb-3 px-5 text-[14px] font-normal text-[#8E8177]">방금 이 공간에 새로운 흔적이 남겨졌어요.</p>
 
       {status === 'loading' && <StatusCard message="최근 흔적을 불러오는 중입니다." />}
-      {status === 'error' && <StatusCard message={errorMessage} />}
+      {status === 'error' && (
+        <StatusCard message={errorMessage} actionLabel="다시 시도" onAction={() => setRetryKey((value) => value + 1)} />
+      )}
       {status === 'ready' && traces.length === 0 && <StatusCard message="아직 남겨진 흔적이 없습니다." />}
 
       {status === 'ready' && traces.length > 0 && (
@@ -102,10 +112,19 @@ function TraceThumbnail({ trace }) {
   )
 }
 
-function StatusCard({ message }) {
+function StatusCard({ message, actionLabel, onAction }) {
   return (
     <div className="mx-5 mb-3 rounded-[12px] bg-white px-4 py-6 text-center text-[13px] text-[#7D6E62] shadow-[0_5px_14px_rgba(0,0,0,0.05)]">
       {message}
+      {actionLabel && onAction ? (
+        <button
+          type="button"
+          onClick={onAction}
+          className="mt-3 rounded-full bg-[#3D2415] px-4 py-2 text-[12px] font-bold text-white"
+        >
+          {actionLabel}
+        </button>
+      ) : null}
     </div>
   )
 }
