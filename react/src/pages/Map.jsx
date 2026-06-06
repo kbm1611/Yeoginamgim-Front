@@ -37,6 +37,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { addFavoritePlace, fetchFavoritePlaces, removeFavoritePlace } from '../api/archive'
 import { buildBoardRequestFromPlace, fetchOrCreateBoardForPlace } from '../api/boards'
 import { clearAuthToken } from '../api/client'
+import { getApiErrorMessage, handleUnauthorizedApiError as handleApiUnauthorizedError } from '../api/errors'
 import { ensureKakaoMaps } from '../api/kakaoMaps'
 import { fetchNearbyPlaces, fetchPoiPlaces, fetchPopularPlaces } from '../api/places'
 import mainLogo from '../assets/logo/image_12-removebg-preview.png'
@@ -69,7 +70,6 @@ import {
   getCurrentLocationViewPlan,
   getCurrentPositionMarkerTitle,
   getFloatingControlsBottom,
-  handleUnauthorizedMapApiError,
   getMapBottomUiState,
   getMapViewportPlan,
   getMarkerPlaces,
@@ -186,10 +186,11 @@ function MapPage() {
   })
   const popularPlacesPanelNotice = locationNotice || '현재 위치 기준으로 흔적이 많은 공간을 보여드려요.'
   const handleUnauthorizedApiError = useCallback((error) => {
-    return handleUnauthorizedMapApiError(error, {
-      clearAuthToken,
+    return handleApiUnauthorizedError(error, {
+      clearToken: clearAuthToken,
       navigate,
       location,
+      redirect: true,
     })
   }, [location, navigate])
 
@@ -398,15 +399,23 @@ function MapPage() {
       setCategoryPlaces(normalizedPlaces)
       setSelectedPlaceId(null)
       setCategoryPlacesStatus('success')
-    } catch {
+    } catch (error) {
       if (!isMountedRef.current || categoryPlacesRequestIdRef.current !== requestId) return
+      if (handleUnauthorizedApiError(error)) return
 
       setCategoryPlaces([])
       setSelectedPlaceId(null)
       setCategoryPlacesStatus('error')
-      setCategoryPlacesError('주변 장소를 불러오지 못했어요.')
+      setCategoryPlacesError(getApiErrorMessage(error, {
+        fallback: '주변 장소를 불러오지 못했어요.',
+        statusMessages: {
+          403: '주변 장소를 조회할 권한이 없습니다.',
+          404: '주변에 보여줄 장소를 찾지 못했어요.',
+          500: '주변 장소를 불러오지 못했어요. 잠시 후 다시 시도해주세요.',
+        },
+      }))
     }
-  }, [activeSearchQuery, currentPosition, locationStatus, selectedCategory])
+  }, [activeSearchQuery, currentPosition, handleUnauthorizedApiError, locationStatus, selectedCategory])
 
   const loadPopularPlaces = useCallback(async ({ origin = null } = {}) => {
     const lookupOrigin = origin ?? currentPosition
@@ -444,14 +453,22 @@ function MapPage() {
 
       setPopularPlaces(normalizePopularPlaces(response, lookupOrigin, NEARBY_LIMIT))
       setPopularPlacesStatus('success')
-    } catch {
+    } catch (error) {
       if (!isMountedRef.current || popularPlacesRequestIdRef.current !== requestId) return
+      if (handleUnauthorizedApiError(error)) return
 
       setPopularPlaces([])
       setPopularPlacesStatus('error')
-      setPopularPlacesError('주변 인기 공간을 불러오지 못했어요.')
+      setPopularPlacesError(getApiErrorMessage(error, {
+        fallback: '주변 인기 공간을 불러오지 못했어요.',
+        statusMessages: {
+          403: '인기 공간을 조회할 권한이 없습니다.',
+          404: '주변에 보여줄 인기 공간을 찾지 못했어요.',
+          500: '주변 인기 공간을 불러오지 못했어요. 잠시 후 다시 시도해주세요.',
+        },
+      }))
     }
-  }, [currentPosition, locationStatus])
+  }, [currentPosition, handleUnauthorizedApiError, locationStatus])
 
   const runPoiSearch = useCallback(async ({ query = searchInput } = {}) => {
     const trimmedQuery = String(query ?? '').trim()
@@ -512,14 +529,22 @@ function MapPage() {
       const normalizedPlaces = normalizeSearchPlaces(response, searchOrigin, trimmedQuery, NEARBY_LIMIT)
       setSearchPlaces(normalizedPlaces)
       setSearchStatus('success')
-    } catch {
+    } catch (error) {
       if (!isMountedRef.current || poiSearchRequestIdRef.current !== requestId) return
+      if (handleUnauthorizedApiError(error)) return
 
       setSearchPlaces([])
       setSearchStatus('error')
-      setSearchError('장소 검색을 완료하지 못했어요. 잠시 뒤 다시 시도해 주세요.')
+      setSearchError(getApiErrorMessage(error, {
+        fallback: '장소 검색을 완료하지 못했어요. 잠시 뒤 다시 시도해 주세요.',
+        statusMessages: {
+          403: '장소 검색 권한이 없습니다.',
+          404: '검색 결과를 찾지 못했어요.',
+          500: '장소 검색을 완료하지 못했어요. 잠시 뒤 다시 시도해 주세요.',
+        },
+      }))
     }
-  }, [currentPosition, locationStatus, searchInput])
+  }, [currentPosition, handleUnauthorizedApiError, locationStatus, searchInput])
 
   const clearPoiSearch = useCallback(() => {
     poiSearchRequestIdRef.current += 1
@@ -602,7 +627,14 @@ function MapPage() {
       if (handleUnauthorizedApiError(error)) return
 
       if (isMountedRef.current) {
-        setFavoriteError('즐겨찾기 정보를 불러오지 못했어요.')
+        setFavoriteError(getApiErrorMessage(error, {
+          fallback: '즐겨찾기 정보를 불러오지 못했어요.',
+          statusMessages: {
+            403: '즐겨찾기 정보를 볼 권한이 없습니다.',
+            404: '즐겨찾기 정보를 찾지 못했어요.',
+            500: '즐겨찾기 정보를 불러오지 못했어요. 잠시 후 다시 시도해주세요.',
+          },
+        }))
       }
     }
   }, [handleUnauthorizedApiError])
@@ -842,7 +874,15 @@ function MapPage() {
       if (handleUnauthorizedApiError(error)) return
 
       if (isMountedRef.current) {
-        setBoardError('보드로 이동하지 못했어요. 잠시 후 다시 시도해주세요.')
+        setBoardError(getApiErrorMessage(error, {
+          fallback: '보드로 이동하지 못했어요. 잠시 후 다시 시도해주세요.',
+          statusMessages: {
+            403: '이 보드에 접근할 권한이 없습니다.',
+            404: '장소 보드를 찾지 못했어요.',
+            409: '보드 상태가 변경되었습니다. 다시 시도해주세요.',
+            500: '보드로 이동하지 못했어요. 잠시 후 다시 시도해주세요.',
+          },
+        }))
       }
     } finally {
       if (isMountedRef.current) {
@@ -882,7 +922,15 @@ function MapPage() {
       if (handleUnauthorizedApiError(error)) return
 
       if (isMountedRef.current) {
-        setFavoriteError(isFavorite ? '즐겨찾기를 해제하지 못했어요.' : '즐겨찾기에 저장하지 못했어요.')
+        setFavoriteError(getApiErrorMessage(error, {
+          fallback: isFavorite ? '즐겨찾기를 해제하지 못했어요.' : '즐겨찾기에 저장하지 못했어요.',
+          statusMessages: {
+            403: '즐겨찾기를 변경할 권한이 없습니다.',
+            404: '즐겨찾기할 장소를 찾지 못했어요.',
+            409: '즐겨찾기 상태가 이미 변경되었습니다. 다시 확인해주세요.',
+            500: isFavorite ? '즐겨찾기를 해제하지 못했어요.' : '즐겨찾기에 저장하지 못했어요.',
+          },
+        }))
       }
     } finally {
       if (isMountedRef.current) {
