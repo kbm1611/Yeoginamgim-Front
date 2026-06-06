@@ -35,6 +35,27 @@ function today() {
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
 }
 
+function drawTextObjects(ctx, objects, width, height, { baseWidth = 300 } = {}) {
+  objects.forEach((obj) => {
+    const x = (obj.xPct / 100) * width
+    const y = (obj.yPct / 100) * height
+    const fontScale = width / baseWidth
+    const fontSizePx = (obj.fontSize ?? 24) * fontScale
+    const lineH = fontSizePx * 1.3
+    const lines = (obj.text ?? '').split('\n')
+
+    ctx.save()
+    ctx.font = `${fontSizePx}px ${obj.fontFamily ?? 'sans-serif'}`
+    ctx.fillStyle = obj.color ?? '#2A1E14'
+    ctx.textAlign = obj.align ?? 'center'
+    ctx.textBaseline = 'middle'
+    lines.forEach((line, li) => {
+      ctx.fillText(line, x, y + (li - (lines.length - 1) / 2) * lineH)
+    })
+    ctx.restore()
+  })
+}
+
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
 const IconText = () => (
@@ -433,7 +454,11 @@ function PolaroidPreview({
   selectedPhoto, onCaptionChange, onAddPhoto,
   penActive, penColor, penSize, eraser, canvasRef,
   onCanvasClick,
+  textObjects, selectedTextId, editingTextId,
+  onSelectText, onStartEditText, onEndEditText, onChangeText, onMoveText,
 }) {
+  const containerRef = previewRef
+
   return (
     <div
       ref={previewRef}
@@ -546,6 +571,31 @@ function PolaroidPreview({
           canvasRef={canvasRef}
           containerRef={{ current: null }}
         />
+      </div>
+
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          overflow: 'hidden',
+          zIndex: 5,
+          pointerEvents: penActive ? 'none' : 'auto',
+        }}
+      >
+        {textObjects.map((obj) => (
+          <TextObject
+            key={obj.id}
+            obj={obj}
+            selected={selectedTextId === obj.id}
+            editing={editingTextId === obj.id}
+            containerRef={containerRef}
+            onSelect={() => onSelectText(obj.id)}
+            onStartEdit={() => onStartEditText(obj.id)}
+            onEndEdit={onEndEditText}
+            onChange={onChangeText}
+            onMove={onMoveText}
+          />
+        ))}
       </div>
     </div>
   )
@@ -889,27 +939,8 @@ function PostItEditor() {
   }, [textColor, fontSize, fontFamily, textAlign, selectedTextId])
 
   // 텍스트 버튼 = 패널 열기/닫기 토글 + text 선택 시 바로 텍스트 오브젝트 추가
-  const handleTool = (key) => {
-    setActiveTool((prev) => {
-      if (prev === key) return null
-      if (key === 'text') {
-        // 툴 선택과 동시에 텍스트 오브젝트 즉시 추가
-        const newId = Date.now()
-        const yPct = type === 'polaroid' ? 90 : 45
-        setTextObjects((p) => [
-          ...p,
-          { id: newId, xPct: 50, yPct, text: '', color: textColor, fontSize, fontFamily, align: textAlign },
-        ])
-        setSelectedTextId(newId)
-        setEditingTextId(newId)
-      }
-      return key
-    })
-  }
-
-  // 텍스트 추가 버튼 = 오브젝트 생성 + 텍스트 시트 유지
-  const handleAddText = () => {
-    const newId = Date.now()
+  const addTextObject = () => {
+    const newId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const yPct = type === 'polaroid' ? 90 : 45
     setTextObjects((prev) => [
       ...prev,
@@ -917,6 +948,24 @@ function PostItEditor() {
     ])
     setSelectedTextId(newId)
     setEditingTextId(newId)
+  }
+
+  const handleTool = (key) => {
+    if (activeTool === key) {
+      setActiveTool(null)
+      return
+    }
+
+    if (key === 'text') {
+      addTextObject()
+    }
+
+    setActiveTool(key)
+  }
+
+  // 텍스트 추가 버튼 = 오브젝트 생성 + 텍스트 시트 유지
+  const handleAddText = () => {
+    addTextObject()
     setActiveTool('text')
   }
 
@@ -996,21 +1045,7 @@ function PostItEditor() {
           ctx.drawImage(drawingCanvas, 0, 0, SIZE, SIZE)
         }
 
-        textObjects.forEach((obj) => {
-          const x = (obj.xPct / 100) * SIZE
-          const y = (obj.yPct / 100) * SIZE
-          ctx.save()
-          ctx.font = `${(obj.fontSize ?? 24) * (SIZE / 300)}px ${obj.fontFamily ?? 'sans-serif'}`
-          ctx.fillStyle = obj.color ?? '#2A1E14'
-          ctx.textAlign = obj.align ?? 'center'
-          ctx.textBaseline = 'middle'
-          const lines = (obj.text ?? '').split('\n')
-          const lineH = (obj.fontSize ?? 24) * 1.3 * (SIZE / 300)
-          lines.forEach((line, li) => {
-            ctx.fillText(line, x, y + (li - (lines.length - 1) / 2) * lineH)
-          })
-          ctx.restore()
-        })
+        drawTextObjects(ctx, textObjects, SIZE, SIZE, { baseWidth: 300 })
 
         capturedImage = canvas.toDataURL('image/png')
 
@@ -1051,6 +1086,8 @@ function PostItEditor() {
           ctx.restore()
         }
 
+        drawTextObjects(ctx, textObjects, W, H, { baseWidth: 240 })
+
         capturedImage = canvas.toDataURL('image/png')
       }
     } catch {
@@ -1065,7 +1102,9 @@ function PostItEditor() {
           id: `${type}-${baseId}`,
           type,
           capturedImage,
-          content: type === 'polaroid' ? captionText : textObjects.map((o) => o.text).join('\n'),
+          content: type === 'polaroid'
+            ? [captionText, ...textObjects.map((o) => o.text)].filter(Boolean).join('\n')
+            : textObjects.map((o) => o.text).join('\n'),
           media: type === 'polaroid' ? { image: selectedPhoto ?? '', dateLabel: today() } : undefined,
           style: type === 'polaroid'
             ? { color: textColor, fontSize, fontFamily }
