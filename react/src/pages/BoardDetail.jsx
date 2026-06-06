@@ -12,7 +12,8 @@ import {
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { fetchBoardDetail } from '../api/boards'
 import PlacementOverlay from '../components/board/PlacementOverlay'
-import { API_BASE_URL } from '../api/client'
+import { API_BASE_URL, clearAuthToken } from '../api/client'
+import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
 import { createTraceReport } from '../api/reports'
 import { addTraceLike, fetchBoardTraces, removeTraceLike, createTrace, uploadTraceImage } from '../api/traces'
 import BoardCanvas from '../components/board/BoardCanvas'
@@ -211,6 +212,10 @@ function BoardDetail() {
   const [posts, setPosts] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
+  const [boardDetailErrorMessage, setBoardDetailErrorMessage] = useState('')
+  const [actionMessage, setActionMessage] = useState('')
+  const [isSavingPlacement, setIsSavingPlacement] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
   const [zoom, setZoom] = useState(100)
   const transformRef = useRef(null)
 
@@ -230,10 +235,26 @@ function BoardDetail() {
         const detail = await fetchBoardDetail(boardId)
         if (!ignore) {
           setBoardDetail(detail)
+          setBoardDetailErrorMessage('')
         }
-      } catch {
+      } catch (error) {
         if (!ignore) {
+          if (handleUnauthorizedApiError(error, {
+            clearToken: clearAuthToken,
+            navigate,
+            location,
+            redirect: true,
+          })) return
+
           setBoardDetail(null)
+          setBoardDetailErrorMessage(getApiErrorMessage(error, {
+            fallback: '보드 정보를 불러오지 못했습니다.',
+            statusMessages: {
+              403: '이 보드에 접근할 권한이 없습니다.',
+              404: '보드 정보를 찾을 수 없습니다.',
+              500: '보드 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.',
+            },
+          }))
         }
       }
     }
@@ -243,7 +264,7 @@ function BoardDetail() {
     return () => {
       ignore = true
     }
-  }, [boardId])
+  }, [boardId, location, navigate])
 
   useEffect(() => {
     let ignore = false
@@ -260,8 +281,22 @@ function BoardDetail() {
         setPosts((data.traces ?? []).map(traceToPost))
       } catch (error) {
         if (ignore) return
+        if (handleUnauthorizedApiError(error, {
+          clearToken: clearAuthToken,
+          navigate,
+          location,
+          redirect: true,
+        })) return
+
         setPosts([])
-        setErrorMessage(error.message ?? '흔적을 불러오지 못했습니다.')
+        setErrorMessage(getApiErrorMessage(error, {
+          fallback: '흔적을 불러오지 못했습니다.',
+          statusMessages: {
+            403: '이 보드의 흔적을 볼 권한이 없습니다.',
+            404: '보드 흔적을 찾을 수 없습니다.',
+            500: '흔적을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.',
+          },
+        }))
       } finally {
         if (!ignore) setIsLoading(false)
       }
@@ -269,15 +304,17 @@ function BoardDetail() {
 
     loadTraces()
     return () => { ignore = true }
-  }, [boardId, sort])
+  }, [boardId, location, navigate, reloadKey, sort])
 
   const headerPlaceName = boardDetail?.place?.placeName ?? id ?? '장소 보드'
 
   const handleAdd = () => navigate(`/board/${boardId}/postit`)
 
   const handlePlace = async (cell) => {
-    if (!placementDraft) return
+    if (!placementDraft || isSavingPlacement) return
     setPlacementDraft(null)
+    setActionMessage('')
+    setIsSavingPlacement(true)
 
     try {
       // 1. 캡처 이미지 업로드
@@ -306,8 +343,26 @@ function BoardDetail() {
       // 3. 저장 성공 → 목록 새로고침
       const fresh = await fetchBoardTraces(boardId, { sort, limit: 100 })
       setPosts((fresh.traces ?? []).map(traceToPost))
-    } catch (e) {
-      console.warn('흔적 저장 실패:', e)
+      setActionMessage('')
+    } catch (error) {
+      if (handleUnauthorizedApiError(error, {
+        clearToken: clearAuthToken,
+        navigate,
+        location,
+        redirect: true,
+      })) return
+
+      setActionMessage(getApiErrorMessage(error, {
+        fallback: '흔적을 저장하지 못했습니다. 다시 시도해주세요.',
+        statusMessages: {
+          403: '흔적을 남길 권한이 없습니다.',
+          404: '흔적을 남길 보드를 찾지 못했습니다.',
+          409: '이미 사용 중인 위치입니다. 다른 위치에 남겨주세요.',
+          500: '흔적을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.',
+        },
+      }))
+    } finally {
+      setIsSavingPlacement(false)
     }
   }
 
@@ -354,6 +409,21 @@ function BoardDetail() {
       )
     }
 
+    if (errorMessage) {
+      return (
+        <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-[#5C4030]">
+          <p className="text-[16px] font-semibold">{errorMessage}</p>
+          <button
+            type="button"
+            onClick={() => setReloadKey((value) => value + 1)}
+            className="rounded-full bg-[#3B2A1E] px-5 py-3 text-[14px] font-semibold text-white"
+          >
+            다시 시도
+          </button>
+        </div>
+      )
+    }
+
 
     return (
       <BoardCanvas
@@ -385,6 +455,12 @@ function BoardDetail() {
 
         <div className="absolute inset-0">{renderBoardContent()}</div>
 
+        {(boardDetailErrorMessage || actionMessage) ? (
+          <div className="absolute left-4 right-4 top-4 z-30 rounded-lg bg-[#FFF7F2] px-4 py-3 text-center text-[12px] font-semibold text-[#A74831] shadow-[0_6px_14px_rgba(58,36,24,0.12)]">
+            {actionMessage || boardDetailErrorMessage}
+          </div>
+        ) : null}
+
         {/* 배치 모드 오버레이 */}
         {placementDraft && (
           <PlacementOverlay
@@ -405,6 +481,7 @@ function BoardDetail() {
         <button
           type="button"
           onClick={handleAdd}
+          disabled={isSavingPlacement}
           className="absolute bottom-6 right-4 z-20 flex items-center gap-2 rounded-full bg-[#3B2A1E] px-5 py-3 shadow-[0_6px_20px_rgba(58,36,24,0.35)]"
         >
           <PencilLine size={16} strokeWidth={2} className="text-white" />
