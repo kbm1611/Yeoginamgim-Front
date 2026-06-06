@@ -430,10 +430,9 @@ function PostItPreview({
 
 function PolaroidPreview({
   previewRef,
-  selectedPhoto, captionText, onCaptionChange, onAddPhoto,
+  selectedPhoto, onCaptionChange, onAddPhoto,
   penActive, penColor, penSize, eraser, canvasRef,
-  textObjects, selectedTextId, editingTextId,
-  onSelectText, onStartEditText, onEndEditText, onChangeText, onMoveText, onCanvasClick,
+  onCanvasClick,
 }) {
   return (
     <div
@@ -860,6 +859,8 @@ function PostItEditor() {
   const [type, setType] = useState(location.state?.initialTab === 'polaroid' ? 'polaroid' : 'postit')
   const [selectedPhoto, setSelectedPhoto] = useState(null)
   const [captionText, setCaptionText] = useState('')
+  const [editorError, setEditorError] = useState('')
+  const [isCompleting, setIsCompleting] = useState(false)
 
   const tools = type === 'polaroid' ? PHOTO_TOOLS : POSTIT_TOOLS
   const [activeTool, setActiveTool] = useState(null)
@@ -965,7 +966,11 @@ function PostItEditor() {
   }
 
   const handleComplete = async () => {
+    if (isCompleting) return
+
     const baseId = Date.now()
+    setEditorError('')
+    setIsCompleting(true)
 
     setSelectedTextId(null)
     setEditingTextId(null)
@@ -984,7 +989,7 @@ function PostItEditor() {
         .catch(reject)
     })
 
-    let capturedImage = null
+    let capturedImage
     try {
       if (type === 'postit') {
         // 포스트잇: 600x600 캔버스에 PNG + 펜 + 텍스트 합성
@@ -1060,8 +1065,10 @@ function PostItEditor() {
 
         capturedImage = canvas.toDataURL('image/png')
       }
-    } catch (e) {
-      console.warn('캡처 실패:', e)
+    } catch {
+      setEditorError('흔적 이미지를 준비하지 못했습니다. 다시 시도해주세요.')
+      setIsCompleting(false)
+      return
     }
 
     navigate(`/board/${boardId}`, {
@@ -1079,6 +1086,7 @@ function PostItEditor() {
         },
       },
     })
+    setIsCompleting(false)
   }
 
   const renderPanelContent = () => {
@@ -1184,16 +1192,16 @@ function PostItEditor() {
         <button
           type="button"
           onClick={handleComplete}
-          disabled={type === 'polaroid' && !selectedPhoto}
+          disabled={isCompleting || (type === 'polaroid' && !selectedPhoto)}
           style={{
             borderRadius: 999,
-            backgroundColor: (type === 'polaroid' && !selectedPhoto) ? '#C0B0A0' : '#2C1A0E',
+            backgroundColor: (isCompleting || (type === 'polaroid' && !selectedPhoto)) ? '#C0B0A0' : '#2C1A0E',
             padding: '8px 20px', fontSize: 13, fontWeight: 700, color: '#fff',
-            cursor: (type === 'polaroid' && !selectedPhoto) ? 'not-allowed' : 'pointer',
+            cursor: (isCompleting || (type === 'polaroid' && !selectedPhoto)) ? 'not-allowed' : 'pointer',
             opacity: 1,
           }}
         >
-          남기기
+          {isCompleting ? '준비 중...' : '남기기'}
         </button>
       </header>
 
@@ -1231,6 +1239,25 @@ function PostItEditor() {
           </button>
         ))}
       </div>
+
+      {editorError ? (
+        <p
+          style={{
+            position: 'relative',
+            zIndex: 10,
+            margin: '0 16px 8px',
+            borderRadius: 12,
+            backgroundColor: '#FFF7F2',
+            padding: '10px 12px',
+            textAlign: 'center',
+            fontSize: 12,
+            fontWeight: 700,
+            color: '#A74831',
+          }}
+        >
+          {editorError}
+        </p>
+      ) : null}
 
       {/* ── canvas-area: 빈 영역 클릭 시만 시트 닫기 ── */}
       <div
