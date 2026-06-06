@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Link, useNavigate } from 'react-router-dom'
 import { sendEmailVerification, verifyEmailVerification } from '../api/auth'
+import { getApiErrorMessage } from '../api/errors'
 import { signupUser } from '../api/users'
 import { isEmailVerificationSendSucceeded, isValidSignupEmail } from './SignupPage.emailVerification'
 import '../css/signup.css'
@@ -51,30 +52,26 @@ const verificationErrorMessages = [
 ]
 
 function getFriendlySignupError(error) {
-  const message = String(error?.message ?? '').trim()
-  const normalized = message.toLowerCase()
-  const matched = signupErrorMessages.find(([key]) => normalized.includes(key))
-
-  if (matched) return matched[1]
-  if (error?.status === 409) return '이미 사용 중인 이메일입니다.'
-  if (error?.status >= 500) return '서버에 문제가 생겼습니다. 잠시 후 다시 시도해주세요.'
-  if (message) return message
-
-  return '회원가입에 실패했습니다. 입력한 정보를 다시 확인해주세요.'
+  return getApiErrorMessage(error, {
+    fallback: '회원가입에 실패했습니다. 입력한 정보를 다시 확인해주세요.',
+    messageMatchers: signupErrorMessages,
+    statusMessages: {
+      409: '이미 사용 중인 이메일입니다.',
+      500: '서버에 문제가 생겼습니다. 잠시 후 다시 시도해주세요.',
+    },
+  })
 }
 
 function getFriendlyVerificationError(error) {
-  const message = String(error?.message ?? '').trim()
-  const normalized = `${error?.body?.code ?? ''} ${message}`.toLowerCase()
-  const matched = verificationErrorMessages.find(([key]) => normalized.includes(key))
-
-  if (matched) return matched[1]
-  if (error?.status === 409) return '이미 사용 중인 이메일입니다.'
-  if (error?.status === 429) return '요청이 많습니다. 잠시 후 다시 시도해주세요.'
-  if (error?.status >= 500) return '메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.'
-  if (message) return message
-
-  return '이메일 인증을 처리하지 못했습니다. 다시 시도해주세요.'
+  return getApiErrorMessage(error, {
+    fallback: '이메일 인증을 처리하지 못했습니다. 다시 시도해주세요.',
+    messageMatchers: verificationErrorMessages,
+    statusMessages: {
+      409: '이미 사용 중인 이메일입니다.',
+      429: '요청이 많습니다. 잠시 후 다시 시도해주세요.',
+      500: '메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.',
+    },
+  })
 }
 
 function SignupPage() {
@@ -173,11 +170,11 @@ function SignupPage() {
         success: EMAIL_VERIFICATION_SEND_SUCCESS_MESSAGE,
         verified: false,
       })
-    } catch {
+    } catch (verificationError) {
       setEmailVerification({
         codeSent: false,
         email: normalizedEmail,
-        error: EMAIL_VERIFICATION_SEND_FAILURE_MESSAGE,
+        error: getFriendlyVerificationError(verificationError) || EMAIL_VERIFICATION_SEND_FAILURE_MESSAGE,
         isSending: false,
         isVerifying: false,
         success: '',
