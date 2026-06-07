@@ -85,7 +85,6 @@ function SignupPage() {
   const normalizedEmail = form.email.trim().toLowerCase()
   const isEmailVerified = emailVerification.verified && emailVerification.email === normalizedEmail
   const canShowVerificationCode = emailVerification.codeSent && emailVerification.email === normalizedEmail
-  const canSubmitSignup = isEmailVerified && !isSubmitting && !emailVerification.isSending && !emailVerification.isVerifying
 
   const handleChange = (event) => {
     const { name, value } = event.target
@@ -444,7 +443,7 @@ function SignupPage() {
           <motion.button
             type="submit"
             className="signup-submit"
-            disabled={!canSubmitSignup}
+            disabled={isSubmitting || emailVerification.isSending || emailVerification.isVerifying}
             whileTap={{ scale: 0.988 }}
             transition={{ duration: 0.12 }}
           >
