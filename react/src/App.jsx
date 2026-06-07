@@ -15,6 +15,8 @@ import PostItEditor from './pages/PostItEditor'
 import TraceDetail from './pages/TraceDetail'
 import SignupPage from './pages/SignupPage'
 import SplashPage from './pages/SplashPage'
+import MemoryBoardCreatePage from './pages/MemoryBoardCreatePage'
+import MemoryBoardSuccessPage from './pages/MemoryBoardSuccessPage'
 
 function RequireAuth({ children }) {
   const location = useLocation()
@@ -51,6 +53,9 @@ function AnimatedRoutes() {
           <Route path="/archive" element={<ArchivePage />} />
           <Route path="/my" element={<MyPage />} />
         </Route>
+
+        <Route path="/record/new" element={<RequireAuth><MemoryBoardCreatePage /></RequireAuth>} />
+        <Route path="/record/success" element={<RequireAuth><MemoryBoardSuccessPage /></RequireAuth>} />
 
         <Route path="/place/:id" element={<PlaceDetail />} />
         <Route path="/board/:id">
