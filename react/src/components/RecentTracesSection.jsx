@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { ChevronRight, Image as ImageIcon, MessageCircle } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { getApiErrorMessage } from '../api/errors'
 import { fetchRecentTraces } from '../api/traces'
+import defaultTraceThumbnail from '../assets/images/recent-trace-default-polaroid.png'
 import { ALL_DISTRICTS_LABEL, buildHomeTraceParams } from '../pages/HomePage.utils'
 
 function RecentTracesSection({ period, district }) {
@@ -101,14 +102,12 @@ function RecentTracesSection({ period, district }) {
 }
 
 function TraceThumbnail({ trace }) {
-  if (trace.imageUrl) {
-    return <img src={resolveMediaUrl(trace.imageUrl)} alt={trace.placeName || '흔적'} className="h-14 w-14 rounded-[10px] object-cover" />
-  }
-
   return (
-    <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[10px] bg-[#F2EAFE] text-[#7B55F6]">
-      {trace.previewText === '이미지 흔적' ? <ImageIcon size={20} /> : <MessageCircle size={20} />}
-    </span>
+    <img
+      src={defaultTraceThumbnail}
+      alt={`${trace.placeName || '흔적'} 기본 이미지`}
+      className="h-14 w-14 shrink-0 rounded-[10px] object-cover"
+    />
   )
 }
 
@@ -127,13 +126,6 @@ function StatusCard({ message, actionLabel, onAction }) {
       ) : null}
     </div>
   )
-}
-
-function resolveMediaUrl(path) {
-  if (!path) return ''
-  if (/^https?:\/\//i.test(path)) return path
-  if (/^[a-zA-Z]:[\\/]/.test(path)) return ''
-  return path
 }
 
 function formatRelativeTime(value) {
