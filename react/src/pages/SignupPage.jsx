@@ -135,7 +135,7 @@ function SignupPage() {
 
     setError('')
     setEmailVerification({
-      codeSent: false,
+      codeSent: canShowVerificationCode,
       email: normalizedEmail,
       error: '',
       isSending: true,
@@ -171,7 +171,7 @@ function SignupPage() {
       })
     } catch (verificationError) {
       setEmailVerification({
-        codeSent: false,
+        codeSent: canShowVerificationCode,
         email: normalizedEmail,
         error: getFriendlyVerificationError(verificationError) || EMAIL_VERIFICATION_SEND_FAILURE_MESSAGE,
         isSending: false,
@@ -332,11 +332,10 @@ function SignupPage() {
                   emailVerification.isSending ||
                   emailVerification.isVerifying ||
                   !normalizedEmail ||
-                  canShowVerificationCode ||
                   isEmailVerified
                 }
               >
-                {emailVerification.isSending ? '발송 중' : '인증번호 발송'}
+                {emailVerification.isSending ? '발송 중' : canShowVerificationCode ? '인증번호 재발송' : '인증번호 발송'}
               </button>
             </div>
           </label>
