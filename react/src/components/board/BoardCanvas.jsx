@@ -1,257 +1,260 @@
-import { useMemo, useState, useEffect, useCallback, useRef } from 'react'
-import { useParams } from 'react-router-dom'
-import { Flag, Heart } from 'lucide-react'
-import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Heart, RefreshCw } from 'lucide-react'
 import TraceBottomSheet from './TraceBottomSheet'
-import postitYellow from '../../assets/postit/postit.png'
-import polaroidBg from '../../assets/poloaroid/폴라로이드.png'
+import postitTexture from '../../assets/postit/postit.png'
 
-import { CANVAS_W, COL_X, ROW_H, COL_STAGGER, CARD_W as CARD_W_CONST } from './PlacementGrid'
+const polaroidFrames = import.meta.glob('../../assets/poloaroid/*.png', { eager: true, import: 'default' })
+const polaroidFrame = Object.values(polaroidFrames)[0]
 
-const TAPE_COLORS = [
-  'rgba(243,217,142,0.80)',
-  'rgba(212,200,240,0.80)',
-  'rgba(238,183,198,0.80)',
-  'rgba(210,212,162,0.80)',
-]
+const BOARD_CANVAS_W = 760
+const TRACE_CARD_W = 190
+const GRID_COLUMNS = 3
+const GRID_GAP_X = 42
+const GRID_GAP_Y = 68
+const GRID_PADDING_X = 34
+const GRID_PADDING_Y = 52
 
-const REPORT_REASONS = [
-  { value: 'ABUSE', label: '욕설/비방' },
-  { value: 'INAPPROPRIATE_IMAGE', label: '부적절한 사진' },
-  { value: 'SPAM', label: '광고/도배' },
-  { value: 'PRIVACY', label: '개인정보 노출' },
-  { value: 'ETC', label: '기타' },
-]
-
-function seeded(n) {
-  const x = Math.sin(n + 1.5) * 10000
+function seeded(value) {
+  const x = Math.sin(value + 1.5) * 10000
   return x - Math.floor(x)
 }
 
-function layoutPosts(posts) {
-  return posts.map((post, i) => {
-    // cell 정보가 있으면 사용, 없으면 순서 기반 fallback
-    const col = post.cell?.col ?? (i % 2)
-    const row = post.cell?.row ?? Math.floor(i / 2)
-    const s = i + 1
+function hashSeed(value) {
+  const text = String(value ?? '')
+  let hash = 0
 
-    const dx = (seeded(s * 1.31 + 2.71) - 0.5) * 52
-    const dy = (seeded(s * 2.13 + 5.37) - 0.5) * 40
-    const rotate = (seeded(s * 3.71 + 8.13) - 0.5) * 14
-    const tapeRotate = (seeded(s * 4.23 + 1.09) - 0.5) * 5
-    const tapeColor = TAPE_COLORS[i % TAPE_COLORS.length]
-    const stagger = col === 1 ? COL_STAGGER : 0
+  for (let index = 0; index < text.length; index += 1) {
+    hash = (hash * 31 + text.charCodeAt(index)) % 100000
+  }
+
+  return hash || 1
+}
+
+function isPolaroidTrace(post) {
+  return post.type === 'POLAROID' || post.type === 'polaroid'
+}
+
+function getTraceId(post) {
+  return post.traceId ?? post.id
+}
+
+function getAuthorName(post) {
+  return post.authorName ?? post.nickname ?? '익명'
+}
+
+function getLikeCount(post) {
+  return post.likeCount ?? post.likes ?? 0
+}
+
+function getCardHeight(post) {
+  const cardW = post._cardW ?? TRACE_CARD_W
+  return isPolaroidTrace(post) ? cardW * 1.5 : cardW
+}
+
+function hasOverlap(rect, placedRects) {
+  const padding = 18
+
+  return placedRects.some((placed) => {
+    return !(
+      rect.x + rect.width + padding < placed.x ||
+      placed.x + placed.width + padding < rect.x ||
+      rect.y + rect.height + padding < placed.y ||
+      placed.y + placed.height + padding < rect.y
+    )
+  })
+}
+
+export function getTraceLayoutPosition(post, index) {
+  const traceSeed = hashSeed(getTraceId(post) ?? index)
+  const col = index % GRID_COLUMNS
+  const row = Math.floor(index / GRID_COLUMNS)
+  const baseX = GRID_PADDING_X + col * (TRACE_CARD_W + GRID_GAP_X)
+  const baseY = GRID_PADDING_Y + row * (TRACE_CARD_W * 1.5 + GRID_GAP_Y)
+  const offsetX = (seeded(traceSeed * 2.17) - 0.5) * 26
+  const offsetY = (seeded(traceSeed * 3.41) - 0.5) * 34
+  const rotation = (seeded(traceSeed * 4.73) - 0.5) * 10
+
+  return {
+    x: baseX + offsetX,
+    y: baseY + offsetY,
+    rotation,
+  }
+}
+
+function layoutPosts(posts) {
+  const placedRects = []
+
+  return posts.map((post, index) => {
+    const base = getTraceLayoutPosition(post, index)
+    const cardW = TRACE_CARD_W
+    const cardH = isPolaroidTrace(post) ? cardW * 1.5 : cardW
+    let x = base.x
+    let y = base.y
+    let attempts = 0
+
+    while (hasOverlap({ x, y, width: cardW, height: cardH }, placedRects) && attempts < 16) {
+      y += 26
+      attempts += 1
+
+      if (attempts % 4 === 0) {
+        x += attempts % 8 === 0 ? -18 : 18
+      }
+    }
+
+    placedRects.push({ x, y, width: cardW, height: cardH })
 
     return {
       ...post,
-      _x: COL_X[col] - CARD_W_CONST / 2 + dx,
-      _y: row * ROW_H + stagger + 60 + dy,
-      _rotate: rotate,
-      _tapeRotate: tapeRotate,
-      _tapeColor: tapeColor,
-      _cardW: CARD_W_CONST,
+      _x: x,
+      _y: y,
+      _rotate: base.rotation,
+      _cardW: cardW,
     }
   })
 }
 
-function Tape({ color, rotate }) {
-  return (
-    <div
-      className="absolute left-1/2 top-0 z-10 h-[22px] w-[68px] rounded-[3px]"
-      style={{
-        backgroundColor: color,
-        transform: `translateX(-50%) translateY(-11px) rotate(${rotate}deg)`,
-      }}
-    />
-  )
-}
-
-function getActionErrorMessage(error) {
-  if (error?.status === 401) return '로그인이 필요합니다.'
-  if (error?.status === 409) return '이미 신고한 흔적입니다.'
-
-  return error?.message ?? '처리하지 못했습니다.'
-}
-
-function TraceActions({ post, onToggleLike, onReport }) {
-  const [isLikePending, setIsLikePending] = useState(false)
-  const [isReportOpen, setIsReportOpen] = useState(false)
-  const [reportKind, setReportKind] = useState(REPORT_REASONS[0].value)
-  const [isReportPending, setIsReportPending] = useState(false)
-  const [message, setMessage] = useState('')
-
-  const stopBoardGesture = (event) => {
-    event.stopPropagation()
-  }
+function TraceMeta({ post, onToggleLike }) {
+  const [isPending, setIsPending] = useState(false)
 
   const handleLikeClick = async (event) => {
-    event.stopPropagation()
-    if (!onToggleLike || isLikePending) return
-
-    setIsLikePending(true)
-    setMessage('')
-
-    try {
-      await onToggleLike(post)
-    } catch (error) {
-      setMessage(getActionErrorMessage(error))
-    } finally {
-      setIsLikePending(false)
-    }
-  }
-
-  const handleReportSubmit = async (event) => {
     event.preventDefault()
     event.stopPropagation()
-    if (!onReport || isReportPending) return
+    if (!onToggleLike || isPending) return
 
-    setIsReportPending(true)
-    setMessage('')
-
+    setIsPending(true)
     try {
-      await onReport(post, reportKind)
-      setMessage('신고가 접수되었습니다.')
-      setIsReportOpen(false)
-    } catch (error) {
-      setMessage(getActionErrorMessage(error))
+      await onToggleLike(post)
     } finally {
-      setIsReportPending(false)
+      setIsPending(false)
     }
   }
 
   return (
-    <div
-      className="absolute -bottom-10 right-0 z-30"
-      onPointerDown={stopBoardGesture}
-      onMouseDown={stopBoardGesture}
-      onTouchStart={stopBoardGesture}
-      onClick={stopBoardGesture}
-    >
-      <div className="relative flex items-center gap-2">
-        <button
-          type="button"
-          onClick={handleLikeClick}
-          disabled={isLikePending}
-          aria-label={post.liked ? '추천 취소' : '추천'}
-          className="inline-flex h-8 items-center gap-1.5 rounded-full bg-white/90 px-2.5 text-[12px] font-bold text-[#3D2B1F] shadow-md backdrop-blur-sm disabled:opacity-60"
-        >
-          <Heart
-            size={15}
-            fill={post.liked ? '#E84855' : 'none'}
-            className={post.liked ? 'text-[#E84855]' : 'text-[#6B5344]'}
-            strokeWidth={2}
-          />
-          <span>{post.likes ?? 0}</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation()
-            setIsReportOpen((open) => !open)
-            setMessage('')
-          }}
-          aria-label="신고하기"
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-[#6B5344] shadow-md backdrop-blur-sm"
-        >
-          <Flag size={15} strokeWidth={2} />
-        </button>
-
-        {isReportOpen ? (
-          <form
-            onSubmit={handleReportSubmit}
-            className="absolute bottom-10 right-0 w-[190px] rounded-[8px] bg-white p-3 text-[#3D2B1F] shadow-[0_10px_28px_rgba(42,28,20,0.20)]"
-          >
-            <label className="block text-[12px] font-bold" htmlFor={`report-${post.id}`}>
-              신고 사유
-            </label>
-            <select
-              id={`report-${post.id}`}
-              value={reportKind}
-              onChange={(event) => setReportKind(event.target.value)}
-              className="mt-2 h-9 w-full rounded-[6px] border border-[#D8CEC2] bg-[#F8F4EE] px-2 text-[12px] outline-none"
-            >
-              {REPORT_REASONS.map((reason) => (
-                <option key={reason.value} value={reason.value}>
-                  {reason.label}
-                </option>
-              ))}
-            </select>
-            <button
-              type="submit"
-              disabled={isReportPending}
-              className="mt-2 h-9 w-full rounded-[6px] bg-[#3D2B1F] text-[12px] font-bold text-white disabled:opacity-60"
-            >
-              {isReportPending ? '접수 중' : '신고하기'}
-            </button>
-          </form>
-        ) : null}
-      </div>
-
-      {message ? (
-        <p className="mt-1 max-w-[190px] rounded-full bg-white/90 px-2 py-1 text-right text-[11px] font-semibold text-[#7A4D3B] shadow-sm">
-          {message}
-        </p>
-      ) : null}
-    </div>
-  )
-}
-
-// 모든 카드 — capturedImage를 그대로 표시
-function TraceCard({ post }) {
-  const cardW = post._cardW ?? CARD_W_CONST
-  const isPolaroid = post.type === 'polaroid'
-  const w = cardW
-  const h = isPolaroid ? cardW * 1.5 : cardW
-
-  if (!post.capturedImage) return null
-
-  return (
-    <img
-      src={post.capturedImage}
-      alt=""
-      style={{
-        position: 'absolute',
-        left: post._x,
-        top: post._y,
-        width: w,
-        height: h,
-        objectFit: 'fill',
-        transform: `rotate(${post._rotate}deg)`,
-        boxShadow: '0 6px 20px rgba(42,28,20,0.15)',
-        transformOrigin: 'top left',
-        mixBlendMode: 'multiply',
-        borderRadius: isPolaroid ? '4px' : '8px',
-      }}
-    />
-  )
-}
-
-const PostItCard = TraceCard
-const PolaroidCard = TraceCard
-const CapturedCard = TraceCard
-
-function EmptyBoard({ onAdd }) {
-  return (
-    <div className="relative flex h-full w-full flex-col items-center justify-center gap-5">
-      <p
-        className="text-center text-[38px] leading-[1.4] text-[#5C4030]"
-        style={{ fontFamily: "'Nanum Pen Script', 'Gaegu', cursive" }}
-      >
-        아직 아무도{'\n'}흔적을 남기지{'\n'}않았어요
-      </p>
+    <div className="flex min-w-0 items-center justify-between gap-3 text-[12px] font-bold text-[#6E5542]">
+      <span className="min-w-0 truncate">- {getAuthorName(post)}</span>
       <button
         type="button"
-        onClick={onAdd}
-        className="rounded-full bg-[#3D2B1F] px-7 py-3 text-[17px] font-semibold text-white shadow-lg"
+        onClick={handleLikeClick}
+        disabled={isPending}
+        aria-label={post.liked ? '좋아요 취소' : '좋아요'}
+        className={`flex shrink-0 items-center gap-1 rounded-full px-1.5 py-1 transition-colors ${
+          post.liked ? 'text-[#A64A3A]' : 'text-[#7D6652]/80'
+        } disabled:opacity-60`}
       >
-        첫 흔적을 남겨보세요 ✍️
+        <Heart size={13} strokeWidth={1.8} fill={post.liked ? 'currentColor' : 'none'} />
+        <span>{getLikeCount(post)}</span>
       </button>
     </div>
   )
 }
 
-// 피그마 스타일 줌/패닝 훅
+function PostItTraceCard({ post, onToggleLike }) {
+  const cardW = post._cardW ?? TRACE_CARD_W
+  const postitImage = post.capturedImage ?? post.imageUrl ?? postitTexture
+  const shouldRenderText = !post.capturedImage && !post.imageUrl
+
+  return (
+    <article
+      className="absolute flex flex-col overflow-hidden text-[#35241A]"
+      style={{
+        left: post._x,
+        top: post._y,
+        width: cardW,
+        height: cardW,
+        transform: `rotate(${post._rotate}deg)`,
+        transformOrigin: 'top left',
+        pointerEvents: 'auto',
+      }}
+    >
+      <img src={postitImage} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-fill" />
+      <div className="relative z-10 flex h-full flex-col px-[15px] pb-[12px] pt-[21px]">
+        {shouldRenderText ? (
+          <p
+            className="min-h-0 flex-1 overflow-hidden text-[23px] leading-[1.12]"
+            style={{
+              display: '-webkit-box',
+              WebkitBoxOrient: 'vertical',
+              WebkitLineClamp: 4,
+              fontFamily: "'Nanum Pen Script', 'Gaegu', cursive",
+              whiteSpace: 'pre-wrap',
+            }}
+          >
+            {post.content}
+          </p>
+        ) : (
+          <div className="min-h-0 flex-1" />
+        )}
+        <TraceMeta post={post} onToggleLike={onToggleLike} />
+      </div>
+    </article>
+  )
+}
+
+function PolaroidTraceCard({ post, onToggleLike }) {
+  const cardW = post._cardW ?? TRACE_CARD_W
+  const cardH = cardW * 1.5
+  const imageUrl = post.imageUrl ?? post.media?.image
+
+  return (
+    <article
+      className="absolute overflow-hidden rounded-[5px] bg-[#FFFDF8] p-[10px] shadow-[0_8px_22px_rgba(42,28,20,0.16)]"
+      style={{
+        left: post._x,
+        top: post._y,
+        width: cardW,
+        height: cardH,
+        transform: `rotate(${post._rotate}deg)`,
+        transformOrigin: 'top left',
+        pointerEvents: 'auto',
+      }}
+    >
+      {polaroidFrame ? (
+        <img src={polaroidFrame} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-fill" />
+      ) : null}
+      <div className="relative z-10 h-[66%] w-full overflow-hidden rounded-[3px] bg-[#E4D3BF]">
+        {imageUrl ? <img src={imageUrl} alt="" className="h-full w-full object-cover" draggable="false" /> : null}
+      </div>
+      <div className="relative z-10 flex h-[34%] flex-col px-1 pb-1 pt-2">
+        <p
+          className="min-h-0 flex-1 overflow-hidden text-center text-[21px] leading-[1.05] text-[#3A2A20]"
+          style={{
+            display: '-webkit-box',
+            WebkitBoxOrient: 'vertical',
+            WebkitLineClamp: 2,
+            fontFamily: "'Nanum Pen Script', 'Gaegu', cursive",
+          }}
+        >
+          {post.content}
+        </p>
+        <TraceMeta post={post} onToggleLike={onToggleLike} />
+      </div>
+    </article>
+  )
+}
+
+function EmptyBoard({ onAdd }) {
+  return (
+    <div className="relative flex h-full w-full flex-col items-center justify-center gap-4 px-8 text-center">
+      <div className="rounded-[18px] bg-[#FFF8EC]/84 px-6 py-6 shadow-[0_10px_28px_rgba(74,48,29,0.10)] backdrop-blur-sm">
+        <p
+          className="text-[34px] leading-[1.3] text-[#5C4030]"
+          style={{ fontFamily: "'Nanum Pen Script', 'Gaegu', cursive" }}
+        >
+          아직 남겨진 흔적이 없어요
+        </p>
+        <p className="mt-2 text-[14px] font-semibold text-[#8A6A50]">첫 번째 흔적을 남겨보세요</p>
+      </div>
+      <button
+        type="button"
+        onClick={onAdd}
+        className="rounded-full bg-[#3D2B1F] px-7 py-3 text-[16px] font-bold text-white shadow-[0_8px_18px_rgba(61,36,21,0.24)]"
+      >
+        흔적 남기기
+      </button>
+    </div>
+  )
+}
+
 function useBoardTransform(transformRef, onZoomChange, initialScale) {
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: initialScale })
   const stateRef = useRef({ x: 0, y: 0, scale: initialScale })
@@ -259,54 +262,66 @@ function useBoardTransform(transformRef, onZoomChange, initialScale) {
   const pinchRef = useRef(null)
   const containerRef = useRef(null)
 
-  // transformRef에 현재 상태 노출 (PlacementOverlay가 읽음)
-  useEffect(() => {
-    if (transformRef) {
-      transformRef.current = {
-        state: { scale: stateRef.current.scale, positionX: stateRef.current.x, positionY: stateRef.current.y },
-        zoomIn: (step = 0.25) => applyZoom(stateRef.current.scale + step, null),
-        zoomOut: (step = 0.25) => applyZoom(stateRef.current.scale - step, null),
-      }
-    }
-  })
-
   const applyZoom = useCallback((nextScale, origin) => {
-    const MIN = 0.3, MAX = 3.0
-    nextScale = Math.min(MAX, Math.max(MIN, nextScale))
+    const min = 0.3
+    const max = 3
+    const clampedScale = Math.min(max, Math.max(min, nextScale))
     const { x, y, scale } = stateRef.current
+    let nextX = x
+    let nextY = y
 
-    let nextX = x, nextY = y
     if (origin) {
-      // origin(화면 좌표) 기준으로 줌
-      const ratio = nextScale / scale
+      const ratio = clampedScale / scale
       nextX = origin.x - (origin.x - x) * ratio
       nextY = origin.y - (origin.y - y) * ratio
     }
 
-    stateRef.current = { x: nextX, y: nextY, scale: nextScale }
-    setTransform({ x: nextX, y: nextY, scale: nextScale })
-    onZoomChange?.(Math.round(nextScale / initialScale * 100))
+    stateRef.current = { x: nextX, y: nextY, scale: clampedScale }
+    setTransform({ x: nextX, y: nextY, scale: clampedScale })
+    onZoomChange?.(Math.round((clampedScale / initialScale) * 100))
   }, [initialScale, onZoomChange])
 
-  const onWheel = useCallback((e) => {
-    e.preventDefault()
+  useEffect(() => {
+    if (!transformRef) return
+
+    transformRef.current = {
+      state: {
+        scale: stateRef.current.scale,
+        positionX: stateRef.current.x,
+        positionY: stateRef.current.y,
+      },
+      zoomIn: (step = 0.25) => applyZoom(stateRef.current.scale + step, null),
+      zoomOut: (step = 0.25) => applyZoom(stateRef.current.scale - step, null),
+    }
+  })
+
+  const onWheel = useCallback((event) => {
+    event.preventDefault()
     const rect = containerRef.current?.getBoundingClientRect()
     if (!rect) return
-    const origin = { x: e.clientX - rect.left, y: e.clientY - rect.top }
-    const delta = -e.deltaY * 0.001
-    applyZoom(stateRef.current.scale * (1 + delta), origin)
+
+    const origin = { x: event.clientX - rect.left, y: event.clientY - rect.top }
+    applyZoom(stateRef.current.scale * (1 - event.deltaY * 0.001), origin)
   }, [applyZoom])
 
-  const onPointerDown = useCallback((e) => {
-    if (e.button !== 0) return
-    panStart.current = { px: e.clientX, py: e.clientY, x: stateRef.current.x, y: stateRef.current.y }
+  const onPointerDown = useCallback((event) => {
+    if (event.button !== 0) return
+    panStart.current = {
+      px: event.clientX,
+      py: event.clientY,
+      x: stateRef.current.x,
+      y: stateRef.current.y,
+    }
   }, [])
 
-  const onPointerMove = useCallback((e) => {
+  const onPointerMove = useCallback((event) => {
     if (!panStart.current) return
-    const dx = e.clientX - panStart.current.px
-    const dy = e.clientY - panStart.current.py
-    const next = { ...stateRef.current, x: panStart.current.x + dx, y: panStart.current.y + dy }
+
+    const next = {
+      ...stateRef.current,
+      x: panStart.current.x + event.clientX - panStart.current.px,
+      y: panStart.current.y + event.clientY - panStart.current.py,
+    }
     stateRef.current = next
     setTransform({ ...next })
   }, [])
@@ -315,40 +330,53 @@ function useBoardTransform(transformRef, onZoomChange, initialScale) {
     panStart.current = null
   }, [])
 
-  const onTouchStart = useCallback((e) => {
-    if (e.touches.length === 2) {
+  const onTouchStart = useCallback((event) => {
+    if (event.touches.length === 2) {
       panStart.current = null
-      const dx = e.touches[0].clientX - e.touches[1].clientX
-      const dy = e.touches[0].clientY - e.touches[1].clientY
+      const dx = event.touches[0].clientX - event.touches[1].clientX
+      const dy = event.touches[0].clientY - event.touches[1].clientY
       pinchRef.current = {
         dist: Math.hypot(dx, dy),
         scale: stateRef.current.scale,
-        mx: (e.touches[0].clientX + e.touches[1].clientX) / 2,
-        my: (e.touches[0].clientY + e.touches[1].clientY) / 2,
+        mx: (event.touches[0].clientX + event.touches[1].clientX) / 2,
+        my: (event.touches[0].clientY + event.touches[1].clientY) / 2,
       }
-    } else if (e.touches.length === 1) {
+      return
+    }
+
+    if (event.touches.length === 1) {
       pinchRef.current = null
-      panStart.current = { px: e.touches[0].clientX, py: e.touches[0].clientY, x: stateRef.current.x, y: stateRef.current.y }
+      panStart.current = {
+        px: event.touches[0].clientX,
+        py: event.touches[0].clientY,
+        x: stateRef.current.x,
+        y: stateRef.current.y,
+      }
     }
   }, [])
 
-  const onTouchMove = useCallback((e) => {
-    e.preventDefault()
-    if (e.touches.length === 2 && pinchRef.current) {
-      const dx = e.touches[0].clientX - e.touches[1].clientX
-      const dy = e.touches[0].clientY - e.touches[1].clientY
-      const dist = Math.hypot(dx, dy)
-      const nextScale = pinchRef.current.scale * (dist / pinchRef.current.dist)
+  const onTouchMove = useCallback((event) => {
+    event.preventDefault()
+
+    if (event.touches.length === 2 && pinchRef.current) {
+      const dx = event.touches[0].clientX - event.touches[1].clientX
+      const dy = event.touches[0].clientY - event.touches[1].clientY
       const rect = containerRef.current?.getBoundingClientRect()
       const origin = rect ? {
         x: pinchRef.current.mx - rect.left,
         y: pinchRef.current.my - rect.top,
       } : null
-      applyZoom(nextScale, origin)
-    } else if (e.touches.length === 1 && panStart.current) {
-      const dx = e.touches[0].clientX - panStart.current.px
-      const dy = e.touches[0].clientY - panStart.current.py
-      const next = { ...stateRef.current, x: panStart.current.x + dx, y: panStart.current.y + dy }
+
+      applyZoom(pinchRef.current.scale * (Math.hypot(dx, dy) / pinchRef.current.dist), origin)
+      return
+    }
+
+    if (event.touches.length === 1 && panStart.current) {
+      const next = {
+        ...stateRef.current,
+        x: panStart.current.x + event.touches[0].clientX - panStart.current.px,
+        y: panStart.current.y + event.touches[0].clientY - panStart.current.py,
+      }
       stateRef.current = next
       setTransform({ ...next })
     }
@@ -360,114 +388,135 @@ function useBoardTransform(transformRef, onZoomChange, initialScale) {
   }, [])
 
   useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
+    const element = containerRef.current
+    if (!element) return undefined
 
-    el.addEventListener('wheel', onWheel, { passive: false })
-    el.addEventListener('touchmove', onTouchMove, { passive: false })
-
-    // window에서 pointermove/up 처리 → 카드 위에서 드래그해도 패닝 동작
+    element.addEventListener('wheel', onWheel, { passive: false })
+    element.addEventListener('touchmove', onTouchMove, { passive: false })
     window.addEventListener('pointermove', onPointerMove)
     window.addEventListener('pointerup', onPointerUp)
 
     return () => {
-      el.removeEventListener('wheel', onWheel)
-      el.removeEventListener('touchmove', onTouchMove)
+      element.removeEventListener('wheel', onWheel)
+      element.removeEventListener('touchmove', onTouchMove)
       window.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('pointerup', onPointerUp)
     }
-  }, [onWheel, onTouchMove, onPointerMove, onPointerUp])
+  }, [onWheel, onPointerMove, onPointerUp, onTouchMove])
 
-  return { transform, stateRef, containerRef, onPointerDown, onPointerMove, onPointerUp, onTouchStart, onTouchEnd }
+  return {
+    containerRef,
+    onPointerDown,
+    onTouchEnd,
+    onTouchStart,
+    stateRef,
+    transform,
+  }
 }
 
-function BoardCanvas({ posts, onAdd, transformRef, onZoomChange, onToggleLike, onReport, onPostDeleted, newPostId, onNewPostFocused }) {
-  const { id: boardId } = useParams()
+function BoardCanvas({
+  posts,
+  onAdd,
+  onRefresh,
+  transformRef,
+  onZoomChange,
+  onToggleLike,
+  onPostDeleted,
+  newPostId,
+  onNewPostFocused,
+  showTraceSheet = true,
+}) {
   const laid = useMemo(() => layoutPosts(posts), [posts])
-  const rows = Math.ceil(posts.length / 2)
-  const canvasH = Math.max(1200, rows * ROW_H + 400)
+  const canvasH = Math.max(1200, ...laid.map((post) => post._y + getCardHeight(post) + 220))
   const [selectedPost, setSelectedPost] = useState(null)
   const [highlightId, setHighlightId] = useState(null)
+  const pointerDownInfo = useRef(null)
 
-  const vw = typeof window !== 'undefined' ? window.innerWidth : 390
-  const initialScale = Math.min(0.9, (vw - 16) / CANVAS_W)
+  const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 390
+  const initialScale = Math.min(0.74, (viewportWidth - 18) / BOARD_CANVAS_W)
+  const {
+    containerRef,
+    onPointerDown,
+    onTouchEnd,
+    onTouchStart,
+    stateRef,
+    transform,
+  } = useBoardTransform(transformRef, onZoomChange, initialScale)
 
-  const { transform, stateRef, containerRef, onPointerDown, onPointerMove, onPointerUp, onTouchStart, onTouchEnd } =
-    useBoardTransform(transformRef, onZoomChange, initialScale)
-
-  // 새 흔적 저장 완료 → 해당 위치로 카메라 이동 + 강조
   useEffect(() => {
     if (!newPostId) return
-    const post = laid.find(p => p.id === newPostId)
+
+    const post = laid.find((item) => getTraceId(item) === newPostId || item.id === newPostId)
     if (!post) return
 
     const rect = containerRef.current?.getBoundingClientRect()
     if (!rect) return
 
     const scale = stateRef.current.scale
-    // 포스트잇 중앙이 화면 중앙에 오도록
-    const targetX = rect.width / 2 - (post._x + (post._cardW ?? CARD_W_CONST) / 2) * scale
-    const targetY = rect.height / 2 - (post._y + (post._cardW ?? CARD_W_CONST) / 2) * scale
-
-    // 부드럽게 이동
+    const targetX = rect.width / 2 - (post._x + (post._cardW ?? TRACE_CARD_W) / 2) * scale
+    const targetY = rect.height / 2 - (post._y + (post._cardW ?? TRACE_CARD_W) / 2) * scale
     const start = { x: stateRef.current.x, y: stateRef.current.y }
-    const duration = 600
     const startTime = performance.now()
+    const duration = 600
 
     const animate = (now) => {
       const t = Math.min((now - startTime) / duration, 1)
-      const ease = 1 - Math.pow(1 - t, 3) // ease-out cubic
+      const ease = 1 - Math.pow(1 - t, 3)
       stateRef.current = {
         ...stateRef.current,
         x: start.x + (targetX - start.x) * ease,
         y: start.y + (targetY - start.y) * ease,
       }
-      if (containerRef.current) {
-        const canvasEl = containerRef.current.querySelector('[data-board-canvas]')
-        if (canvasEl) {
-          canvasEl.style.transform = `translate(${stateRef.current.x}px, ${stateRef.current.y}px) scale(${scale})`
-        }
+
+      const canvasElement = containerRef.current?.querySelector('[data-board-canvas]')
+      if (canvasElement) {
+        canvasElement.style.transform = `translate(${stateRef.current.x}px, ${stateRef.current.y}px) scale(${scale})`
       }
-      if (t < 1) requestAnimationFrame(animate)
-      else {
-        setHighlightId(newPostId)
-        setTimeout(() => { setHighlightId(null); onNewPostFocused?.() }, 1500)
+
+      if (t < 1) {
+        requestAnimationFrame(animate)
+        return
       }
+
+      setHighlightId(newPostId)
+      setTimeout(() => {
+        setHighlightId(null)
+        onNewPostFocused?.()
+      }, 1500)
     }
+
     requestAnimationFrame(animate)
-  }, [newPostId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [containerRef, laid, newPostId, onNewPostFocused, stateRef])
 
-  const pointerDownInfo = useRef(null)
-
-  const handleContainerPointerDown = useCallback((e) => {
-    pointerDownInfo.current = { x: e.clientX, y: e.clientY }
-    onPointerDown(e)
+  const handleContainerPointerDown = useCallback((event) => {
+    pointerDownInfo.current = { x: event.clientX, y: event.clientY }
+    onPointerDown(event)
   }, [onPointerDown])
 
-  const handleContainerClick = useCallback((e) => {
+  const handleContainerClick = useCallback((event) => {
     if (!pointerDownInfo.current) return
-    const dx = Math.abs(e.clientX - pointerDownInfo.current.x)
-    const dy = Math.abs(e.clientY - pointerDownInfo.current.y)
+
+    const dx = Math.abs(event.clientX - pointerDownInfo.current.x)
+    const dy = Math.abs(event.clientY - pointerDownInfo.current.y)
     if (dx > 8 || dy > 8) return
 
     const { x: tx, y: ty, scale } = stateRef.current
     const rect = containerRef.current?.getBoundingClientRect()
     if (!rect) return
 
-    const cx = (e.clientX - rect.left - tx) / scale
-    const cy = (e.clientY - rect.top - ty) / scale
+    const cx = (event.clientX - rect.left - tx) / scale
+    const cy = (event.clientY - rect.top - ty) / scale
 
-    for (let i = laid.length - 1; i >= 0; i--) {
-      const post = laid[i]
-      const cardW = post._cardW ?? CARD_W_CONST
-      const w = cardW
-      const h = post.type === 'polaroid' ? cardW * 1.5 : cardW
-      if (cx >= post._x && cx <= post._x + w && cy >= post._y && cy <= post._y + h) {
+    for (let index = laid.length - 1; index >= 0; index -= 1) {
+      const post = laid[index]
+      const cardW = post._cardW ?? TRACE_CARD_W
+      const cardH = isPolaroidTrace(post) ? cardW * 1.5 : cardW
+      if (cx >= post._x && cx <= post._x + cardW && cy >= post._y && cy <= post._y + cardH) {
         setSelectedPost(post)
         return
       }
     }
-  }, [laid, stateRef, containerRef])
+  }, [containerRef, laid, stateRef])
 
   if (posts.length === 0) {
     return <EmptyBoard onAdd={onAdd} />
@@ -476,50 +525,69 @@ function BoardCanvas({ posts, onAdd, transformRef, onZoomChange, onToggleLike, o
   return (
     <div
       ref={containerRef}
-      style={{ width: '100%', height: '100%', overflow: 'hidden', cursor: 'grab', touchAction: 'none' }}
-      onPointerDown={handleContainerPointerDown}
+      className="h-full w-full overflow-hidden"
+      style={{ cursor: 'grab', touchAction: 'none' }}
       onClick={handleContainerClick}
-      onTouchStart={onTouchStart}
+      onPointerDown={handleContainerPointerDown}
       onTouchEnd={onTouchEnd}
+      onTouchStart={onTouchStart}
     >
       <div
         data-board-canvas
+        className="absolute"
         style={{
-          position: 'absolute',
-          transformOrigin: '0 0',
-          transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
-          width: CANVAS_W,
           height: canvasH,
-          willChange: 'transform',
           pointerEvents: 'none',
+          transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
+          transformOrigin: '0 0',
+          width: BOARD_CANVAS_W,
+          willChange: 'transform',
         }}
       >
-        {laid.map((post) => (
-          <div
-            key={post.id}
-            style={{
-              transition: highlightId === post.id ? 'transform 0.3s' : 'none',
-              transform: highlightId === post.id ? 'scale(1.08)' : 'scale(1)',
-              filter: highlightId === post.id ? 'drop-shadow(0 0 12px rgba(255,200,50,0.8))' : 'none',
-            }}
-          >
-            {post.capturedImage ? (
-              <CapturedCard post={post} />
-            ) : post.type === 'polaroid' ? (
-              <PolaroidCard post={post} onToggleLike={onToggleLike} onReport={onReport} />
-            ) : (
-              <PostItCard post={post} onToggleLike={onToggleLike} onReport={onReport} />
-            )}
-          </div>
-        ))}
+        {laid.map((post) => {
+          const key = getTraceId(post)
+          const highlight = highlightId === key
+
+          return (
+            <div
+              key={key}
+              style={{
+                filter: highlight ? 'drop-shadow(0 0 12px rgba(255,200,50,0.8))' : 'none',
+                transform: highlight ? 'scale(1.08)' : 'scale(1)',
+                transition: highlight ? 'transform 0.3s' : 'none',
+              }}
+            >
+              {isPolaroidTrace(post) ? (
+                <PolaroidTraceCard post={post} onToggleLike={onToggleLike} />
+              ) : (
+                <PostItTraceCard post={post} onToggleLike={onToggleLike} />
+              )}
+            </div>
+          )
+        })}
       </div>
-      {selectedPost && (
+
+      {onRefresh ? (
+        <button
+          type="button"
+          onClick={onRefresh}
+          aria-label="흔적 새로고침"
+          className="absolute right-4 top-4 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-white/76 text-[#5E4938] shadow-[0_4px_14px_rgba(58,36,24,0.14)] backdrop-blur-sm active:bg-white/90"
+        >
+          <RefreshCw size={15} strokeWidth={1.9} />
+        </button>
+      ) : null}
+
+      {showTraceSheet && selectedPost ? (
         <TraceBottomSheet
           post={selectedPost}
           onClose={() => setSelectedPost(null)}
-          onDeleted={(id) => { onPostDeleted?.(id); setSelectedPost(null) }}
+          onDeleted={(id) => {
+            onPostDeleted?.(id)
+            setSelectedPost(null)
+          }}
         />
-      )}
+      ) : null}
     </div>
   )
 }

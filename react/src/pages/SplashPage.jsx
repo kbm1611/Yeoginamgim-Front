@@ -1,14 +1,29 @@
 import { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
+import { getAuthToken } from '../api/client'
+import { ONBOARDING_SEEN_STORAGE_KEY } from './OnboardingPage'
 import splend from '../assets/splend.png'
+
+function hasSeenOnboarding() {
+  try {
+    return window.localStorage.getItem(ONBOARDING_SEEN_STORAGE_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
 
 function SplashPage() {
   const navigate = useNavigate()
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      navigate('/onboarding', { replace: true })
+      if (!hasSeenOnboarding()) {
+        navigate('/onboarding', { replace: true })
+        return
+      }
+
+      navigate(getAuthToken() ? '/home' : '/login', { replace: true })
     }, 1500)
 
     return () => clearTimeout(timer)

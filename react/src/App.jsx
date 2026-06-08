@@ -17,6 +17,7 @@ import SignupPage from './pages/SignupPage'
 import SplashPage from './pages/SplashPage'
 import MemoryBoardCreatePage from './pages/MemoryBoardCreatePage'
 import MemoryBoardSuccessPage from './pages/MemoryBoardSuccessPage'
+import InviteBoardPage from './pages/InviteBoardPage'
 
 function RequireAuth({ children }) {
   const location = useLocation()
@@ -60,6 +61,14 @@ function AnimatedRoutes() {
         <Route path="/place/:id" element={<PlaceDetail />} />
         <Route path="/board/:id">
           <Route index element={<BoardDetail />} />
+          <Route
+            path="invite"
+            element={
+              <RequireAuth>
+                <InviteBoardPage />
+              </RequireAuth>
+            }
+          />
           <Route
             path="postit"
             element={

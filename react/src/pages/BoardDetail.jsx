@@ -1,187 +1,244 @@
-﻿import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Bell,
+  ChevronDown,
   ChevronLeft,
-  ChevronRight,
+  Copy,
+  Image,
+  Info,
+  Map,
+  Menu,
+  MessageCircle,
   Minus,
   PencilLine,
   Plus,
   Search,
-  SlidersHorizontal,
+  Settings,
+  UserRound,
+  UsersRound,
 } from 'lucide-react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { fetchBoardDetail } from '../api/boards'
-import { API_BASE_URL } from '../api/client'
-import { createTraceReport } from '../api/reports'
-import { addTraceLike, fetchBoardTraces, removeTraceLike, createTrace, uploadTraceImage } from '../api/traces'
 import BoardCanvas from '../components/board/BoardCanvas'
 import BottomNavigation from '../components/BottomNavigation'
 import boardBg from '../assets/image.png'
 
-const POSTIT_COLOR_BY_HEX = {
-  '#fff8dc': 'cream',
-  '#ffe4e1': 'pink',
-  '#f3d98e': 'yellow',
-  '#eeb7c6': 'pink',
-  '#d2d4a2': 'green',
-  '#f0ead6': 'cream',
-  '#f8f6f0': 'white',
+const BOARD_TYPE = {
+  PLACE: 'PLACE',
+  CUSTOM: 'CUSTOM',
 }
 
-const SORT_TABS = [
-  { key: 'latest', label: '최신순' },
-  { key: 'popular', label: '인기순' },
-  { key: 'oldest', label: '오래된순' },
+const DUMMY_BOARDS = {
+  place: {
+    boardType: BOARD_TYPE.PLACE,
+    name: '대림창고',
+    address: '서울 성동구 성수이로 78',
+    mapUrl: 'https://map.kakao.com',
+    photoLabel: '장소 사진 보기',
+    participants: [],
+  },
+  custom: {
+    boardType: BOARD_TYPE.CUSTOM,
+    name: '제주도 여행',
+    address: '',
+    participants: [
+      { id: 'me', name: '나', role: '보드장' },
+      { id: 'min', name: '민지', role: '참여자' },
+      { id: 'jun', name: '준호', role: '참여자' },
+    ],
+  },
+}
+
+const DUMMY_POSTS = [
+  {
+    traceId: 1,
+    type: 'POSTIT',
+    content: '커피 맛집 발견! 라떼 최고. 다음에도 이 자리에서 만나기.',
+    authorName: '지훈',
+    likeCount: 8,
+    createdAt: '2026-06-06T12:00:00',
+    liked: false,
+    style: { paperColor: 'yellow' },
+    cell: { col: 0, row: 0 },
+  },
+  {
+    traceId: 2,
+    type: 'POSTIT',
+    content: '비 오던 날이라 더 오래 기억날 것 같아. 조용한 음악까지 완벽했어.',
+    authorName: '지민',
+    likeCount: 4,
+    createdAt: '2026-06-05T18:30:00',
+    liked: true,
+    style: { paperColor: 'cream' },
+    cell: { col: 1, row: 0 },
+  },
+  {
+    traceId: 3,
+    type: 'POLAROID',
+    content: '친구랑 힐링 데이트',
+    authorName: '예지',
+    likeCount: 9,
+    imageUrl: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=600&q=80',
+    createdAt: '2026-06-04T15:10:00',
+    liked: false,
+    style: { backgroundColor: '#FFFFFF', color: '#2E231B' },
+    cell: { col: 0, row: 1 },
+  },
+  {
+    traceId: 4,
+    type: 'POSTIT',
+    content: '사진보다 그때 웃던 말투가 더 생각난다.',
+    authorName: '소연',
+    likeCount: 6,
+    createdAt: '2026-06-03T20:20:00',
+    liked: false,
+    style: { paperColor: 'pink' },
+    cell: { col: 1, row: 1 },
+  },
 ]
 
-function parseStyleJson(styleJson) {
-  if (!styleJson) return {}
-  if (typeof styleJson === 'object') return styleJson
-
-  try {
-    return JSON.parse(styleJson)
-  } catch {
-    return {}
+function resolveBoardType(id, locationState) {
+  if (locationState?.boardType === BOARD_TYPE.PLACE || locationState?.boardType === BOARD_TYPE.CUSTOM) {
+    return locationState.boardType
   }
+
+  const routeId = String(id ?? '').toLowerCase()
+  if (routeId.includes('custom') || routeId.includes('memory')) return BOARD_TYPE.CUSTOM
+
+  return BOARD_TYPE.PLACE
 }
 
-function resolveImageUrl(imageUrl) {
-  if (!imageUrl) return ''
-  if (/^https?:\/\//i.test(imageUrl)) return imageUrl
-  if (/^[a-zA-Z]:[\\/]/.test(imageUrl)) return ''
-  if (imageUrl.startsWith('/')) return `${API_BASE_URL}${imageUrl}`
-
-  return imageUrl
-}
-
-function resolvePaperColor(style) {
-  if (style.paperColor) return style.paperColor
-
-  const backgroundColor = style.backgroundColor?.toLowerCase()
-  return POSTIT_COLOR_BY_HEX[backgroundColor] ?? 'yellow'
-}
-
-function formatDateLabel(dateText) {
-  if (!dateText) return ''
-
-  const date = new Date(dateText)
-  if (Number.isNaN(date.getTime())) return ''
-
-  return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(
-    date.getDate(),
-  ).padStart(2, '0')}`
-}
-
-function traceToPost(trace) {
-  const element = trace.elements?.[0] ?? {}
-  const style = parseStyleJson(element.styleJson)
-  const isPolaroid = element.contentType === 'POLAROID'
+function buildBoard(id, locationState) {
+  const boardType = resolveBoardType(id, locationState)
+  const fallback = boardType === BOARD_TYPE.CUSTOM ? DUMMY_BOARDS.custom : DUMMY_BOARDS.place
 
   return {
-    id: trace.traceId ?? element.elementId,
-    type: isPolaroid ? 'polaroid' : 'postit',
-    content: element.textContent ?? '',
-    capturedImage: resolveImageUrl(element.imageUrl),  // 서버 이미지 → 보드에 표시
-    media: isPolaroid
-      ? {
-          image: resolveImageUrl(element.imageUrl),
-          dateLabel: formatDateLabel(trace.createdAt),
-        }
-      : undefined,
-    style: isPolaroid
-      ? {
-          ...style,
-          color: style.textColor ?? '#2E231B',
-          backgroundColor: style.backgroundColor ?? style.paperColor ?? '#FFFFFF',
-        }
-      : {
-          ...style,
-          paperColor: resolvePaperColor(style),
-        },
-    cell: {
-      col: trace.traceX ?? 0,
-      row: trace.traceY ?? 0,
-    },
-    createdAt: trace.createdAt,
-    likes: trace.likeCount ?? 0,
-    liked: trace.liked === true,
-    nickname: trace.nickname,
+    ...fallback,
+    id,
+    boardType,
+    name: locationState?.boardName ?? fallback.name,
   }
 }
 
-function BoardHeader({ placeName, onBack }) {
+function sortPosts(posts, sort) {
+  return [...posts].sort((left, right) => {
+    const leftTime = new Date(left.createdAt).getTime()
+    const rightTime = new Date(right.createdAt).getTime()
+    return sort === 'oldest' ? leftTime - rightTime : rightTime - leftTime
+  })
+}
+
+function BoardTopBar({ title, onBack, children }) {
   return (
-    <div className="flex items-center justify-between bg-[#F5EFE6] px-4 pb-2 pt-3">
+    <header className="flex items-center justify-between bg-[#F5EFE6] px-4 pb-2 pt-3">
       <button
         type="button"
         onClick={onBack}
         aria-label="뒤로가기"
-        className="flex h-8 w-8 shrink-0 items-center justify-center text-[#3B2A1E]"
+        className="flex h-9 w-9 shrink-0 items-center justify-center text-[#3B2A1E]"
       >
         <ChevronLeft size={24} strokeWidth={1.8} />
       </button>
 
-      <div className="flex flex-1 flex-col items-center">
-        <button type="button" className="flex items-center gap-0.5">
-          <span className="text-[16px] font-bold text-[#3B2A1E]">{placeName}</span>
-          <ChevronRight size={15} strokeWidth={2.2} className="text-[#3B2A1E]" />
-        </button>
-      </div>
+      <h1 className="max-w-[180px] truncate text-center text-[16px] font-bold text-[#3B2A1E]">{title}</h1>
 
-      <div className="flex items-center gap-1">
-        <button type="button" className="flex h-8 w-8 items-center justify-center text-[#3B2A1E]">
-          <Search size={18} strokeWidth={1.8} />
-        </button>
-        <button type="button" className="flex h-8 w-8 items-center justify-center text-[#3B2A1E]">
-          <Bell size={18} strokeWidth={1.8} />
-        </button>
-        <button type="button" className="flex h-8 w-8 items-center justify-center text-[#3B2A1E]">
-          <svg width="18" height="14" viewBox="0 0 18 14" fill="none">
-            <rect y="0" width="18" height="2" rx="1" fill="#3B2A1E" />
-            <rect y="6" width="18" height="2" rx="1" fill="#3B2A1E" />
-            <rect y="12" width="18" height="2" rx="1" fill="#3B2A1E" />
-          </svg>
-        </button>
-      </div>
-    </div>
+      <div className="flex h-9 shrink-0 items-center gap-1">{children}</div>
+    </header>
   )
 }
 
-function FilterBar({ sort, onSort }) {
+function HeaderIconButton({ label, onClick, children }) {
   return (
-    <div className="flex items-center justify-between bg-[#F5EFE6] px-4 pb-3 pt-0">
-      <div className="flex gap-1 rounded-full bg-white/70 p-1 shadow-sm">
-        {SORT_TABS.map(({ key, label }) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => onSort(key)}
-            className={`rounded-full px-3.5 py-1 text-[13px] font-semibold transition-all ${
-              sort === key ? 'bg-[#3B2A1E] text-white shadow-sm' : 'text-[#6B5344]'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className="flex h-9 w-9 items-center justify-center rounded-full text-[#3B2A1E] active:bg-[#E7DCCF]"
+    >
+      {children}
+    </button>
+  )
+}
 
+function PlaceBoardHeader({ board, onBack, onOpenPlaceInfo }) {
+  return (
+    <BoardTopBar title={board.name} onBack={onBack}>
+      <HeaderIconButton label="검색">
+        <Search size={18} strokeWidth={1.8} />
+      </HeaderIconButton>
+      <HeaderIconButton label="장소 정보" onClick={onOpenPlaceInfo}>
+        <Info size={18} strokeWidth={1.8} />
+      </HeaderIconButton>
+      <HeaderIconButton label="메뉴">
+        <Menu size={19} strokeWidth={1.8} />
+      </HeaderIconButton>
+    </BoardTopBar>
+  )
+}
+
+function CustomBoardHeader({ board, onBack, onOpenInvite }) {
+  return (
+    <BoardTopBar title={board.name} onBack={onBack}>
+      <HeaderIconButton label="참여자">
+        <UsersRound size={18} strokeWidth={1.8} />
+      </HeaderIconButton>
+      <HeaderIconButton label="초대" onClick={onOpenInvite}>
+        <MessageCircle size={18} strokeWidth={1.8} />
+      </HeaderIconButton>
+      <HeaderIconButton label="설정">
+        <Settings size={18} strokeWidth={1.8} />
+      </HeaderIconButton>
+    </BoardTopBar>
+  )
+}
+
+function BoardSortControl({ sort, onSort }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const currentLabel = sort === 'oldest' ? '오래된순' : '최신순'
+
+  return (
+    <div className="relative bg-[#F5EFE6] px-4 pb-3">
       <button
         type="button"
-        className="flex items-center gap-1.5 rounded-full border border-[#D8CDBF] bg-white/70 px-3 py-1.5 text-[13px] font-medium text-[#5C4A3B] shadow-sm"
+        onClick={() => setIsOpen((open) => !open)}
+        className="flex h-9 items-center gap-1 rounded-full bg-white/78 px-3.5 text-[13px] font-bold text-[#4A3527] shadow-sm"
       >
-        <SlidersHorizontal size={13} strokeWidth={2} />
-        필터
+        {currentLabel}
+        <ChevronDown size={14} strokeWidth={2} />
       </button>
+
+      {isOpen ? (
+        <div className="absolute left-4 top-10 z-40 w-[112px] overflow-hidden rounded-[12px] border border-[#E1D4C5] bg-white shadow-[0_12px_24px_rgba(58,36,24,0.14)]">
+          {[
+            ['latest', '최신순'],
+            ['oldest', '오래된순'],
+          ].map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => {
+                onSort(key)
+                setIsOpen(false)
+              }}
+              className={`block h-10 w-full px-3 text-left text-[13px] font-bold ${
+                sort === key ? 'bg-[#F5EFE6] text-[#3B2A1E]' : 'text-[#7B6250]'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   )
 }
 
 function ZoomControls({ zoom, onZoomIn, onZoomOut }) {
   return (
-    <div className="flex flex-col items-center overflow-hidden rounded-2xl bg-white shadow-[0_4px_16px_rgba(58,36,24,0.15)]">
+    <div className="flex flex-col items-center overflow-hidden rounded-[16px] bg-white/92 shadow-[0_4px_16px_rgba(58,36,24,0.15)] backdrop-blur-sm">
       <button
         type="button"
         onClick={onZoomIn}
+        aria-label="확대"
         className="flex h-10 w-10 items-center justify-center border-b border-[#EDE5DA] text-[#3B2A1E]"
       >
         <Plus size={18} strokeWidth={2} />
@@ -192,6 +249,7 @@ function ZoomControls({ zoom, onZoomIn, onZoomOut }) {
       <button
         type="button"
         onClick={onZoomOut}
+        aria-label="축소"
         className="flex h-10 w-10 items-center justify-center border-t border-[#EDE5DA] text-[#3B2A1E]"
       >
         <Minus size={18} strokeWidth={2} />
@@ -200,277 +258,302 @@ function ZoomControls({ zoom, onZoomIn, onZoomOut }) {
   )
 }
 
+function BottomSheet({ title, onClose, children }) {
+  return (
+    <div className="absolute inset-0 z-50 flex items-end bg-black/18" onClick={onClose}>
+      <section
+        className="w-full rounded-t-[24px] bg-[#FFF9F0] px-5 pb-8 pt-3 shadow-[0_-12px_30px_rgba(42,28,20,0.18)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="mx-auto mb-4 h-1.5 w-11 rounded-full bg-[#D7C7B6]" />
+        <div className="mb-5 flex items-center justify-between">
+          <h2 className="text-[18px] font-bold text-[#2B1810]">{title}</h2>
+          <button type="button" onClick={onClose} className="text-[13px] font-bold text-[#8A715D]">
+            닫기
+          </button>
+        </div>
+        {children}
+      </section>
+    </div>
+  )
+}
+
+function PlaceInfoSheet({ board, onClose }) {
+  return (
+    <BottomSheet title="장소 정보" onClose={onClose}>
+      <div className="space-y-4">
+        <div>
+          <p className="text-[20px] font-bold text-[#2B1810]">{board.name}</p>
+          <p className="mt-1 text-[14px] font-medium leading-relaxed text-[#7A6250]">{board.address}</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            className="flex h-12 items-center justify-center gap-2 rounded-full bg-[#3D2415] text-[14px] font-bold text-white"
+          >
+            <Map size={16} strokeWidth={2} />
+            지도 보기
+          </button>
+          <button
+            type="button"
+            className="flex h-12 items-center justify-center gap-2 rounded-full border border-[#D9C7B4] bg-white text-[14px] font-bold text-[#5B3E2B]"
+          >
+            <Image size={16} strokeWidth={2} />
+            장소 사진 보기
+          </button>
+        </div>
+      </div>
+    </BottomSheet>
+  )
+}
+
+function InviteSheet({ board, inviteLink, onCopy, copyMessage, onClose }) {
+  return (
+    <BottomSheet title="초대" onClose={onClose}>
+      <div className="space-y-5">
+        <div className="rounded-[16px] bg-[#EFE1D1] px-4 py-3">
+          <p className="text-[12px] font-bold text-[#7A5D46]">초대 링크</p>
+          <p className="mt-2 break-all text-[13px] font-semibold leading-relaxed text-[#3D2415]">{inviteLink}</p>
+          {copyMessage ? <p className="mt-2 text-[12px] font-bold text-[#7A5D46]">{copyMessage}</p> : null}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={onCopy}
+            className="flex h-12 items-center justify-center gap-2 rounded-full bg-[#3D2415] text-[14px] font-bold text-white"
+          >
+            <Copy size={16} strokeWidth={2} />
+            링크 복사
+          </button>
+          <button
+            type="button"
+            onClick={onCopy}
+            className="flex h-12 items-center justify-center gap-2 rounded-full bg-[#FEE500] text-[14px] font-bold text-[#3A2920]"
+          >
+            <MessageCircle size={16} strokeWidth={2} />
+            카카오 공유
+          </button>
+        </div>
+
+        <section>
+          <h3 className="mb-3 text-[15px] font-bold text-[#2B1810]">참여자 목록</h3>
+          <div className="space-y-2">
+            {board.participants.map((participant) => (
+              <div key={participant.id} className="flex items-center justify-between rounded-[14px] bg-white px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#EFE1D1] text-[#6A4D37]">
+                    <UserRound size={18} strokeWidth={1.8} />
+                  </span>
+                  <span className="text-[14px] font-bold text-[#2B1810]">{participant.name}</span>
+                </div>
+                <span className="text-[12px] font-bold text-[#8A715D]">{participant.role}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+    </BottomSheet>
+  )
+}
+
+function PlaceBoardChrome({ board, onBack, onOpenPlaceInfo, children }) {
+  return (
+    <>
+      <PlaceBoardHeader board={board} onBack={onBack} onOpenPlaceInfo={onOpenPlaceInfo} />
+      {children}
+    </>
+  )
+}
+
+function CustomBoardChrome({ board, onBack, onOpenInvite, children }) {
+  return (
+    <>
+      <CustomBoardHeader board={board} onBack={onBack} onOpenInvite={onOpenInvite} />
+      {children}
+    </>
+  )
+}
+
 function BoardDetail() {
   const navigate = useNavigate()
   const location = useLocation()
   const { id } = useParams()
-  const boardId = id ?? 'default'
+  const boardId = id ?? 'place-daelim'
 
+  const board = useMemo(() => buildBoard(boardId, location.state), [boardId, location.state])
   const [sort, setSort] = useState('latest')
-  const [boardDetail, setBoardDetail] = useState(null)
-  const [posts, setPosts] = useState([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [errorMessage, setErrorMessage] = useState('')
+  const [posts, setPosts] = useState(() => DUMMY_POSTS)
   const [zoom, setZoom] = useState(100)
-  const transformRef = useRef(null)
-
-  const [placementDraft, setPlacementDraft] = useState(() => {
-    const draft = location.state?.placementDraft ?? null
-    if (draft) setTimeout(() => window.history.replaceState({}, ''), 0)
-    return draft
-  })
-  const [isSaving, setIsSaving] = useState(false)
+  const [activeSheet, setActiveSheet] = useState(null)
+  const [copyMessage, setCopyMessage] = useState('')
   const [newPostId, setNewPostId] = useState(null)
+  const transformRef = useRef(null)
+  const processedDraftRef = useRef(null)
 
-  useEffect(() => {
-    let ignore = false
+  const sortedPosts = useMemo(() => sortPosts(posts, sort), [posts, sort])
 
-    async function loadBoardDetail() {
-      setBoardDetail(null)
-
-      try {
-        const detail = await fetchBoardDetail(boardId)
-        if (!ignore) {
-          setBoardDetail(detail)
-        }
-      } catch {
-        if (!ignore) {
-          setBoardDetail(null)
-        }
-      }
-    }
-
-    loadBoardDetail()
-
-    return () => {
-      ignore = true
-    }
+  const inviteLink = useMemo(() => {
+    if (typeof window === 'undefined') return `/board/${boardId}`
+    return `${window.location.origin}/board/${boardId}`
   }, [boardId])
 
-  useEffect(() => {
-    let ignore = false
-
-    async function loadTraces() {
-      setIsLoading(true)
-      setErrorMessage('')
-      setPosts([])
-
-      try {
-        const data = await fetchBoardTraces(boardId, { sort, limit: 100 })
-
-        if (ignore) return
-        setPosts((data.traces ?? []).map(traceToPost))
-      } catch (error) {
-        if (ignore) return
-        setPosts([])
-        setErrorMessage(error.message ?? '흔적을 불러오지 못했습니다.')
-      } finally {
-        if (!ignore) setIsLoading(false)
-      }
-    }
-
-    loadTraces()
-    return () => { ignore = true }
-  }, [boardId, sort])
-
-  // 보드 진입 시 placementDraft 있으면 자동 배치
-  useEffect(() => {
-    if (!placementDraft || isLoading || isSaving) return
-
-    // 점유된 셀 계산
-    const occupied = new Set(posts.map(p => `${p.cell?.row ?? 0}-${p.cell?.col ?? 0}`))
-
-    // BFS로 빈 셀 탐색
-    const findEmpty = () => {
-      for (let row = 0; row < 50; row++) {
-        for (let col = 0; col < 2; col++) {
-          if (!occupied.has(`${row}-${col}`)) return { row, col }
-        }
-      }
-      return { row: 0, col: 0 }
-    }
-
-    const cell = findEmpty()
-    handlePlace(cell)
-  }, [placementDraft, isLoading]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const headerPlaceName = boardDetail?.place?.placeName ?? id ?? '장소 보드'
-
-  const handleAdd = () => navigate(`/board/${boardId}/postit`)
-
-  const handlePlace = async (cell) => {
-    if (!placementDraft) return
-    setIsSaving(true)
-    setPlacementDraft(null)
-
-    try {
-      // 1. 캡처 이미지 업로드
-      let imageUrl = null
-      if (placementDraft.capturedImage) {
-        const res = await fetch(placementDraft.capturedImage)
-        const blob = await res.blob()
-        const file = new File([blob], 'trace.png', { type: 'image/png' })
-        const uploaded = await uploadTraceImage(file)
-        imageUrl = uploaded.imageUrl ?? uploaded.url ?? null
-      }
-
-      // 2. 흔적 생성
-      const contentType = placementDraft.type === 'polaroid' ? 'POLAROID' : 'POST_IT'
-      await createTrace(boardId, {
-        traceX: cell.col,
-        traceY: cell.row,
-        elements: [{
-          contentType,
-          textContent: placementDraft.content ?? '',
-          imageUrl: imageUrl ?? placementDraft.media?.image ?? null,
-          styleJson: JSON.stringify(placementDraft.style ?? {}),
-        }],
-      })
-
-      // 3. 저장 성공 → 목록 새로고침
-      const fresh = await fetchBoardTraces(boardId, { sort, limit: 100 })
-      const newPosts = (fresh.traces ?? []).map(traceToPost)
-      setPosts(newPosts)
-      // 새로 추가된 흔적 찾기 (traceX=col, traceY=row로 매칭)
-      const saved = newPosts.find(p => p.cell?.col === cell.col && p.cell?.row === cell.row)
-      if (saved) setNewPostId(saved.id)
-    } catch (e) {
-      console.warn('흔적 저장 실패:', e)
-    } finally {
-      setIsSaving(false)
-    }
+  const refreshTraces = () => {
+    setPosts((prev) => {
+      if (prev.length === 0) return DUMMY_POSTS
+      return [...prev]
+    })
   }
 
+  useEffect(() => {
+    const draft = location.state?.placementDraft
+    if (!draft) return
+    if (processedDraftRef.current === draft) return
+    processedDraftRef.current = draft
+
+    const occupied = new Set(posts.map((post) => `${post.cell?.row ?? 0}-${post.cell?.col ?? 0}`))
+    let nextCell = { row: 0, col: 0 }
+
+    for (let row = 0; row < 50; row += 1) {
+      for (let col = 0; col < 2; col += 1) {
+        if (!occupied.has(`${row}-${col}`)) {
+          nextCell = { row, col }
+          row = 50
+          break
+        }
+      }
+    }
+
+    const nextPost = {
+      traceId: `local-${Date.now()}`,
+      type: draft.type === 'polaroid' || draft.type === 'POLAROID' ? 'POLAROID' : 'POSTIT',
+      content: draft.content ?? '',
+      capturedImage: draft.capturedImage,
+      imageUrl: draft.media?.image ?? null,
+      media: draft.media,
+      authorName: '나',
+      likeCount: 0,
+      style: draft.style ?? { paperColor: 'yellow' },
+      cell: { col: nextCell.col, row: nextCell.row },
+      createdAt: new Date().toISOString(),
+      liked: false,
+    }
+
+    setPosts((prev) => [nextPost, ...prev])
+    setNewPostId(nextPost.traceId)
+    window.history.replaceState({}, '')
+
+  }, [location.state, posts])
+
+  const handleAdd = () => {
+    navigate(`/board/${boardId}/postit`, {
+      state: {
+        boardType: board.boardType,
+        boardName: board.name,
+      },
+    })
+  }
 
   const handleToggleLike = async (post) => {
-    const result = post.liked ? await removeTraceLike(post.id) : await addTraceLike(post.id)
+    const nextLiked = !post.liked
+    const nextLikes = Math.max(0, (post.likeCount ?? post.likes ?? 0) + (nextLiked ? 1 : -1))
+    const postId = post.traceId ?? post.id
 
     setPosts((prev) =>
       prev.map((item) =>
-        item.id === post.id
-          ? {
-              ...item,
-              liked: result.liked === true,
-              likes: result.likeCount ?? item.likes,
-            }
+        (item.traceId ?? item.id) === postId
+          ? { ...item, liked: nextLiked, likeCount: nextLikes, likes: nextLikes }
           : item,
       ),
     )
 
-    return result
+    return { liked: nextLiked, likeCount: nextLikes }
   }
 
-  const handleCreateReport = (post, reportKind) => {
-    return createTraceReport(post.id, { reportKind })
+  const handleCopyInvite = async () => {
+    try {
+      await navigator.clipboard.writeText(inviteLink)
+      setCopyMessage('초대 링크를 복사했어요.')
+    } catch {
+      setCopyMessage('링크를 직접 복사해주세요.')
+    }
   }
 
   const handleZoomIn = () => {
-    setZoom((z) => Math.min(z + 25, 200))
+    setZoom((value) => Math.min(value + 25, 200))
     transformRef.current?.zoomIn(0.25)
   }
 
   const handleZoomOut = () => {
-    setZoom((z) => Math.max(z - 25, 50))
+    setZoom((value) => Math.max(value - 25, 50))
     transformRef.current?.zoomOut(0.25)
   }
 
-  const renderBoardContent = () => {
-    if (isLoading) {
-      return (
-        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-          {[
-            { top: '8%', left: '8%', w: 180, h: 180, rotate: -3 },
-            { top: '8%', left: '55%', w: 180, h: 180, rotate: 2 },
-            { top: '42%', left: '8%', w: 180, h: 180, rotate: 1 },
-            { top: '42%', left: '55%', w: 180, h: 180, rotate: -2 },
-          ].map((s, i) => (
-            <div
-              key={i}
-              style={{
-                position: 'absolute',
-                top: s.top, left: s.left,
-                width: s.w, height: s.h,
-                borderRadius: 4,
-                transform: `rotate(${s.rotate}deg)`,
-                background: 'linear-gradient(90deg, #EDE5DA 25%, #F5EFE6 50%, #EDE5DA 75%)',
-                backgroundSize: '200% 100%',
-                animation: 'shimmer 1.5s infinite',
-              }}
-            />
-          ))}
-          <style>{`
-            @keyframes shimmer {
-              0% { background-position: 200% 0; }
-              100% { background-position: -200% 0; }
-            }
-          `}</style>
-        </div>
-      )
-    }
-
-
-    return (
-      <BoardCanvas
-        posts={posts}
-        onAdd={handleAdd}
-        transformRef={transformRef}
-        onZoomChange={setZoom}
-        onToggleLike={handleToggleLike}
-        onReport={handleCreateReport}
-        onPostDeleted={(id) => setPosts(prev => prev.filter(p => p.id !== id))}
-        newPostId={newPostId}
-        onNewPostFocused={() => setNewPostId(null)}
-      />
-    )
-  }
-
-  return (
-    <main className="app-device flex flex-col overflow-hidden">
-      <BoardHeader
-        placeName={headerPlaceName}
-        onBack={() => navigate(-1)}
-      />
-
-      <FilterBar sort={sort} onSort={setSort} />
+  const chrome = (
+    <>
+      <BoardSortControl sort={sort} onSort={setSort} />
 
       <div className="relative flex-1 overflow-hidden">
-        <img
-          src={boardBg}
-          alt=""
-          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-        />
+        <img src={boardBg} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-cover" />
+        <div className="absolute inset-0">
+          <BoardCanvas
+            posts={sortedPosts}
+            onAdd={handleAdd}
+            onRefresh={refreshTraces}
+            transformRef={transformRef}
+            onZoomChange={setZoom}
+            onToggleLike={handleToggleLike}
+            onReport={() => Promise.resolve()}
+            onPostDeleted={(postId) => setPosts((prev) => prev.filter((post) => (post.traceId ?? post.id) !== postId))}
+            newPostId={newPostId}
+            onNewPostFocused={() => setNewPostId(null)}
+            showTraceSheet={false}
+          />
+        </div>
 
-        <div className="absolute inset-0">{renderBoardContent()}</div>
+        <div className="absolute bottom-[92px] right-4 z-20">
+          <ZoomControls zoom={zoom} onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} />
+        </div>
 
-        {/* 저장 중 토스트 */}
-        {isSaving && (
-          <div style={{
-            position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)',
-            backgroundColor: 'rgba(42,28,20,0.85)', color: '#fff',
-            padding: '10px 20px', borderRadius: 24, fontSize: 13, fontWeight: 600,
-            zIndex: 50, backdropFilter: 'blur(8px)',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-          }}>
-            흔적을 저장하는 중...
-          </div>
-        )}
-
-        {!isLoading && !errorMessage ? (
-          <div className="absolute bottom-24 right-4 z-20">
-            <ZoomControls zoom={zoom} onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} />
-          </div>
-        ) : null}
-
-        <button
-          type="button"
-          onClick={handleAdd}
-          className="absolute bottom-4 right-4 z-20 flex items-center gap-2 rounded-full bg-[#3B2A1E] px-5 py-3 shadow-[0_6px_20px_rgba(58,36,24,0.35)]"
-        >
-          <PencilLine size={16} strokeWidth={2} className="text-white" />
-          <span className="text-[14px] font-semibold text-white">흔적 남기기</span>
-        </button>
+        <div className="absolute bottom-5 left-5 right-5 z-20">
+          <button
+            type="button"
+            onClick={handleAdd}
+            className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-[#3B2A1E] text-[16px] font-bold text-white shadow-[0_8px_22px_rgba(58,36,24,0.32)]"
+          >
+            <PencilLine size={18} strokeWidth={2} />
+            흔적 남기기
+          </button>
+        </div>
       </div>
+    </>
+  )
+
+  return (
+    <main className="app-device relative flex flex-col overflow-hidden bg-[#F5EFE6]">
+      {board.boardType === BOARD_TYPE.PLACE ? (
+        <PlaceBoardChrome board={board} onBack={() => navigate(-1)} onOpenPlaceInfo={() => setActiveSheet('place')}>
+          {chrome}
+        </PlaceBoardChrome>
+      ) : (
+        <CustomBoardChrome board={board} onBack={() => navigate(-1)} onOpenInvite={() => setActiveSheet('invite')}>
+          {chrome}
+        </CustomBoardChrome>
+      )}
+
       <BottomNavigation />
+
+      {activeSheet === 'place' ? <PlaceInfoSheet board={board} onClose={() => setActiveSheet(null)} /> : null}
+      {activeSheet === 'invite' ? (
+        <InviteSheet
+          board={board}
+          inviteLink={inviteLink}
+          onCopy={handleCopyInvite}
+          copyMessage={copyMessage}
+          onClose={() => setActiveSheet(null)}
+        />
+      ) : null}
     </main>
   )
 }
