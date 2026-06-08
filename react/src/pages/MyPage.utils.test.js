@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { getVisibleProfileImageUrl, normalizeMyPageData } from './MyPage.utils.js'
+import {
+  STATS_PARTIAL_FAILURE_MESSAGE,
+  getVisibleProfileImageUrl,
+  loadMyPageData,
+  normalizeMyPageData,
+} from './MyPage.utils.js'
 
 test('normalizeMyPageData builds profile and stats from API responses', () => {
   const result = normalizeMyPageData({
@@ -46,6 +51,8 @@ test('normalizeMyPageData builds profile and stats from API responses', () => {
     traceCount: 2,
     archiveBoardCount: 2,
     receivedLikeCount: 3,
+    isPartial: false,
+    message: '',
   })
 })
 
@@ -68,7 +75,62 @@ test('normalizeMyPageData handles empty API responses without invented values', 
     traceCount: 0,
     archiveBoardCount: 0,
     receivedLikeCount: 0,
+    isPartial: false,
+    message: '',
   })
+})
+
+test('loadMyPageData keeps profile ready when a non-auth stats API fails', async () => {
+  const result = await loadMyPageData({
+    fetchMyInfo: async () => ({ email: 'user@example.com', nickname: 'user' }),
+    fetchMyTraces: async () => {
+      const error = new Error('server failed')
+      error.status = 500
+      throw error
+    },
+    fetchArchiveBoards: async () => ({ boards: [{ boardId: 1 }] }),
+  })
+
+  assert.equal(result.profile.email, 'user@example.com')
+  assert.deepEqual(result.stats, {
+    traceCount: 0,
+    archiveBoardCount: 1,
+    receivedLikeCount: 0,
+    isPartial: true,
+    message: STATS_PARTIAL_FAILURE_MESSAGE,
+  })
+})
+
+test('loadMyPageData propagates myinfo failures so the page can show its main error state', async () => {
+  const myInfoError = new Error('myinfo failed')
+  myInfoError.status = 500
+
+  await assert.rejects(
+    () => loadMyPageData({
+      fetchMyInfo: async () => {
+        throw myInfoError
+      },
+      fetchMyTraces: async () => ({ traces: [] }),
+      fetchArchiveBoards: async () => ({ boards: [] }),
+    }),
+    myInfoError,
+  )
+})
+
+test('loadMyPageData propagates stats API 401 errors so auth redirect still runs', async () => {
+  const unauthorizedError = new Error('unauthorized')
+  unauthorizedError.status = 401
+
+  await assert.rejects(
+    () => loadMyPageData({
+      fetchMyInfo: async () => ({ email: 'user@example.com', nickname: 'user' }),
+      fetchMyTraces: async () => ({ traces: [] }),
+      fetchArchiveBoards: async () => {
+        throw unauthorizedError
+      },
+    }),
+    unauthorizedError,
+  )
 })
 
 test('getVisibleProfileImageUrl returns empty when the current profile image failed to load', () => {
