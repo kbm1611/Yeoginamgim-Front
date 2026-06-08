@@ -18,7 +18,7 @@ import { logout } from '../api/auth'
 import { API_BASE_URL, clearAuthToken, getAuthToken } from '../api/client'
 import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
 import { deleteMyAccount, fetchMyInfo, updateMyInfo } from '../api/users'
-import { getVisibleProfileImageUrl, normalizeMyPageData } from './MyPage.utils'
+import { getVisibleProfileImageUrl, loadMyPageData } from './MyPage.utils'
 
 const WITHDRAWAL_CONFIRMATION = '회원탈퇴'
 
@@ -56,15 +56,10 @@ function MyPage() {
     setPageState({ status: 'loading', data: null, error: '' })
 
     try {
-      const [user, myTracesResponse, archiveBoardsResponse] = await Promise.all([
-        fetchMyInfo(),
-        fetchMyTraces(),
-        fetchArchiveBoards(),
-      ])
-      const data = normalizeMyPageData({
-        user,
-        myTracesResponse,
-        archiveBoardsResponse,
+      const data = await loadMyPageData({
+        fetchMyInfo,
+        fetchMyTraces,
+        fetchArchiveBoards,
       })
 
       setPageState({ status: 'ready', data, error: '' })
@@ -374,6 +369,11 @@ function MyPage() {
               <StatItem icon={Archive} label="장소" value={stats.archiveBoardCount} />
               <StatItem icon={Heart} label="받은 좋아요" value={stats.receivedLikeCount} />
             </div>
+            {stats.isPartial && (
+              <p className="mt-3 text-center text-[12px] font-medium text-[#8a6a4f]" aria-live="polite">
+                {stats.message}
+              </p>
+            )}
             <button
               type="button"
               onClick={() => navigate('/archive')}
