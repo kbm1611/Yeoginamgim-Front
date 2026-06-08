@@ -14,7 +14,8 @@ import {
 } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { fetchBoardDetailForRouteId } from '../api/boards'
-import { API_BASE_URL } from '../api/client'
+import { API_BASE_URL, clearAuthToken } from '../api/client'
+import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
 import { fetchBoardTraces } from '../api/traces'
 import {
   buildPlaceDetailFromBoardDetail,
@@ -99,10 +100,12 @@ function PlaceMetadataEmptyState() {
 }
 
 function RecentTraceCard({ trace }) {
-  if (trace.type === 'photo' && trace.image) {
+  const imageUrl = resolveTraceImageUrl(trace.image)
+
+  if (trace.type === 'photo' && imageUrl) {
     return (
       <article className="w-[148px] shrink-0 overflow-hidden rounded-2xl bg-white shadow-[0_2px_10px_rgba(60,42,30,0.10)]">
-        <img src={resolveTraceImageUrl(trace.image)} alt="" className="h-[120px] w-full object-cover" />
+        <img src={imageUrl} alt="" className="h-[120px] w-full object-cover" />
         <div className="px-2.5 py-2">
           <p className="truncate text-[12px] font-medium text-[#3B2A1E]">{trace.text}</p>
           <p className="mt-0.5 text-[11px] text-[#8B7A6B]">{trace.user}</p>
@@ -296,6 +299,8 @@ function PlaceDetailScreen() {
   const { id } = useParams()
   const [boardDetail, setBoardDetail] = useState(null)
   const [boardDetailStatus, setBoardDetailStatus] = useState(id ? 'loading' : 'error')
+  const [boardDetailError, setBoardDetailError] = useState('')
+  const [boardDetailRetryKey, setBoardDetailRetryKey] = useState(0)
   const [recentTraces, setRecentTraces] = useState([])
   const [recentTracesStatus, setRecentTracesStatus] = useState('idle')
   const [recentTracesError, setRecentTracesError] = useState('')
@@ -316,6 +321,7 @@ function PlaceDetailScreen() {
 
       setBoardDetail(null)
       setBoardDetailStatus('loading')
+      setBoardDetailError('')
 
       try {
         const detail = await fetchBoardDetailForRouteId(id)
@@ -323,9 +329,25 @@ function PlaceDetailScreen() {
           setBoardDetail(detail)
           setBoardDetailStatus('ready')
         }
-      } catch {
+      } catch (error) {
         if (!ignore) {
+          if (handleUnauthorizedApiError(error, {
+            clearToken: clearAuthToken,
+            navigate,
+            location: { pathname: `/places/${id}` },
+            redirect: true,
+          })) return
+
           setBoardDetail(null)
+          setBoardDetailError(getApiErrorMessage(error, {
+            fallback: '장소 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.',
+            statusMessages: {
+              403: '이 장소 보드에 접근할 권한이 없습니다.',
+              404: '장소 정보를 찾을 수 없습니다.',
+              409: '장소 보드 상태가 변경되었습니다. 다시 시도해주세요.',
+              500: '장소 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.',
+            },
+          }))
           setBoardDetailStatus('error')
         }
       }
@@ -336,7 +358,7 @@ function PlaceDetailScreen() {
     return () => {
       ignore = true
     }
-  }, [id])
+  }, [boardDetailRetryKey, id, navigate])
 
   useEffect(() => {
     const boardId = boardDetail?.boardId
@@ -366,7 +388,14 @@ function PlaceDetailScreen() {
         if (ignore) return
 
         setRecentTraces([])
-        setRecentTracesError(error?.message || '최근 흔적을 불러오지 못했습니다.')
+        setRecentTracesError(getApiErrorMessage(error, {
+          fallback: '최근 흔적을 불러오지 못했습니다.',
+          statusMessages: {
+            403: '최근 흔적을 볼 권한이 없습니다.',
+            404: '최근 흔적을 찾을 수 없습니다.',
+            500: '최근 흔적을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.',
+          },
+        }))
         setRecentTracesStatus('error')
       }
     }
@@ -392,10 +421,10 @@ function PlaceDetailScreen() {
       return (
         <PlaceDetailState
           title="장소 정보를 불러오지 못했습니다"
-          message="임시 장소 정보로 대체하지 않고, 실제 응답을 다시 확인해야 합니다."
+          message={boardDetailError || '임시 장소 정보로 대체하지 않고, 실제 응답을 다시 확인해야 합니다.'}
         >
           <StateButton variant="secondary" onClick={() => navigate(-1)}>뒤로가기</StateButton>
-          {id ? <StateButton onClick={() => navigate(`/board/${id}`)}>보드로 이동</StateButton> : null}
+          {id ? <StateButton onClick={() => setBoardDetailRetryKey((value) => value + 1)}>다시 시도</StateButton> : null}
         </PlaceDetailState>
       )
     }

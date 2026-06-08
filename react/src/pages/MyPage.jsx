@@ -16,8 +16,9 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { fetchArchiveBoards, fetchMyTraces } from '../api/archive'
 import { logout } from '../api/auth'
 import { API_BASE_URL, clearAuthToken, getAuthToken } from '../api/client'
+import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
 import { deleteMyAccount, fetchMyInfo, updateMyInfo } from '../api/users'
-import { getVisibleProfileImageUrl, normalizeMyPageData } from './MyPage.utils'
+import { getVisibleProfileImageUrl, loadMyPageData } from './MyPage.utils'
 
 const WITHDRAWAL_CONFIRMATION = '회원탈퇴'
 
@@ -55,26 +56,22 @@ function MyPage() {
     setPageState({ status: 'loading', data: null, error: '' })
 
     try {
-      const [user, myTracesResponse, archiveBoardsResponse] = await Promise.all([
-        fetchMyInfo(),
-        fetchMyTraces(),
-        fetchArchiveBoards(),
-      ])
-      const data = normalizeMyPageData({
-        user,
-        myTracesResponse,
-        archiveBoardsResponse,
+      const data = await loadMyPageData({
+        fetchMyInfo,
+        fetchMyTraces,
+        fetchArchiveBoards,
       })
 
       setPageState({ status: 'ready', data, error: '' })
       setNickname(data.profile.nickname)
       setBirthDate(data.profile.birthDate)
     } catch (error) {
-      if (error?.status === 401) {
-        clearAuthToken()
-        navigate('/login', { replace: true, state: { from: location } })
-        return
-      }
+      if (handleUnauthorizedApiError(error, {
+        clearToken: clearAuthToken,
+        navigate,
+        location,
+        redirect: true,
+      })) return
 
       setPageState({
         status: 'error',
@@ -166,11 +163,12 @@ function MyPage() {
       }
       await loadMyPage()
     } catch (error) {
-      if (error?.status === 401) {
-        clearAuthToken()
-        navigate('/login', { replace: true, state: { from: location } })
-        return
-      }
+      if (handleUnauthorizedApiError(error, {
+        clearToken: clearAuthToken,
+        navigate,
+        location,
+        redirect: true,
+      })) return
 
       setUpdateStatus({ type: 'error', message: getFriendlyError(error) })
     } finally {
@@ -218,11 +216,11 @@ function MyPage() {
       clearAuthToken()
       navigate('/login', { replace: true, state: { message: '회원 탈퇴가 완료되었습니다.' } })
     } catch (error) {
-      if (error?.status === 401) {
-        clearAuthToken()
-        navigate('/login', { replace: true })
-        return
-      }
+      if (handleUnauthorizedApiError(error, {
+        clearToken: clearAuthToken,
+        navigate,
+        redirect: true,
+      })) return
 
       setWithdrawStatus({ type: 'error', message: getFriendlyError(error) })
     } finally {
@@ -371,6 +369,11 @@ function MyPage() {
               <StatItem icon={Archive} label="장소" value={stats.archiveBoardCount} />
               <StatItem icon={Heart} label="받은 좋아요" value={stats.receivedLikeCount} />
             </div>
+            {stats.isPartial && (
+              <p className="mt-3 text-center text-[12px] font-medium text-[#8a6a4f]" aria-live="polite">
+                {stats.message}
+              </p>
+            )}
             <button
               type="button"
               onClick={() => navigate('/archive')}
@@ -574,9 +577,15 @@ function onlySixDigits(value) {
 }
 
 function getFriendlyError(error) {
-  if (error?.status === 404) return '사용자 정보를 찾을 수 없어요.'
-  if (error?.status >= 500) return '서버 응답이 불안정해요. 잠시 후 다시 시도해 주세요.'
-  return error?.message || '요청을 처리하지 못했어요.'
+  return getApiErrorMessage(error, {
+    fallback: '요청을 처리하지 못했어요.',
+    statusMessages: {
+      403: '이 작업을 수행할 권한이 없습니다.',
+      404: '사용자 정보를 찾을 수 없어요.',
+      409: '현재 계정 상태와 충돌합니다. 다시 확인해주세요.',
+      500: '서버 응답이 불안정해요. 잠시 후 다시 시도해 주세요.',
+    },
+  })
 }
 
 export default MyPage

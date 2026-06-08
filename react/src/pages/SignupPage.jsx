@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Link, useNavigate } from 'react-router-dom'
 import { sendEmailVerification, verifyEmailVerification } from '../api/auth'
+import { getApiErrorMessage } from '../api/errors'
 import { signupUser } from '../api/users'
 import { isEmailVerificationSendSucceeded, isValidSignupEmail } from './SignupPage.emailVerification'
 import '../css/signup.css'
@@ -51,30 +52,26 @@ const verificationErrorMessages = [
 ]
 
 function getFriendlySignupError(error) {
-  const message = String(error?.message ?? '').trim()
-  const normalized = message.toLowerCase()
-  const matched = signupErrorMessages.find(([key]) => normalized.includes(key))
-
-  if (matched) return matched[1]
-  if (error?.status === 409) return '이미 사용 중인 이메일입니다.'
-  if (error?.status >= 500) return '서버에 문제가 생겼습니다. 잠시 후 다시 시도해주세요.'
-  if (message) return message
-
-  return '회원가입에 실패했습니다. 입력한 정보를 다시 확인해주세요.'
+  return getApiErrorMessage(error, {
+    fallback: '회원가입에 실패했습니다. 입력한 정보를 다시 확인해주세요.',
+    messageMatchers: signupErrorMessages,
+    statusMessages: {
+      409: '이미 사용 중인 이메일입니다.',
+      500: '서버에 문제가 생겼습니다. 잠시 후 다시 시도해주세요.',
+    },
+  })
 }
 
 function getFriendlyVerificationError(error) {
-  const message = String(error?.message ?? '').trim()
-  const normalized = `${error?.body?.code ?? ''} ${message}`.toLowerCase()
-  const matched = verificationErrorMessages.find(([key]) => normalized.includes(key))
-
-  if (matched) return matched[1]
-  if (error?.status === 409) return '이미 사용 중인 이메일입니다.'
-  if (error?.status === 429) return '요청이 많습니다. 잠시 후 다시 시도해주세요.'
-  if (error?.status >= 500) return '메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.'
-  if (message) return message
-
-  return '이메일 인증을 처리하지 못했습니다. 다시 시도해주세요.'
+  return getApiErrorMessage(error, {
+    fallback: '이메일 인증을 처리하지 못했습니다. 다시 시도해주세요.',
+    messageMatchers: verificationErrorMessages,
+    statusMessages: {
+      409: '이미 사용 중인 이메일입니다.',
+      429: '요청이 많습니다. 잠시 후 다시 시도해주세요.',
+      500: '메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.',
+    },
+  })
 }
 
 function SignupPage() {
@@ -88,7 +85,6 @@ function SignupPage() {
   const normalizedEmail = form.email.trim().toLowerCase()
   const isEmailVerified = emailVerification.verified && emailVerification.email === normalizedEmail
   const canShowVerificationCode = emailVerification.codeSent && emailVerification.email === normalizedEmail
-  const canSubmitSignup = isEmailVerified && !isSubmitting && !emailVerification.isSending && !emailVerification.isVerifying
 
   const handleChange = (event) => {
     const { name, value } = event.target
@@ -139,7 +135,7 @@ function SignupPage() {
 
     setError('')
     setEmailVerification({
-      codeSent: false,
+      codeSent: canShowVerificationCode,
       email: normalizedEmail,
       error: '',
       isSending: true,
@@ -173,11 +169,11 @@ function SignupPage() {
         success: EMAIL_VERIFICATION_SEND_SUCCESS_MESSAGE,
         verified: false,
       })
-    } catch {
+    } catch (verificationError) {
       setEmailVerification({
-        codeSent: false,
+        codeSent: canShowVerificationCode,
         email: normalizedEmail,
-        error: EMAIL_VERIFICATION_SEND_FAILURE_MESSAGE,
+        error: getFriendlyVerificationError(verificationError) || EMAIL_VERIFICATION_SEND_FAILURE_MESSAGE,
         isSending: false,
         isVerifying: false,
         success: '',
@@ -336,11 +332,10 @@ function SignupPage() {
                   emailVerification.isSending ||
                   emailVerification.isVerifying ||
                   !normalizedEmail ||
-                  canShowVerificationCode ||
                   isEmailVerified
                 }
               >
-                {emailVerification.isSending ? '발송 중' : '인증번호 발송'}
+                {emailVerification.isSending ? '발송 중' : canShowVerificationCode ? '인증번호 재발송' : '인증번호 발송'}
               </button>
             </div>
           </label>
@@ -447,7 +442,7 @@ function SignupPage() {
           <motion.button
             type="submit"
             className="signup-submit"
-            disabled={!canSubmitSignup}
+            disabled={isSubmitting || emailVerification.isSending || emailVerification.isVerifying}
             whileTap={{ scale: 0.988 }}
             transition={{ duration: 0.12 }}
           >

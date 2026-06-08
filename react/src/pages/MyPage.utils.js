@@ -1,7 +1,37 @@
+export const STATS_PARTIAL_FAILURE_MESSAGE =
+  '\uC77C\uBD80 \uD1B5\uACC4\uB97C \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD574 \uAE30\uBCF8\uAC12\uC73C\uB85C \uD45C\uC2DC\uD569\uB2C8\uB2E4.'
+
+export async function loadMyPageData({
+  fetchMyInfo,
+  fetchMyTraces,
+  fetchArchiveBoards,
+}) {
+  const user = await fetchMyInfo()
+  const [tracesResult, archiveBoardsResult] = await Promise.allSettled([
+    fetchMyTraces(),
+    fetchArchiveBoards(),
+  ])
+  const unauthorizedStatsError = [tracesResult, archiveBoardsResult]
+    .find((result) => result.status === 'rejected' && result.reason?.status === 401)
+    ?.reason
+
+  if (unauthorizedStatsError) {
+    throw unauthorizedStatsError
+  }
+
+  return normalizeMyPageData({
+    user,
+    myTracesResponse: getFulfilledValue(tracesResult),
+    archiveBoardsResponse: getFulfilledValue(archiveBoardsResult),
+    statsPartialFailure: tracesResult.status === 'rejected' || archiveBoardsResult.status === 'rejected',
+  })
+}
+
 export function normalizeMyPageData({
   user,
   myTracesResponse,
   archiveBoardsResponse,
+  statsPartialFailure = false,
 }) {
   const traces = Array.isArray(myTracesResponse?.traces) ? myTracesResponse.traces : []
   const boards = Array.isArray(archiveBoardsResponse?.boards) ? archiveBoardsResponse.boards : []
@@ -20,6 +50,8 @@ export function normalizeMyPageData({
       traceCount: traces.length,
       archiveBoardCount: boards.length,
       receivedLikeCount: traces.reduce((sum, trace) => sum + Number(trace?.likeCount ?? 0), 0),
+      isPartial: statsPartialFailure,
+      message: statsPartialFailure ? STATS_PARTIAL_FAILURE_MESSAGE : '',
     },
   }
 }
@@ -42,4 +74,8 @@ function getDisplayNickname(user) {
 function getInitial(value) {
   const firstLetter = String(value ?? '').trim().charAt(0)
   return firstLetter ? firstLetter.toUpperCase() : 'U'
+}
+
+function getFulfilledValue(result) {
+  return result.status === 'fulfilled' ? result.value : null
 }

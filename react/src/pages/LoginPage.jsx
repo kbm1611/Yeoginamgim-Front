@@ -7,6 +7,7 @@ import {
   redirectToGoogleOAuth,
   redirectToKakaoOAuth,
 } from '../api/auth'
+import { getApiErrorMessage } from '../api/errors'
 import loginBgImage from '../assets/auth/login-bg.png'
 import '../css/login.css'
 
@@ -48,16 +49,14 @@ function getFriendlyLoginError(error) {
     return AUTH_TOKEN_STORAGE_ERROR_MESSAGE
   }
 
-  const message = String(error?.message ?? '').trim()
-  const normalized = message.toLowerCase()
-  const matched = loginErrorMessages.find(([key]) => normalized.includes(key))
-
-  if (matched) return matched[1]
-  if (error?.status === 401) return '이메일 또는 비밀번호가 일치하지 않습니다.'
-  if (error?.status >= 500) return '서버에 문제가 생겼습니다. 잠시 후 다시 시도해주세요.'
-  if (message) return message
-
-  return '로그인에 실패했습니다. 입력한 정보를 다시 확인해주세요.'
+  return getApiErrorMessage(error, {
+    fallback: '로그인에 실패했습니다. 입력한 정보를 다시 확인해주세요.',
+    messageMatchers: loginErrorMessages,
+    statusMessages: {
+      401: '이메일 또는 비밀번호가 일치하지 않습니다.',
+      500: '서버에 문제가 생겼습니다. 잠시 후 다시 시도해주세요.',
+    },
+  })
 }
 
 function LoginPage() {

@@ -100,6 +100,8 @@ export default function PlacementOverlay({ draft, posts, transformRef, onPlace, 
   const [pos, setPos] = useState(null)
   const [targetCell, setTargetCell] = useState(null)
   const [snapping, setSnapping] = useState(false)
+  const [snapPos, setSnapPos] = useState(null)
+  const [isDraggingNow, setIsDraggingNow] = useState(false)
   const isDragging = useRef(false)
   const overlayRef = useRef(null)
   const occupied = getOccupied(posts)
@@ -122,7 +124,9 @@ export default function PlacementOverlay({ draft, posts, transformRef, onPlace, 
     e.preventDefault()
     e.stopPropagation()
     isDragging.current = true
+    setIsDraggingNow(true)
     setSnapping(false)
+    setSnapPos(null)
     const { x, y } = getXY(e)
     updatePos(x, y)
   }
@@ -134,10 +138,12 @@ export default function PlacementOverlay({ draft, posts, transformRef, onPlace, 
     updatePos(x, y)
   }
 
-  const handleUp = (e) => {
+  const handleUp = () => {
     if (!isDragging.current) return
     isDragging.current = false
+    setIsDraggingNow(false)
     if (!targetCell) return
+    setSnapPos(getSnapPos())
     setSnapping(true)
     setTimeout(() => onPlace(targetCell), 300)
   }
@@ -149,7 +155,7 @@ export default function PlacementOverlay({ draft, posts, transformRef, onPlace, 
     return { x: cx * scale + positionX, y: cy * scale + positionY }
   }
 
-  const displayPos = snapping ? getSnapPos() : pos
+  const displayPos = snapping ? snapPos : pos
 
   return (
     <div
@@ -160,7 +166,7 @@ export default function PlacementOverlay({ draft, posts, transformRef, onPlace, 
         zIndex: 30,
         touchAction: 'none',
         userSelect: 'none',
-        cursor: isDragging.current ? 'grabbing' : 'grab',
+        cursor: isDraggingNow ? 'grabbing' : 'grab',
       }}
       onMouseDown={handleDown}
       onMouseMove={handleMove}

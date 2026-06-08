@@ -6,25 +6,17 @@ import { X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
-// ─── Mock ─────────────────────────────────────────────────────────────────────
-
-const MOCK_PHOTOS = [
-  'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80',
-  'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=800&q=80',
-  'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=800&q=80',
-]
-
-const PEN_COLORS = ['#2C1A0E', '#6B3A2A', '#B09070', '#E89090', '#F5C842', '#4D96FF', '#6BCB77']
-const TEXT_COLORS = ['#2C1A0E', '#5C3D2E', '#8B5E3C', '#C9843A', '#4D96FF', '#E89090', '#6BCB77']
-const POSTIT_BG_COLORS = ['#F5EDD5', '#F5D5D5', '#D5EDD5', '#D5E5F5', '#E8D5F5', '#F5E0D0']
+const PEN_COLORS = ['#2C1A0E', '#6B3A2A', '#C9843A', '#E89090', '#F5C842', '#9B7FD4', '#A8C5A0']
+const TEXT_COLORS = ['#2C1A0E', '#6B3A2A', '#C9843A', '#E89090', '#F5C842', '#9B7FD4', '#FFFFFF']
+const POSTIT_BG_COLORS = ['#F0E4C8', '#ECC0C0', '#BDD6BD', '#BDD0E8', '#D0BDE8', '#ECC8A8']
 const STICKERS = ['🌸', '💗', '⭐', '🌙', '🍀', '🎀', '🦋', '🌈', '☀️', '🌊', '🍃', '✨']
 const TAPE_COLORS = ['#C9D6C6', '#D4B896', '#B8C9D6', '#D6B8C9', '#C6D4B8', '#D6C9B8']
 
 const FONTS = [
-  { label: '손글씨', family: "'Nanum Pen Script',cursive" },
-  { label: '고딕',   family: 'sans-serif' },
-  { label: '명조',   family: 'serif' },
-  { label: '둥근체', family: "'Nanum Gothic',sans-serif" },
+  { label: '손글씨', family: "'Nanum Pen Script', cursive" },
+  { label: '귀여운', family: "'Gaegu', cursive" },
+  { label: '고딕',   family: "'Pretendard', sans-serif" },
+  { label: '명조',   family: "'Noto Serif KR', serif" },
 ]
 
 
@@ -33,6 +25,27 @@ const SIZE_MAP = { S: 18, M: 24, L: 32 }
 function today() {
   const d = new Date()
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
+}
+
+function drawTextObjects(ctx, objects, width, height, { baseWidth = 300 } = {}) {
+  objects.forEach((obj) => {
+    const x = (obj.xPct / 100) * width
+    const y = (obj.yPct / 100) * height
+    const fontScale = width / baseWidth
+    const fontSizePx = (obj.fontSize ?? 24) * fontScale
+    const lineH = fontSizePx * 1.3
+    const lines = (obj.text ?? '').split('\n')
+
+    ctx.save()
+    ctx.font = `${fontSizePx}px ${obj.fontFamily ?? 'sans-serif'}`
+    ctx.fillStyle = obj.color ?? '#2A1E14'
+    ctx.textAlign = obj.align ?? 'center'
+    ctx.textBaseline = 'middle'
+    lines.forEach((line, li) => {
+      ctx.fillText(line, x, y + (li - (lines.length - 1) / 2) * lineH)
+    })
+    ctx.restore()
+  })
 }
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -77,7 +90,7 @@ const PHOTO_TOOLS = [
 
 // ─── TextObject ───────────────────────────────────────────────────────────────
 
-function TextObject({ obj, selected, editing, containerRef, onSelect, onStartEdit, onEndEdit, onChange, onMove }) {
+function TextObject({ obj, selected, editing, textToolActive, containerRef, onSelect, onStartEdit, onEndEdit, onChange, onMove, onDelete }) {
   const editRef = useRef(null)
   const dragState = useRef(null)
 
@@ -179,8 +192,43 @@ function TextObject({ obj, selected, editing, containerRef, onSelect, onStartEdi
       }}
       onMouseDown={handlePointerDown}
       onTouchStart={handlePointerDown}
+      onClick={(e) => {
+        e.stopPropagation()
+        // 텍스트 툴 활성 시 단일 탭으로 바로 편집
+        if (textToolActive && !editing) onStartEdit()
+      }}
       onDoubleClick={(e) => { e.stopPropagation(); onStartEdit() }}
     >
+      {/* 선택 시 삭제 버튼 */}
+      {selected && !editing && (
+        <button
+          type="button"
+          onMouseDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); onDelete?.(obj.id) }}
+          style={{
+            position: 'absolute',
+            top: -10,
+            right: -10,
+            width: 20,
+            height: 20,
+            borderRadius: '50%',
+            backgroundColor: '#3B2A1E',
+            color: '#fff',
+            border: 'none',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 11,
+            fontWeight: 700,
+            zIndex: 20,
+            lineHeight: 1,
+          }}
+        >
+          ×
+        </button>
+      )}
       {editing ? (
         // 편집 모드: contentEditable div. children 없음 — useEffect로 textContent 직접 주입
         <div
@@ -342,8 +390,10 @@ function DrawingCanvas({ active, penColor, penSize, eraser, canvasRef, container
 
 function PostItPreview({
   previewRef,
+  postitBg,
+  textActive,
   textObjects, selectedTextId, editingTextId,
-  onCanvasClick, onSelectText, onStartEditText, onEndEditText, onChangeText, onMoveText,
+  onCanvasClick, onSelectText, onStartEditText, onEndEditText, onChangeText, onMoveText, onDeleteText,
   penActive, penColor, penSize, eraser, canvasRef,
 }) {
   const containerRef = previewRef
@@ -368,8 +418,17 @@ function PostItPreview({
         height: 'min(75vw, 300px)',
         transform: 'rotate(-1.5deg)',
         flexShrink: 0,
+        cursor: textActive ? 'text' : 'default',
+        outline: textActive ? '2px dashed rgba(59,36,24,0.25)' : 'none',
+        outlineOffset: 4,
       }}
-      onClick={penActive ? undefined : onCanvasClick}
+      onClick={penActive ? undefined : (e) => {
+        if (!containerRef.current) return
+        const rect = containerRef.current.getBoundingClientRect()
+        const xPct = ((e.clientX - rect.left) / rect.width) * 100
+        const yPct = ((e.clientY - rect.top) / rect.height) * 100
+        onCanvasClick(e, { xPct, yPct })
+      }}
     >
         {/* ① postit-bg: 정사각형에 꽉 */}
         <img
@@ -383,6 +442,19 @@ function PostItPreview({
             height: '100%',
             objectFit: 'cover',
             objectPosition: 'center top',
+            zIndex: 0,
+          }}
+        />
+
+        {/* ① 배경색 오버레이 — multiply로 포스트잇 색상 적용 */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            backgroundColor: postitBg,
+            mixBlendMode: 'multiply',
+            pointerEvents: 'none',
+            zIndex: 1,
           }}
         />
 
@@ -412,12 +484,14 @@ function PostItPreview({
               obj={obj}
               selected={selectedTextId === obj.id}
               editing={editingTextId === obj.id}
+              textToolActive={textActive}
               containerRef={containerRef}
               onSelect={() => onSelectText(obj.id)}
               onStartEdit={() => onStartEditText(obj.id)}
               onEndEdit={onEndEditText}
               onChange={onChangeText}
               onMove={onMoveText}
+              onDelete={onDeleteText}
             />
           ))}
         </div>
@@ -430,11 +504,14 @@ function PostItPreview({
 
 function PolaroidPreview({
   previewRef,
-  selectedPhoto, captionText, onCaptionChange, onAddPhoto,
+  selectedPhoto, onCaptionChange, onAddPhoto,
   penActive, penColor, penSize, eraser, canvasRef,
+  onCanvasClick,
   textObjects, selectedTextId, editingTextId,
-  onSelectText, onStartEditText, onEndEditText, onChangeText, onMoveText, onCanvasClick,
+  onSelectText, onStartEditText, onEndEditText, onChangeText, onMoveText,
 }) {
+  const containerRef = previewRef
+
   return (
     <div
       ref={previewRef}
@@ -548,6 +625,31 @@ function PolaroidPreview({
           containerRef={{ current: null }}
         />
       </div>
+
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          overflow: 'hidden',
+          zIndex: 5,
+          pointerEvents: penActive ? 'none' : 'auto',
+        }}
+      >
+        {textObjects.map((obj) => (
+          <TextObject
+            key={obj.id}
+            obj={obj}
+            selected={selectedTextId === obj.id}
+            editing={editingTextId === obj.id}
+            containerRef={containerRef}
+            onSelect={() => onSelectText(obj.id)}
+            onStartEdit={() => onStartEditText(obj.id)}
+            onEndEdit={onEndEditText}
+            onChange={onChangeText}
+            onMove={onMoveText}
+          />
+        ))}
+      </div>
     </div>
   )
 }
@@ -555,75 +657,100 @@ function PolaroidPreview({
 // ─── Option Panels ────────────────────────────────────────────────────────────
 
 function PhotoPanel({ selectedPhoto, onSelect }) {
+  const fileInputRef = useRef(null)
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0]
+    if (file) onSelect(URL.createObjectURL(file))
+    e.target.value = ''
+  }
+
   return (
     <div className="px-5 pt-4 pb-5">
       <p className="mb-3 text-[12px] font-semibold text-[#6B5A4C]">사진 선택</p>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileChange}
+      />
       <div className="flex gap-3 overflow-x-auto pb-1">
         {/* 앨범 버튼 */}
         <button
           type="button"
+          onClick={() => fileInputRef.current?.click()}
           className="flex h-20 w-20 shrink-0 flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-[#D4C9BB] bg-[#F8F4EE] text-[#8B7A6B]"
         >
           <span className="text-[26px] leading-none font-light">+</span>
           <span className="text-[10px]">앨범</span>
         </button>
-        {/* 목 사진 썸네일 */}
-        {MOCK_PHOTOS.map((photo, i) => (
+        {/* 선택된 사진 미리보기 */}
+        {selectedPhoto && (
           <button
-            key={i}
             type="button"
-            onClick={() => onSelect(photo)}
-            className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl transition"
-            style={{
-              outline: selectedPhoto === photo ? '3px solid #3B2418' : '3px solid transparent',
-              outlineOffset: 2,
-            }}
+            onClick={() => onSelect(selectedPhoto)}
+            className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl"
+            style={{ outline: '3px solid #3B2418', outlineOffset: 2 }}
           >
-            <img src={photo} alt="" className="h-full w-full object-cover" />
+            <img src={selectedPhoto} alt="" className="h-full w-full object-cover" />
           </button>
-        ))}
+        )}
       </div>
     </div>
   )
 }
 
-function TextToolPanel({ textColor, onTextColor, fontSize, onFontSize, fontFamily, onFontFamily, textAlign, onTextAlign, onAddText }) {
+function TextToolPanel({ textColor, onTextColor, fontSize, onFontSize, fontFamily, onFontFamily, textAlign, onTextAlign }) {
   return (
-    <div className="px-5 pt-2 pb-5 space-y-4">
-      {/* 텍스트 추가 버튼 */}
-      <button
-        type="button"
-        onClick={onAddText}
-        className="flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-[14px] font-bold text-white transition active:opacity-80"
-        style={{ backgroundColor: '#2C1A0E' }}
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        텍스트 추가
-      </button>
-      {/* 글꼴 */}
+    <div className="px-5 pt-3 pb-5 space-y-3">
+      {/* 안내 */}
+      <p className="rounded-2xl bg-[#F5EDD5] px-4 py-2.5 text-center text-[13px] font-medium text-[#6B5A4C]">
+        포스트잇을 탭하면 그 위치에 바로 입력돼요
+      </p>
+
+      {/* 글자색 — 가장 자주 쓰는 옵션 최상단 */}
+      <div>
+        <p className="mb-2 text-[12px] font-semibold text-[#6B5A4C]">글자색</p>
+        <div className="flex gap-2.5">
+          {TEXT_COLORS.map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => onTextColor(c)}
+              className="h-9 w-9 rounded-full transition"
+              style={{
+                backgroundColor: c,
+                outline: textColor === c ? '3px solid #3B2418' : '2px solid #E8DDD1',
+                outlineOffset: 2,
+              }}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* 글꼴 — 2열 그리드 */}
       <div>
         <p className="mb-2 text-[12px] font-semibold text-[#6B5A4C]">글꼴</p>
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 gap-2">
           {FONTS.map((f) => (
             <button
               key={f.label}
               type="button"
               onClick={() => onFontFamily(f.family)}
-              className={`flex flex-1 flex-col items-center justify-center gap-0.5 rounded-2xl border py-2.5 transition ${
+              className={`flex items-center gap-2.5 rounded-2xl border px-3 py-2.5 transition ${
                 fontFamily === f.family ? 'border-[#3B2418] bg-[#F5EDD5]' : 'border-[#E8DDD1] bg-white'
               }`}
             >
-              <span className="text-[16px] text-[#3B2418]" style={{ fontFamily: f.family }}>가</span>
-              <span className="text-[10px] text-[#8B7A6B]">{f.label}</span>
+              <span className="text-[20px] text-[#3B2418] leading-none" style={{ fontFamily: f.family }}>안녕</span>
+              <span className="text-[11px] text-[#8B7A6B] font-semibold">{f.label}</span>
             </button>
           ))}
         </div>
       </div>
 
-      {/* 크기 + 정렬 */}
-      <div className="flex gap-4">
+      {/* 크기 + 정렬 — 한 행 */}
+      <div className="flex gap-3">
         <div className="flex-1">
           <p className="mb-2 text-[12px] font-semibold text-[#6B5A4C]">크기</p>
           <div className="flex gap-1.5">
@@ -653,34 +780,14 @@ function TextToolPanel({ textColor, onTextColor, fontSize, onFontSize, fontFamil
                   textAlign === align ? 'border-[#3B2418] bg-[#F5EDD5]' : 'border-[#E8DDD1] bg-white'
                 }`}
               >
-                <svg width="16" height="14" viewBox="0 0 16 14" fill="none">
-                  <rect x={i === 2 ? 4 : 0} y="0" width={i === 1 ? 16 : 12} height="2" rx="1" fill="#3B2418" opacity={textAlign === align ? 1 : 0.35} />
-                  <rect x="0" y="5" width="16" height="2" rx="1" fill="#3B2418" opacity={textAlign === align ? 1 : 0.35} />
-                  <rect x={i === 2 ? 4 : 0} y="10" width={i === 0 ? 10 : i === 1 ? 16 : 12} height="2" rx="1" fill="#3B2418" opacity={textAlign === align ? 1 : 0.35} />
+                <svg width="18" height="14" viewBox="0 0 18 14" fill="none">
+                  <rect x={i === 2 ? 5 : 0} y="0" width={i === 1 ? 18 : 13} height="2" rx="1" fill="#3B2418" opacity={textAlign === align ? 1 : 0.3} />
+                  <rect x="0" y="5" width="18" height="2" rx="1" fill="#3B2418" opacity={textAlign === align ? 1 : 0.3} />
+                  <rect x={i === 2 ? 5 : 0} y="10" width={i === 0 ? 11 : i === 1 ? 18 : 13} height="2" rx="1" fill="#3B2418" opacity={textAlign === align ? 1 : 0.3} />
                 </svg>
               </button>
             ))}
           </div>
-        </div>
-      </div>
-
-      {/* 글자색 */}
-      <div>
-        <p className="mb-2 text-[12px] font-semibold text-[#6B5A4C]">글자색</p>
-        <div className="flex gap-2.5">
-          {TEXT_COLORS.map((c) => (
-            <button
-              key={c}
-              type="button"
-              onClick={() => onTextColor(c)}
-              className="h-8 w-8 rounded-full transition"
-              style={{
-                backgroundColor: c,
-                outline: textColor === c ? '3px solid #3B2418' : '3px solid transparent',
-                outlineOffset: 2,
-              }}
-            />
-          ))}
         </div>
       </div>
     </div>
@@ -688,6 +795,18 @@ function TextToolPanel({ textColor, onTextColor, fontSize, onFontSize, fontFamil
 }
 
 function PenToolPanel({ penColor, onPenColor, penSize, onPenSize, eraser, onEraser, onClear }) {
+  const [confirmingClear, setConfirmingClear] = useState(false)
+
+  const handleClearClick = () => {
+    if (confirmingClear) {
+      onClear()
+      setConfirmingClear(false)
+    } else {
+      setConfirmingClear(true)
+      setTimeout(() => setConfirmingClear(false), 2500)
+    }
+  }
+
   return (
     <div className="px-5 pt-4 pb-5 space-y-4">
       {/* 색상 */}
@@ -747,18 +866,22 @@ function PenToolPanel({ penColor, onPenColor, penSize, onPenSize, eraser, onEras
           </button>
         </div>
 
-        {/* 전체 지우기 */}
+        {/* 전체 지우기 — 2단계 확인 */}
         <div style={{ minWidth: 64 }}>
           <p className="mb-2 text-[12px] font-semibold text-[#6B5A4C]">전체</p>
           <button
             type="button"
-            onClick={onClear}
-            className="flex h-[42px] w-full flex-col items-center justify-center gap-0.5 rounded-xl border border-[#E8DDD1] bg-white text-[11px] font-semibold text-[#8B7A6B] transition active:bg-[#FEE2E2] active:border-red-300 active:text-red-400"
+            onClick={handleClearClick}
+            className={`flex h-[42px] w-full flex-col items-center justify-center gap-0.5 rounded-xl border text-[11px] font-semibold transition ${
+              confirmingClear
+                ? 'border-red-300 bg-[#FEE2E2] text-red-500'
+                : 'border-[#E8DDD1] bg-white text-[#8B7A6B]'
+            }`}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6M14 11v6" />
             </svg>
-            지우기
+            {confirmingClear ? '확인?' : '지우기'}
           </button>
         </div>
       </div>
@@ -766,7 +889,7 @@ function PenToolPanel({ penColor, onPenColor, penSize, onPenSize, eraser, onEras
   )
 }
 
-function DecorToolPanel({ postitBg, onPostitBg }) {
+function DecorToolPanel({ postitBg, onPostitBg, onAddSticker }) {
   const [subTab, setSubTab] = useState('color')
 
   return (
@@ -806,7 +929,14 @@ function DecorToolPanel({ postitBg, onPostitBg }) {
         {subTab === 'sticker' && (
           <div className="grid grid-cols-6 gap-2">
             {STICKERS.map((s) => (
-              <button key={s} type="button" className="flex h-11 items-center justify-center rounded-xl border border-[#EDE5DA] bg-[#F8F4EE] text-[22px]">{s}</button>
+              <button
+                key={s}
+                type="button"
+                onClick={() => onAddSticker?.(s)}
+                className="flex h-11 items-center justify-center rounded-xl border border-[#EDE5DA] bg-[#F8F4EE] text-[22px] active:bg-[#F0E8DC]"
+              >
+                {s}
+              </button>
             ))}
           </div>
         )}
@@ -860,6 +990,8 @@ function PostItEditor() {
   const [type, setType] = useState(location.state?.initialTab === 'polaroid' ? 'polaroid' : 'postit')
   const [selectedPhoto, setSelectedPhoto] = useState(null)
   const [captionText, setCaptionText] = useState('')
+  const [editorError, setEditorError] = useState('')
+  const [isCompleting, setIsCompleting] = useState(false)
 
   const tools = type === 'polaroid' ? PHOTO_TOOLS : POSTIT_TOOLS
   const [activeTool, setActiveTool] = useState(null)
@@ -899,36 +1031,43 @@ function PostItEditor() {
     )
   }, [textColor, fontSize, fontFamily, textAlign, selectedTextId])
 
-  // 텍스트 버튼 = 패널 열기/닫기 토글 + text 선택 시 바로 텍스트 오브젝트 추가
+  const createTextId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+
+  // 텍스트 버튼 = 패널 열기/닫기 토글만
   const handleTool = (key) => {
     setActiveTool((prev) => {
       if (prev === key) return null
-      if (key === 'text') {
-        // 툴 선택과 동시에 텍스트 오브젝트 즉시 추가
-        const newId = Date.now()
-        const yPct = type === 'polaroid' ? 90 : 45
-        setTextObjects((p) => [
-          ...p,
-          { id: newId, xPct: 50, yPct, text: '', color: textColor, fontSize, fontFamily, align: textAlign },
-        ])
-        setSelectedTextId(newId)
-        setEditingTextId(newId)
-      }
       return key
     })
   }
 
   // 텍스트 추가 버튼 = 오브젝트 생성 + 텍스트 시트 유지
   const handleAddText = () => {
-    const newId = Date.now()
-    const yPct = type === 'polaroid' ? 90 : 45
-    setTextObjects((prev) => [
-      ...prev,
-      { id: newId, xPct: 50, yPct, text: '', color: textColor, fontSize, fontFamily, align: textAlign },
-    ])
+    const newId = createTextId()
+    setTextObjects((prev) => {
+      const baseY = type === 'polaroid' ? 88 : 30
+      const yPct = Math.min(baseY + prev.length * 20, 78)
+      return [...prev, { id: newId, xPct: 50, yPct, text: '', color: textColor, fontSize, fontFamily, align: textAlign }]
+    })
     setSelectedTextId(newId)
     setEditingTextId(newId)
     setActiveTool('text')
+  }
+
+  const handleDeleteText = (id) => {
+    setTextObjects((prev) => prev.filter((o) => o.id !== id))
+    setSelectedTextId(null)
+    setEditingTextId(null)
+  }
+
+  const handleAddSticker = (emoji) => {
+    const newId = createTextId()
+    setTextObjects((prev) => {
+      const yPct = Math.min(40 + prev.length * 18, 75)
+      return [...prev, { id: newId, xPct: 50, yPct, text: emoji, color: '#2A1E14', fontSize: 36, fontFamily: 'sans-serif', align: 'center' }]
+    })
+    setSelectedTextId(newId)
+    setEditingTextId(null)
   }
 
   const handleMoveText = (id, xPct, yPct) => {
@@ -958,14 +1097,43 @@ function PostItEditor() {
   const handleEndEditText = () => setEditingTextId(null)
 
   // postit-wrapper 내부 빈 영역 클릭: 선택만 해제, 시트는 유지
-  const handleCanvasClick = (e) => {
-    e.stopPropagation()  // canvas-area까지 버블링 방지
+  const handleCanvasClick = (e, position) => {
+    e.stopPropagation()
+    if (activeTool === 'text' && position) {
+      // 이미 선택된 텍스트가 있으면 → 선택 해제만 (새 텍스트 생성 안 함)
+      if (selectedTextId) {
+        setSelectedTextId(null)
+        setEditingTextId(null)
+        return
+      }
+      // 선택된 것 없으면 → 탭한 위치에 새 텍스트 생성
+      const newId = createTextId()
+      setTextObjects((prev) => [
+        ...prev,
+        {
+          id: newId,
+          xPct: Math.round(position.xPct),
+          yPct: Math.round(position.yPct),
+          text: '',
+          color: textColor,
+          fontSize,
+          fontFamily,
+          align: textAlign,
+        },
+      ])
+      setSelectedTextId(newId)
+      setEditingTextId(newId)
+      return
+    }
     setSelectedTextId(null)
     setEditingTextId(null)
   }
 
   const handleComplete = async () => {
+    if (isCompleting) return
     const baseId = Date.now()
+    setEditorError('')
+    setIsCompleting(true)
 
     setSelectedTextId(null)
     setEditingTextId(null)
@@ -984,7 +1152,7 @@ function PostItEditor() {
         .catch(reject)
     })
 
-    let capturedImage = null
+    let capturedImage
     try {
       if (type === 'postit') {
         // 포스트잇: 600x600 캔버스에 PNG + 펜 + 텍스트 합성
@@ -998,26 +1166,18 @@ function PostItEditor() {
         const srcSize = Math.min(bgImg.naturalWidth, bgImg.naturalHeight)
         ctx.drawImage(bgImg, 0, 0, srcSize, srcSize, 0, 0, SIZE, SIZE)
 
+        // 배경색 multiply 적용
+        ctx.globalCompositeOperation = 'multiply'
+        ctx.fillStyle = postitBg
+        ctx.fillRect(0, 0, SIZE, SIZE)
+        ctx.globalCompositeOperation = 'source-over'
+
         const drawingCanvas = postitCanvasRef.current
         if (drawingCanvas?.width > 0) {
           ctx.drawImage(drawingCanvas, 0, 0, SIZE, SIZE)
         }
 
-        textObjects.forEach((obj) => {
-          const x = (obj.xPct / 100) * SIZE
-          const y = (obj.yPct / 100) * SIZE
-          ctx.save()
-          ctx.font = `${(obj.fontSize ?? 24) * (SIZE / 300)}px ${obj.fontFamily ?? 'sans-serif'}`
-          ctx.fillStyle = obj.color ?? '#2A1E14'
-          ctx.textAlign = obj.align ?? 'center'
-          ctx.textBaseline = 'middle'
-          const lines = (obj.text ?? '').split('\n')
-          const lineH = (obj.fontSize ?? 24) * 1.3 * (SIZE / 300)
-          lines.forEach((line, li) => {
-            ctx.fillText(line, x, y + (li - (lines.length - 1) / 2) * lineH)
-          })
-          ctx.restore()
-        })
+        drawTextObjects(ctx, textObjects, SIZE, SIZE, { baseWidth: 300 })
 
         capturedImage = canvas.toDataURL('image/png')
 
@@ -1058,10 +1218,14 @@ function PostItEditor() {
           ctx.restore()
         }
 
+        drawTextObjects(ctx, textObjects, W, H, { baseWidth: 240 })
+
         capturedImage = canvas.toDataURL('image/png')
       }
-    } catch (e) {
-      console.warn('캡처 실패:', e)
+    } catch {
+      setEditorError('흔적 이미지를 준비하지 못했습니다. 다시 시도해주세요.')
+      setIsCompleting(false)
+      return
     }
 
     navigate(`/board/${boardId}`, {
@@ -1070,7 +1234,9 @@ function PostItEditor() {
           id: `${type}-${baseId}`,
           type,
           capturedImage,
-          content: type === 'polaroid' ? captionText : textObjects.map((o) => o.text).join('\n'),
+          content: type === 'polaroid'
+            ? [captionText, ...textObjects.map((o) => o.text)].filter(Boolean).join('\n')
+            : textObjects.map((o) => o.text).join('\n'),
           media: type === 'polaroid' ? { image: selectedPhoto ?? '', dateLabel: today() } : undefined,
           style: type === 'polaroid'
             ? { color: textColor, fontSize, fontFamily }
@@ -1079,6 +1245,7 @@ function PostItEditor() {
         },
       },
     })
+    setIsCompleting(false)
   }
 
   const renderPanelContent = () => {
@@ -1105,7 +1272,7 @@ function PostItEditor() {
         onClear={clearCanvas}
       />
     )
-    if (activeTool === 'decor') return <DecorToolPanel postitBg={postitBg} onPostitBg={setPostitBg} />
+    if (activeTool === 'decor') return <DecorToolPanel postitBg={postitBg} onPostitBg={setPostitBg} onAddSticker={handleAddSticker} />
     return null
   }
 
@@ -1184,16 +1351,23 @@ function PostItEditor() {
         <button
           type="button"
           onClick={handleComplete}
-          disabled={type === 'polaroid' && !selectedPhoto}
+          disabled={isCompleting || (type === 'polaroid' && !selectedPhoto)}
           style={{
             borderRadius: 999,
-            backgroundColor: (type === 'polaroid' && !selectedPhoto) ? '#C0B0A0' : '#2C1A0E',
+            backgroundColor: (isCompleting || (type === 'polaroid' && !selectedPhoto)) ? '#C0B0A0' : '#2C1A0E',
             padding: '8px 20px', fontSize: 13, fontWeight: 700, color: '#fff',
-            cursor: (type === 'polaroid' && !selectedPhoto) ? 'not-allowed' : 'pointer',
+            cursor: (isCompleting || (type === 'polaroid' && !selectedPhoto)) ? 'not-allowed' : 'pointer',
+            display: 'flex', alignItems: 'center', gap: 6,
             opacity: 1,
           }}
         >
-          남기기
+          {isCompleting && (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
+              style={{ animation: 'spin 0.8s linear infinite' }}>
+              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+            </svg>
+          )}
+          {isCompleting ? '저장 중' : '남기기'}
         </button>
       </header>
 
@@ -1214,7 +1388,7 @@ function PostItEditor() {
           <button
             key={key}
             type="button"
-            onClick={() => { setType(key); setActiveTool(null); setSelectedTextId(null); setEditingTextId(null) }}
+            onClick={() => { setType(key); setActiveTool(null); setSelectedTextId(null); setEditingTextId(null); setTextObjects([]) }}
             style={{
               flex: 1,
               padding: '10px 0',
@@ -1231,6 +1405,25 @@ function PostItEditor() {
           </button>
         ))}
       </div>
+
+      {editorError ? (
+        <p
+          style={{
+            position: 'relative',
+            zIndex: 10,
+            margin: '0 16px 8px',
+            borderRadius: 12,
+            backgroundColor: '#FFF7F2',
+            padding: '10px 12px',
+            textAlign: 'center',
+            fontSize: 12,
+            fontWeight: 700,
+            color: '#A74831',
+          }}
+        >
+          {editorError}
+        </p>
+      ) : null}
 
       {/* ── canvas-area: 빈 영역 클릭 시만 시트 닫기 ── */}
       <div
@@ -1255,7 +1448,7 @@ function PostItEditor() {
         {/* 포스트잇/폴라로이드 중앙 배치
             옵션 시트가 열릴 때 paddingBottom을 시트 높이만큼 줘서 포스트잇이 가려지지 않게 */}
         <motion.div
-          animate={{ paddingBottom: panelOpen ? 220 : 20 }}
+          animate={{ paddingBottom: panelOpen ? 300 : 20 }}
           transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
           style={{
             position: 'absolute',
@@ -1291,6 +1484,8 @@ function PostItEditor() {
           ) : (
             <PostItPreview
               previewRef={previewRef}
+              postitBg={postitBg}
+              textActive={activeTool === 'text'}
               textObjects={textObjects}
               selectedTextId={selectedTextId}
               editingTextId={editingTextId}
@@ -1300,6 +1495,7 @@ function PostItEditor() {
               onEndEditText={handleEndEditText}
               onChangeText={handleChangeText}
               onMoveText={handleMoveText}
+              onDeleteText={handleDeleteText}
               penActive={activeTool === 'pen'}
               penColor={penColor}
               penSize={penSize}
@@ -1325,7 +1521,7 @@ function PostItEditor() {
             bottom: '100%',
             left: 0,
             right: 0,
-            maxHeight: 220,
+            maxHeight: 300,
             overflowY: 'auto',
             backgroundColor: '#fff',
             borderTop: '1px solid #EDE5DA',

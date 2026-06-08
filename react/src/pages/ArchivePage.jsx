@@ -16,6 +16,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { fetchArchiveBoards, fetchFavoritePlaces, fetchMyTraces } from '../api/archive'
 import { fetchOrCreateBoardForPlace } from '../api/boards'
 import { API_BASE_URL, clearAuthToken, getAuthToken } from '../api/client'
+import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
 
 const initialPageState = {
   status: 'loading',
@@ -57,11 +58,12 @@ function ArchivePage() {
         error: '',
       })
     } catch (error) {
-      if (error?.status === 401) {
-        clearAuthToken()
-        navigate('/login', { replace: true, state: { from: location } })
-        return
-      }
+      if (handleUnauthorizedApiError(error, {
+        clearToken: clearAuthToken,
+        navigate,
+        location,
+        redirect: true,
+      })) return
 
       setPageState({
         status: 'error',
@@ -161,8 +163,23 @@ function ArchivePage() {
       }
 
       navigate(`/board/${board.boardId}`)
-    } catch {
-      setArchiveActionError('보드로 이동하지 못했어요. 잠시 후 다시 시도해주세요.')
+    } catch (error) {
+      if (handleUnauthorizedApiError(error, {
+        clearToken: clearAuthToken,
+        navigate,
+        location,
+        redirect: true,
+      })) return
+
+      setArchiveActionError(getApiErrorMessage(error, {
+        fallback: '보드로 이동하지 못했어요. 잠시 후 다시 시도해주세요.',
+        statusMessages: {
+          403: '이 보드에 접근할 권한이 없습니다.',
+          404: '장소 보드를 찾지 못했습니다.',
+          409: '보드 상태가 변경되었습니다. 다시 시도해주세요.',
+          500: '보드로 이동하지 못했어요. 잠시 후 다시 시도해주세요.',
+        },
+      }))
     } finally {
       setOpeningFavoritePlaceId(null)
     }
@@ -576,9 +593,14 @@ function formatDate(value) {
 }
 
 function getFriendlyError(error) {
-  if (error?.status === 404) return '보관함 정보를 찾을 수 없어요.'
-  if (error?.status >= 500) return '서버 응답이 불안정해요. 잠시 후 다시 시도해 주세요.'
-  return error?.message || '요청을 처리하지 못했어요.'
+  return getApiErrorMessage(error, {
+    fallback: '요청을 처리하지 못했어요.',
+    statusMessages: {
+      403: '보관함을 볼 권한이 없습니다.',
+      404: '보관함 정보를 찾을 수 없어요.',
+      500: '서버 응답이 불안정해요. 잠시 후 다시 시도해 주세요.',
+    },
+  })
 }
 
 export default ArchivePage
