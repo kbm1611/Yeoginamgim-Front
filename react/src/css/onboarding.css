@@ -29,3 +29,20 @@
   width: 16px;
   background: #8f5f34;
 }
+
+.onboarding-skip {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  z-index: 3;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 250, 244, 0.72);
+  color: #6f5746;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 10px 13px;
+  backdrop-filter: blur(10px);
+}
