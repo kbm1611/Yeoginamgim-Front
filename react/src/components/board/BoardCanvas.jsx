@@ -211,6 +211,8 @@ function TraceCard({ post }) {
         transform: `rotate(${post._rotate}deg)`,
         boxShadow: '0 6px 20px rgba(42,28,20,0.15)',
         transformOrigin: 'top left',
+        mixBlendMode: 'multiply',
+        borderRadius: isPolaroid ? '4px' : '8px',
       }}
     />
   )

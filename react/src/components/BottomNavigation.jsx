@@ -37,7 +37,8 @@ function BottomNavigation({ className = '' }) {
               <li key={item.key} className="flex justify-center">
                 <button
                   type="button"
-                  aria-label="장소 남기기"
+                  onClick={() => navigate('/record/new')}
+                  aria-label="기록 만들기"
                   className="flex h-14 w-14 -translate-y-3 items-center justify-center rounded-full bg-[#3D2415] text-white shadow-[0_3px_8px_rgba(61,36,21,0.18)]"
                 >
                   <Icon size={24} strokeWidth={1.9} />
