@@ -193,8 +193,9 @@ function TextObject({ obj, selected, editing, textToolActive, containerRef, onSe
       onMouseDown={handlePointerDown}
       onTouchStart={handlePointerDown}
       onClick={(e) => {
+        e.stopPropagation()
         // 텍스트 툴 활성 시 단일 탭으로 바로 편집
-        if (textToolActive && !editing) { e.stopPropagation(); onStartEdit() }
+        if (textToolActive && !editing) onStartEdit()
       }}
       onDoubleClick={(e) => { e.stopPropagation(); onStartEdit() }}
     >
