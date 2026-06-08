@@ -53,6 +53,12 @@ jobs:                       # [필수] 작업(Job) 집합 정의
 
         working-directory: ./react              # [필수] React 프로젝트 폴더에서 실행
 
+        env:
+
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }} # [필수] 백엔드 API 서버 주소
+
+          VITE_KAKAO_JAVASCRIPT_KEY: ${{ secrets.VITE_KAKAO_JAVASCRIPT_KEY }} # [필수] Kakao JavaScript 키
+
         run: npm run build                      # [필수] 빌드 스크립트 실행
 
         shell: bash                             # [필수] bash 쉘 사용
