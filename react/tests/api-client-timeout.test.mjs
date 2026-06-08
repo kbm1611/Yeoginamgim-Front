@@ -21,6 +21,7 @@ function createStorage() {
 function loadClient(fetchImpl) {
   const sandbox = {
     AbortController,
+    DOMException,
     Headers,
     URL,
     FormData: class FormData {},
@@ -42,30 +43,23 @@ globalThis.clientExports = {
   return context.clientExports
 }
 
-const client = loadClient(async () => ({
-  ok: false,
-  status: 400,
-  statusText: 'Bad Request',
-  headers: new Headers({ 'content-type': 'application/json' }),
-  json: async () => ({
-    code: 'INVALID_IMAGE_FILE',
-    message: 'Only JPEG, PNG, and WebP images can be uploaded.',
-    status: 400,
-  }),
-  text: async () => '',
-}))
+const client = loadClient((url, options = {}) =>
+  new Promise((resolve, reject) => {
+    options.signal?.addEventListener('abort', () => {
+      reject(new DOMException('The operation was aborted.', 'AbortError'))
+    })
+  })
+)
 
 await assert.rejects(
-  () => client.get('/api/traces/images'),
+  Promise.race([
+    client.get('/api/auth/email/send', undefined, { timeoutMs: 10 }),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('request did not time out')), 100)),
+  ]),
   (error) => {
     assert.equal(error.name, 'ApiError')
-    assert.equal(error.status, 400)
-    assert.equal(error.message, 'Only JPEG, PNG, and WebP images can be uploaded.')
-    assert.deepEqual(error.body, {
-      code: 'INVALID_IMAGE_FILE',
-      message: 'Only JPEG, PNG, and WebP images can be uploaded.',
-      status: 400,
-    })
+    assert.equal(error.status, 0)
+    assert.equal(error.message, '요청 시간이 초과되었습니다. 서버 상태를 확인한 뒤 다시 시도해주세요.')
     return true
   }
 )
