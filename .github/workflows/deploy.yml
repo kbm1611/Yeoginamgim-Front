@@ -34,10 +34,14 @@ jobs:                       # [필수] 작업(Job) 집합 정의
 
           cache: 'npm'                          # [선택] 의존성 캐싱 (Yarn 사용 시 'yarn'으로 변경)
 
+          cache-dependency-path: react/package-lock.json # [필수] 실제 React 프로젝트의 lock 파일 경로
+
 
       # 3. 의존성 패키지 설치
 
       - name: Install dependencies              # [필수] package.json 기반 패키지 설치
+
+        working-directory: ./react              # [필수] React 프로젝트 폴더에서 실행
 
         run: npm ci                             # [선택] Yarn 사용 시 'yarn install --frozen-lockfile'로 변경
 
@@ -46,6 +50,8 @@ jobs:                       # [필수] 작업(Job) 집합 정의
       # 4. Build (정적 자원 생성)
 
       - name: Build React Client                # [필수] React 정적 파일 빌드
+
+        working-directory: ./react              # [필수] React 프로젝트 폴더에서 실행
 
         run: npm run build                      # [필수] 빌드 스크립트 실행
 
@@ -80,6 +86,8 @@ jobs:                       # [필수] 작업(Job) 집합 정의
         # 2. CRA(Create React App) 기반 프로젝트인 경우: ./build 로 변경
 
         # 3. YOUR-S3-BUCKET-NAME 자리에 실제 생성한 AWS S3 버킷명을 정확히 입력하세요.
+
+        working-directory: ./react              # [필수] 빌드 결과물이 생성되는 React 프로젝트 폴더에서 실행
 
         run: aws s3 sync ./dist s3://elasticbeanstalk-ap-northeast-2-988477084982 --delete
 
