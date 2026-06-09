@@ -107,7 +107,7 @@ cd Yeoginamgim-Front\react
 npm ci
 npm run dev
 ```
-
+33
 빌드 확인:
 
 ```powershell
