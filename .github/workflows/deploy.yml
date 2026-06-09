@@ -55,7 +55,7 @@ jobs:                       # [필수] 작업(Job) 집합 정의
 
         env:
 
-          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }} # [필수] 백엔드 API 서버 주소
+          VITE_API_BASE_URL: https://d2a908jq2crel3.cloudfront.net # [필수] 백엔드 API 서버 주소
 
           VITE_KAKAO_JAVASCRIPT_KEY: ${{ secrets.VITE_KAKAO_JAVASCRIPT_KEY }} # [필수] Kakao JavaScript 키
 
@@ -98,3 +98,26 @@ jobs:                       # [필수] 작업(Job) 집합 정의
         run: aws s3 sync ./dist s3://elasticbeanstalk-ap-northeast-2-988477084982 --delete
 
         shell: bash                             # [필수] bash 쉘 사용
+
+
+      # 7. CloudFront 캐시 무효화
+
+      - name: Invalidate CloudFront Cache
+
+        env:
+
+          CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.AWS_CLOUDFRONT_DISTRIBUTION_ID }}
+
+        run: |
+
+          if [ -n "$CLOUDFRONT_DISTRIBUTION_ID" ]; then
+
+            aws cloudfront create-invalidation --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" --paths "/*"
+
+          else
+
+            echo "AWS_CLOUDFRONT_DISTRIBUTION_ID secret is not set. Skipping CloudFront invalidation."
+
+          fi
+
+        shell: bash
