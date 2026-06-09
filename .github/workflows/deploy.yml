@@ -55,7 +55,7 @@ jobs:                       # [필수] 작업(Job) 집합 정의
 
         env:
 
-          VITE_API_BASE_URL: / # [필수] 백엔드 API 서버 주소
+          VITE_API_BASE_URL: https://dh7p4gzv38x71.cloudfront.net # [필수] 백엔드 API 서버 주소
 
           VITE_KAKAO_JAVASCRIPT_KEY: ${{ secrets.VITE_KAKAO_JAVASCRIPT_KEY }} # [필수] Kakao JavaScript 키
 
