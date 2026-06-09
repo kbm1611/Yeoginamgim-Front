@@ -5,7 +5,7 @@ import { Script, createContext } from 'node:vm'
 
 const root = process.cwd()
 const source = readFileSync(join(root, 'src/api/client.js'), 'utf8')
-  .replace("import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'", "'http://localhost:8080'")
+  .replace("import.meta.env.VITE_API_BASE_URL ?? 'https://d2a908jq2crel3.cloudfront.net'", "'https://d2a908jq2crel3.cloudfront.net'")
   .replaceAll('export ', '')
 
 function createStorage() {
