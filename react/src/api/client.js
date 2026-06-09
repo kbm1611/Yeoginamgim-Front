@@ -1,4 +1,4 @@
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'https://d2a908jq2crel3.cloudfront.net'
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'https://dh7p4gzv38x71.cloudfront.net'
 export const DEFAULT_API_TIMEOUT_MS = 15000
 export const API_TIMEOUT_ERROR_MESSAGE = '요청 시간이 초과되었습니다. 서버 상태를 확인한 뒤 다시 시도해주세요.'
 export const AUTH_TOKEN_STORAGE_KEY = 'yeoginamgim.authToken'

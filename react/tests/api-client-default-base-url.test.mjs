@@ -19,4 +19,4 @@ globalThis.clientExports = {
   API_BASE_URL,
 }`).runInContext(context)
 
-assert.equal(context.clientExports.API_BASE_URL, 'https://d2a908jq2crel3.cloudfront.net')
+assert.equal(context.clientExports.API_BASE_URL, 'https://dh7p4gzv38x71.cloudfront.net')
