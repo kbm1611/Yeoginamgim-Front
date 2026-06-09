@@ -1,26 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
-import postitTexture from '../../assets/editor/postit.png'
-import polaroidFrame from '../../assets/editor/polaroid.png'
+import boardCanvasBg from '../../assets/board-bg-3000x2200.png'
+import postitTexture from '../../assets/editor/image.png'
+import polaroidFrame from '../../assets/images/recent-trace-default-polaroid.png'
 import TraceBottomSheet from './TraceBottomSheet'
 
-const BOARD_CANVAS_W = 760
-const TRACE_CARD_W = 190
-const GRID_COLUMNS = 3
-const GRID_GAP_X = 42
-const GRID_GAP_Y = 68
-const GRID_PADDING_X = 34
-const GRID_PADDING_Y = 52
+export const BOARD_WIDTH = 3000
+export const BOARD_HEIGHT = 2200
+const INITIAL_SCALE = 0.65
+const MIN_SCALE = 0.45
+const MAX_SCALE = 1.6
+const TRACE_CARD_W = 260
 const POSTIT_TRIMMED_SIZE = {
-  width: 1536,
-  height: 1024,
+  width: 1024,
+  height: 1536,
 }
 const POSTIT_CAPTURED_ASPECT_RATIO = POSTIT_TRIMMED_SIZE.width / POSTIT_TRIMMED_SIZE.height
 const POLAROID_TRIMMED_SIZE = {
-  width: 608,
-  height: 656,
+  width: 512,
+  height: 512,
 }
-const POLAROID_SOURCE_CROP = { x: 464, y: 148, width: 608, height: 656 }
+const POLAROID_SOURCE_CROP = { x: 0, y: 0, width: 512, height: 512 }
 
 function seeded(value) {
   const x = Math.sin(value + 1.5) * 10000
@@ -68,14 +68,11 @@ function cropImageStyle(crop, sourceWidth = 1536, sourceHeight = 1024) {
 }
 
 function getCardHeight(post) {
-  const cardW = post._cardW ?? TRACE_CARD_W
-  return isPolaroidTrace(post)
-    ? cardW * (POLAROID_TRIMMED_SIZE.height / POLAROID_TRIMMED_SIZE.width)
-    : cardW / getPostitAspectRatio(post)
+  return post._cardH ?? getTraceSize(post).height
 }
 
 function hasOverlap(rect, placedRects) {
-  const padding = 18
+  const padding = 28
 
   return placedRects.some((placed) => {
     return !(
@@ -87,20 +84,101 @@ function hasOverlap(rect, placedRects) {
   })
 }
 
-function getTraceLayoutPosition(post, index) {
-  const traceSeed = hashSeed(getTraceId(post) ?? index)
-  const col = index % GRID_COLUMNS
-  const row = Math.floor(index / GRID_COLUMNS)
-  const baseX = GRID_PADDING_X + col * (TRACE_CARD_W + GRID_GAP_X)
-  const baseY = GRID_PADDING_Y + row * (TRACE_CARD_W * 1.5 + GRID_GAP_Y)
-  const offsetX = (seeded(traceSeed * 2.17) - 0.5) * 26
-  const offsetY = (seeded(traceSeed * 3.41) - 0.5) * 34
-  const rotation = (seeded(traceSeed * 4.73) - 0.5) * 6
+function rectsOverlap(a, b, padding = 28) {
+  return !(
+    a.x + a.width + padding < b.x ||
+    b.x + b.width + padding < a.x ||
+    a.y + a.height + padding < b.y ||
+    b.y + b.height + padding < a.y
+  )
+}
+
+function getTraceSize(post) {
+  const explicitWidth = Number(post.width ?? post.style?.boardPosition?.width)
+  const width = Number.isFinite(explicitWidth) && explicitWidth > 0 ? explicitWidth : TRACE_CARD_W
+  const explicitHeight = Number(post.height ?? post.style?.boardPosition?.height)
+
+  if (Number.isFinite(explicitHeight) && explicitHeight > 0) {
+    return { width, height: explicitHeight }
+  }
 
   return {
-    x: baseX + offsetX,
-    y: baseY + offsetY,
-    rotation,
+    width,
+    height: isPolaroidTrace(post)
+      ? width * (POLAROID_TRIMMED_SIZE.height / POLAROID_TRIMMED_SIZE.width)
+      : width,
+  }
+}
+
+function clampBoardPosition(x, y, width, height) {
+  return {
+    x: Math.min(Math.max(x, 80), BOARD_WIDTH - width - 80),
+    y: Math.min(Math.max(y, 80), BOARD_HEIGHT - height - 80),
+  }
+}
+
+function getExplicitTracePosition(post) {
+  const stylePosition = post.style?.boardPosition
+  const x = Number(post.x ?? stylePosition?.x)
+  const y = Number(post.y ?? stylePosition?.y)
+
+  if (Number.isFinite(x) && Number.isFinite(y)) {
+    return { x, y }
+  }
+
+  return null
+}
+
+function getTraceLayoutPosition(post, index) {
+  const explicit = getExplicitTracePosition(post)
+  if (explicit) return explicit
+
+  const traceSeed = hashSeed(getTraceId(post) ?? index)
+  const anchors = [
+    { x: 420, y: 360 },
+    { x: 760, y: 430 },
+    { x: 1110, y: 330 },
+    { x: 1510, y: 520 },
+    { x: 1900, y: 380 },
+    { x: 520, y: 760 },
+    { x: 930, y: 860 },
+    { x: 1370, y: 780 },
+    { x: 1780, y: 930 },
+    { x: 2200, y: 780 },
+    { x: 680, y: 1190 },
+    { x: 1080, y: 1320 },
+    { x: 1540, y: 1210 },
+    { x: 1990, y: 1390 },
+    { x: 2380, y: 1180 },
+  ]
+  const anchor = anchors[index % anchors.length]
+  const layer = Math.floor(index / anchors.length)
+  const offsetX = (seeded(traceSeed * 2.17) - 0.5) * 96 + layer * 34
+  const offsetY = (seeded(traceSeed * 3.41) - 0.5) * 86 + layer * 42
+
+  return {
+    x: anchor.x + offsetX,
+    y: anchor.y + offsetY,
+  }
+}
+
+export function migrateLegacyTracePosition(post, index = 0) {
+  const explicit = getExplicitTracePosition(post)
+  if (explicit) return post
+
+  const fallback = getTraceLayoutPosition(post, index)
+  return {
+    ...post,
+    x: fallback.x,
+    y: fallback.y,
+    style: {
+      ...(post.style ?? {}),
+      boardPosition: {
+        ...(post.style?.boardPosition ?? {}),
+        x: fallback.x,
+        y: fallback.y,
+      },
+    },
   }
 }
 
@@ -108,55 +186,102 @@ function layoutPosts(posts) {
   const placedRects = []
 
   return posts.map((post, index) => {
-    const base = getTraceLayoutPosition(post, index)
-    const cardW = TRACE_CARD_W
-    const cardH = isPolaroidTrace(post)
-      ? cardW * (POLAROID_TRIMMED_SIZE.height / POLAROID_TRIMMED_SIZE.width)
-      : cardW / getPostitAspectRatio(post)
-    let x = base.x
-    let y = base.y
+    const migratedPost = migrateLegacyTracePosition(post, index)
+    const base = getTraceLayoutPosition(migratedPost, index)
+    const size = getTraceSize(post)
+    const cardW = size.width
+    const cardH = size.height
+    const clamped = clampBoardPosition(base.x, base.y, cardW, cardH)
+    let x = clamped.x
+    let y = clamped.y
     let attempts = 0
 
-    while (hasOverlap({ x, y, width: cardW, height: cardH }, placedRects) && attempts < 16) {
-      y += 26
+    while (hasOverlap({ x, y, width: cardW, height: cardH }, placedRects) && attempts < 28) {
+      const ring = Math.floor(attempts / 8) + 1
+      const angle = attempts * 0.78
+      const next = clampBoardPosition(
+        base.x + Math.cos(angle) * ring * 86,
+        base.y + Math.sin(angle) * ring * 68,
+        cardW,
+        cardH,
+      )
+      x = next.x
+      y = next.y
       attempts += 1
-
-      if (attempts % 4 === 0) {
-        x += attempts % 8 === 0 ? -18 : 18
-      }
     }
 
     placedRects.push({ x, y, width: cardW, height: cardH })
+    const rotation = Number(post.rotation ?? post.style?.boardPosition?.rotation)
+    const scale = Number(post.scale ?? post.style?.boardPosition?.scale)
+    const zIndex = Number(post.zIndex ?? post.style?.boardPosition?.zIndex)
 
     return {
       ...post,
       _x: x,
       _y: y,
-      _rotate: isPolaroidTrace(post) ? base.rotation : 0,
+      _rotate: Number.isFinite(rotation) ? Math.min(3, Math.max(-3, rotation)) : (seeded(hashSeed(getTraceId(post) ?? index) * 4.73) - 0.5) * 6,
       _cardW: cardW,
+      _cardH: cardH,
+      _scale: Number.isFinite(scale) && scale > 0 ? scale : 1,
+      _zIndex: Number.isFinite(zIndex) ? zIndex : 10 + index,
     }
   })
 }
 
+export function findEmptySpotNear(center, newTraceSize, existingTraces = []) {
+  const size = {
+    width: newTraceSize?.width ?? TRACE_CARD_W,
+    height: newTraceSize?.height ?? TRACE_CARD_W,
+  }
+  const existingRects = existingTraces.map((trace, index) => {
+    const migratedTrace = migrateLegacyTracePosition(trace, index)
+    const traceSize = getTraceSize(migratedTrace)
+    return {
+      x: migratedTrace._x ?? migratedTrace.x ?? migratedTrace.style?.boardPosition?.x ?? 0,
+      y: migratedTrace._y ?? migratedTrace.y ?? migratedTrace.style?.boardPosition?.y ?? 0,
+      width: migratedTrace._cardW ?? traceSize.width,
+      height: migratedTrace._cardH ?? traceSize.height,
+    }
+  })
+
+  const start = clampBoardPosition(center.x - size.width / 2, center.y - size.height / 2, size.width, size.height)
+  for (let step = 0; step < 80; step += 1) {
+    const ring = Math.floor(step / 8)
+    const angle = step * 0.785
+    const candidate = clampBoardPosition(
+      start.x + Math.cos(angle) * ring * 92,
+      start.y + Math.sin(angle) * ring * 72,
+      size.width,
+      size.height,
+    )
+    const rect = { ...candidate, ...size }
+    if (!existingRects.some((existing) => rectsOverlap(rect, existing))) return candidate
+  }
+
+  return start
+}
+
 function PostItTraceCard({ post, isHighlighted }) {
   const cardW = post._cardW ?? TRACE_CARD_W
+  const cardH = post._cardH ?? cardW / getPostitAspectRatio(post)
   const hasSavedImage = Boolean(post.capturedImage || post.imageUrl)
   const postitImage = post.capturedImage ?? post.imageUrl ?? postitTexture
   const shouldRenderText = !hasSavedImage
 
   return (
     <article
-      className="absolute flex flex-col overflow-hidden text-[#35241A]"
+      className={`absolute flex flex-col overflow-hidden text-[#35241A] ${isHighlighted ? 'trace-card-highlight' : ''}`}
       style={{
         filter: isHighlighted ? 'drop-shadow(0 0 12px rgba(255,200,50,0.8))' : 'none',
-        height: cardW / getPostitAspectRatio(post),
+        height: cardH,
         left: post._x,
         pointerEvents: 'auto',
         top: post._y,
-        transform: `rotate(${post._rotate}deg) scale(${isHighlighted ? 1.08 : 1})`,
+        transform: `rotate(${post._rotate}deg) scale(${(post._scale ?? 1) * (isHighlighted ? 1.08 : 1)})`,
         transformOrigin: 'top left',
         transition: isHighlighted ? 'transform 0.3s' : 'none',
         width: cardW,
+        zIndex: post._zIndex,
       }}
     >
       <img
@@ -188,24 +313,25 @@ function PostItTraceCard({ post, isHighlighted }) {
 
 function PolaroidTraceCard({ post, isHighlighted }) {
   const cardW = post._cardW ?? TRACE_CARD_W
-  const cardH = cardW * (POLAROID_TRIMMED_SIZE.height / POLAROID_TRIMMED_SIZE.width)
+  const cardH = post._cardH ?? cardW * (POLAROID_TRIMMED_SIZE.height / POLAROID_TRIMMED_SIZE.width)
   const savedPolaroidImage = post.capturedImage ?? null
   const fallbackPhotoImage = post.media?.image ?? post.imageUrl
   const shouldRenderFrameLayers = !savedPolaroidImage
 
   return (
     <article
-      className="absolute overflow-hidden text-[#35241A]"
+      className={`absolute overflow-hidden text-[#35241A] ${isHighlighted ? 'trace-card-highlight' : ''}`}
       style={{
         filter: isHighlighted ? 'drop-shadow(0 0 12px rgba(255,200,50,0.8))' : 'none',
         height: cardH,
         left: post._x,
         pointerEvents: 'auto',
         top: post._y,
-        transform: `rotate(${post._rotate}deg) scale(${isHighlighted ? 1.08 : 1})`,
+        transform: `rotate(${post._rotate}deg) scale(${(post._scale ?? 1) * (isHighlighted ? 1.08 : 1)})`,
         transformOrigin: 'top left',
         transition: isHighlighted ? 'transform 0.3s' : 'none',
         width: cardW,
+        zIndex: post._zIndex,
       }}
     >
       {savedPolaroidImage ? (
@@ -228,7 +354,7 @@ function PolaroidTraceCard({ post, isHighlighted }) {
           src={polaroidFrame}
           alt=""
           className="pointer-events-none absolute object-fill"
-          style={cropImageStyle(POLAROID_SOURCE_CROP)}
+          style={cropImageStyle(POLAROID_SOURCE_CROP, 512, 512)}
           draggable="false"
         />
       ) : null}
@@ -273,17 +399,54 @@ function EmptyBoard({ onAdd }) {
   )
 }
 
-function useBoardTransform(transformRef, onZoomChange, initialScale) {
-  const [transform, setTransform] = useState({ x: 0, y: 0, scale: initialScale })
-  const stateRef = useRef({ x: 0, y: 0, scale: initialScale })
+function getClampedTransform(transform, viewport) {
+  const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, transform.scale))
+  const scaledWidth = BOARD_WIDTH * scale
+  const scaledHeight = BOARD_HEIGHT * scale
+  const viewportWidth = viewport?.width ?? 390
+  const viewportHeight = viewport?.height ?? 600
+  const minX = Math.min(0, viewportWidth - scaledWidth)
+  const minY = Math.min(0, viewportHeight - scaledHeight)
+  const maxX = scaledWidth <= viewportWidth ? (viewportWidth - scaledWidth) / 2 : 0
+  const maxY = scaledHeight <= viewportHeight ? (viewportHeight - scaledHeight) / 2 : 0
+
+  return {
+    x: Math.min(maxX, Math.max(minX, transform.x)),
+    y: Math.min(maxY, Math.max(minY, transform.y)),
+    scale,
+  }
+}
+
+function getViewportCenter(transform, viewport) {
+  return {
+    x: ((viewport?.width ?? 390) / 2 - transform.x) / transform.scale,
+    y: ((viewport?.height ?? 600) / 2 - transform.y) / transform.scale,
+  }
+}
+
+function getInitialTransform(viewport, posts) {
+  const latest = posts?.[0]
+  const target = latest
+    ? { x: latest._x + (latest._cardW ?? TRACE_CARD_W) / 2, y: latest._y + (latest._cardH ?? TRACE_CARD_W) / 2 }
+    : { x: BOARD_WIDTH / 2, y: BOARD_HEIGHT / 2 }
+
+  return getClampedTransform({
+    x: (viewport?.width ?? 390) / 2 - target.x * INITIAL_SCALE,
+    y: (viewport?.height ?? 600) / 2 - target.y * INITIAL_SCALE,
+    scale: INITIAL_SCALE,
+  }, viewport)
+}
+
+function useBoardTransform(transformRef, onZoomChange, laidPosts) {
+  const [transform, setTransform] = useState({ x: 0, y: 0, scale: INITIAL_SCALE })
+  const stateRef = useRef({ x: 0, y: 0, scale: INITIAL_SCALE })
+  const viewportRef = useRef({ width: 390, height: 600 })
   const panStart = useRef(null)
   const pinchRef = useRef(null)
   const containerRef = useRef(null)
 
   const applyZoom = useCallback((nextScale, origin) => {
-    const min = 0.3
-    const max = 3
-    const clampedScale = Math.min(max, Math.max(min, nextScale))
+    const clampedScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, nextScale))
     const { x, y, scale } = stateRef.current
     let nextX = x
     let nextY = y
@@ -294,10 +457,47 @@ function useBoardTransform(transformRef, onZoomChange, initialScale) {
       nextY = origin.y - (origin.y - y) * ratio
     }
 
-    stateRef.current = { x: nextX, y: nextY, scale: clampedScale }
-    setTransform({ x: nextX, y: nextY, scale: clampedScale })
-    onZoomChange?.(Math.round((clampedScale / initialScale) * 100))
-  }, [initialScale, onZoomChange])
+    const next = getClampedTransform({ x: nextX, y: nextY, scale: clampedScale }, viewportRef.current)
+    stateRef.current = next
+    setTransform(next)
+    onZoomChange?.(Math.round(next.scale * 100))
+  }, [onZoomChange])
+
+  const setClampedTransform = useCallback((nextTransform) => {
+    const next = getClampedTransform(nextTransform, viewportRef.current)
+    stateRef.current = next
+    setTransform(next)
+    onZoomChange?.(Math.round(next.scale * 100))
+    return next
+  }, [onZoomChange])
+
+  useEffect(() => {
+    const element = containerRef.current
+    if (!element) return undefined
+
+    const updateViewport = () => {
+      const rect = element.getBoundingClientRect()
+      viewportRef.current = { width: rect.width, height: rect.height }
+      setClampedTransform(stateRef.current)
+    }
+
+    updateViewport()
+    const resizeObserver = new ResizeObserver(updateViewport)
+    resizeObserver.observe(element)
+    return () => resizeObserver.disconnect()
+  }, [setClampedTransform])
+
+  useEffect(() => {
+    const element = containerRef.current
+    if (!element) return
+
+    const rect = element.getBoundingClientRect()
+    viewportRef.current = { width: rect.width, height: rect.height }
+    const initial = getInitialTransform(viewportRef.current, laidPosts)
+    stateRef.current = initial
+    setTransform(initial)
+    onZoomChange?.(Math.round(initial.scale * 100))
+  }, [laidPosts, onZoomChange])
 
   useEffect(() => {
     if (!transformRef) return
@@ -310,6 +510,7 @@ function useBoardTransform(transformRef, onZoomChange, initialScale) {
       },
       zoomIn: (step = 0.25) => applyZoom(stateRef.current.scale + step, null),
       zoomOut: (step = 0.25) => applyZoom(stateRef.current.scale - step, null),
+      getViewportCenter: () => getViewportCenter(stateRef.current, viewportRef.current),
     }
   }, [applyZoom, transformRef])
 
@@ -340,9 +541,8 @@ function useBoardTransform(transformRef, onZoomChange, initialScale) {
       x: panStart.current.x + event.clientX - panStart.current.px,
       y: panStart.current.y + event.clientY - panStart.current.py,
     }
-    stateRef.current = next
-    setTransform({ ...next })
-  }, [])
+    setClampedTransform(next)
+  }, [setClampedTransform])
 
   const onPointerUp = useCallback(() => {
     panStart.current = null
@@ -395,10 +595,9 @@ function useBoardTransform(transformRef, onZoomChange, initialScale) {
         x: panStart.current.x + event.touches[0].clientX - panStart.current.px,
         y: panStart.current.y + event.touches[0].clientY - panStart.current.py,
       }
-      stateRef.current = next
-      setTransform({ ...next })
+      setClampedTransform(next)
     }
-  }, [applyZoom])
+  }, [applyZoom, setClampedTransform])
 
   const onTouchEnd = useCallback(() => {
     pinchRef.current = null
@@ -430,6 +629,7 @@ function useBoardTransform(transformRef, onZoomChange, initialScale) {
     setTransform,
     stateRef,
     transform,
+    viewportRef,
   }
 }
 
@@ -447,13 +647,10 @@ function BoardCanvas({
   showTraceSheet = true,
 }) {
   const laid = useMemo(() => layoutPosts(posts), [posts])
-  const canvasH = Math.max(1200, ...laid.map((post) => post._y + getCardHeight(post) + 220))
   const [selectedPost, setSelectedPost] = useState(null)
   const [highlightId, setHighlightId] = useState(null)
   const pointerDownInfo = useRef(null)
 
-  const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 390
-  const initialScale = Math.min(0.74, (viewportWidth - 18) / BOARD_CANVAS_W)
   const {
     containerRef,
     onPointerDown,
@@ -462,7 +659,8 @@ function BoardCanvas({
     setTransform,
     stateRef,
     transform,
-  } = useBoardTransform(transformRef, onZoomChange, initialScale)
+    viewportRef,
+  } = useBoardTransform(transformRef, onZoomChange, laid)
 
   useEffect(() => {
     if (!newPostId) return undefined
@@ -474,9 +672,10 @@ function BoardCanvas({
     if (!rect) return undefined
 
     const start = { x: stateRef.current.x, y: stateRef.current.y, scale: stateRef.current.scale }
-    const targetScale = Math.min(1.05, Math.max(start.scale, 0.78))
+    const targetScale = Math.min(1.05, Math.max(start.scale, 0.75))
     const targetX = rect.width / 2 - (post._x + (post._cardW ?? TRACE_CARD_W) / 2) * targetScale
-    const targetY = rect.height / 2 - (post._y + (post._cardW ?? TRACE_CARD_W) / 2) * targetScale
+    const targetY = rect.height / 2 - (post._y + getCardHeight(post) / 2) * targetScale
+    const target = getClampedTransform({ x: targetX, y: targetY, scale: targetScale }, viewportRef.current)
     const startTime = performance.now()
     const duration = 600
     let timeoutId
@@ -486,9 +685,9 @@ function BoardCanvas({
       const ease = 1 - Math.pow(1 - t, 3)
       stateRef.current = {
         ...stateRef.current,
-        x: start.x + (targetX - start.x) * ease,
-        y: start.y + (targetY - start.y) * ease,
-        scale: start.scale + (targetScale - start.scale) * ease,
+        x: start.x + (target.x - start.x) * ease,
+        y: start.y + (target.y - start.y) * ease,
+        scale: start.scale + (target.scale - start.scale) * ease,
       }
       setTransform({ ...stateRef.current })
 
@@ -503,11 +702,11 @@ function BoardCanvas({
       }
 
       setHighlightId(newPostId)
-      onZoomChange?.(Math.round((targetScale / initialScale) * 100))
+      onZoomChange?.(Math.round(target.scale * 100))
       timeoutId = window.setTimeout(() => {
         setHighlightId(null)
         onNewPostFocused?.()
-      }, 1500)
+      }, 1000)
     }
 
     requestAnimationFrame(animate)
@@ -515,7 +714,7 @@ function BoardCanvas({
     return () => {
       if (timeoutId) window.clearTimeout(timeoutId)
     }
-  }, [containerRef, initialScale, laid, newPostId, onNewPostFocused, onZoomChange, setTransform, stateRef])
+  }, [containerRef, laid, newPostId, onNewPostFocused, onZoomChange, setTransform, stateRef, viewportRef])
 
   const handleContainerPointerDown = useCallback((event) => {
     pointerDownInfo.current = { x: event.clientX, y: event.clientY }
@@ -539,9 +738,7 @@ function BoardCanvas({
     for (let index = laid.length - 1; index >= 0; index -= 1) {
       const post = laid[index]
       const cardW = post._cardW ?? TRACE_CARD_W
-      const cardH = isPolaroidTrace(post)
-        ? cardW * (POLAROID_TRIMMED_SIZE.height / POLAROID_TRIMMED_SIZE.width)
-        : cardW / getPostitAspectRatio(post)
+      const cardH = post._cardH ?? getCardHeight(post)
       if (cx >= post._x && cx <= post._x + cardW && cy >= post._y && cy <= post._y + cardH) {
         setSelectedPost(post)
         return
@@ -557,7 +754,7 @@ function BoardCanvas({
     <div
       ref={containerRef}
       className="h-full w-full overflow-hidden"
-      style={{ cursor: 'grab', touchAction: 'none' }}
+      style={{ cursor: 'grab', position: 'relative', touchAction: 'none' }}
       onClick={handleContainerClick}
       onPointerDown={handleContainerPointerDown}
       onTouchEnd={onTouchEnd}
@@ -565,13 +762,16 @@ function BoardCanvas({
     >
       <div
         data-board-canvas
-        className="absolute"
+        className="absolute overflow-hidden"
         style={{
-          height: canvasH,
+          backgroundImage: `url(${boardCanvasBg})`,
+          backgroundPosition: 'center',
+          backgroundSize: 'cover',
+          height: BOARD_HEIGHT,
           pointerEvents: 'none',
           transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
           transformOrigin: '0 0',
-          width: BOARD_CANVAS_W,
+          width: BOARD_WIDTH,
           willChange: 'transform',
         }}
       >

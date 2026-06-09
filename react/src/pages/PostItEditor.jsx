@@ -3,8 +3,8 @@ import { AlignCenter, AlignLeft, AlignRight, Archive, Camera, Home, Image as Ima
 import { getStroke } from 'perfect-freehand'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import polaroidFrame from '../assets/editor/polaroid.png'
-import postitImage from '../assets/editor/postit.png'
+import postitImage from '../assets/editor/image.png'
+import polaroidFrame from '../assets/images/recent-trace-default-polaroid.png'
 import bgImage from '../assets/배경.png'
 
 const EDITOR_STEP = {
@@ -28,11 +28,11 @@ const OBJECT_TYPE = {
   STICKER: 'sticker',
 }
 
-const POSTIT_SOURCE_CROP = { x: 0, y: 0, width: 1536, height: 1024 }
+const POSTIT_SOURCE_CROP = { x: 0, y: 0, width: 1024, height: 1536 }
 const POSTIT_SIZE = { width: POSTIT_SOURCE_CROP.width, height: POSTIT_SOURCE_CROP.height }
 const POSTIT_EXPORT_CROP = { x: 0, y: 0, width: 1, height: 1 }
 const POSTIT_EXPORT_ASPECT_RATIO = (POSTIT_SIZE.width * POSTIT_EXPORT_CROP.width) / (POSTIT_SIZE.height * POSTIT_EXPORT_CROP.height)
-const POLAROID_SOURCE_CROP = { x: 464, y: 148, width: 608, height: 656 }
+const POLAROID_SOURCE_CROP = { x: 0, y: 0, width: 512, height: 512 }
 const POLAROID_SIZE = { width: POLAROID_SOURCE_CROP.width, height: POLAROID_SOURCE_CROP.height }
 
 const POSTIT_TEMPLATES = [
@@ -319,7 +319,7 @@ function cropCanvasByAlpha(canvas, alphaThreshold = 1) {
 
 function Header({ isCompleting, canComplete, isEditing, onClose, onComplete }) {
   return (
-    <header className="relative z-20 flex h-[70px] flex-none items-center justify-between px-5 pt-2">
+    <header className="relative z-20 flex h-[58px] flex-none items-center justify-between px-5">
       <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center text-[#2C1A0E]">
         <X size={23} strokeWidth={2.1} />
       </button>
@@ -339,6 +339,28 @@ function Header({ isCompleting, canComplete, isEditing, onClose, onComplete }) {
           <Settings size={20} strokeWidth={1.9} />
         </button>
       )}
+    </header>
+  )
+}
+
+function EditorHeaderV2({ isCompleting, canComplete, onClose, onComplete }) {
+  return (
+    <header className="relative z-20 flex h-[58px] flex-none items-center justify-between px-5">
+      <button type="button" onClick={onClose} className="h-10 text-[14px] font-bold text-[#3B2418]">
+        취소
+      </button>
+      <h1 className="absolute left-1/2 -translate-x-1/2 text-[17px] font-extrabold text-[#1F140E]">
+        흔적 남기기
+      </h1>
+      <button
+        type="button"
+        onClick={onComplete}
+        disabled={!canComplete || isCompleting}
+        className="h-10 rounded-full px-4 text-[14px] font-extrabold text-white shadow-[0_8px_18px_rgba(97,49,36,0.18)] disabled:opacity-45"
+        style={{ backgroundColor: canComplete && !isCompleting ? '#9B4F3F' : '#D8B3A5' }}
+      >
+        {isCompleting ? '저장 중' : '완료'}
+      </button>
     </header>
   )
 }
@@ -813,7 +835,7 @@ function EditableCard({
         aspectRatio: `${template.size.width} / ${template.size.height}`,
         cursor: editorMode === EDITOR_MODE.PEN ? 'crosshair' : 'default',
         overflow: 'hidden',
-        width: cardType === 'polaroid' ? 'min(76vw, 292px)' : 'min(88vw, 344px)',
+        width: cardType === 'polaroid' ? 'min(82vw, 320px)' : 'min(94vw, 376px)',
       }}
     >
       {cardType === 'postit' ? (
@@ -859,7 +881,7 @@ function EditableCard({
             alt=""
             draggable={false}
             className="pointer-events-none absolute z-[2] object-fill"
-            style={cropImageStyle(POLAROID_SOURCE_CROP)}
+            style={cropImageStyle(POLAROID_SOURCE_CROP, 512, 512)}
           />
         </>
       )}
@@ -1059,15 +1081,176 @@ function StickerToolbar({ onSticker }) {
   )
 }
 
+function MiniToolButton({ active, icon: Icon, label, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex min-w-[62px] flex-col items-center justify-center gap-1 rounded-[16px] px-3 py-2 text-[11px] font-extrabold transition"
+      style={{
+        backgroundColor: active ? '#FFF0A6' : 'transparent',
+        color: active ? '#3B2418' : '#4B372B',
+      }}
+    >
+      <Icon size={21} strokeWidth={1.9} />
+      <span>{label}</span>
+    </button>
+  )
+}
+
+function CompactMainToolbar({ cardType, editorMode, onText, onPen, onStickerMode, onPaperMode, onPickPhoto }) {
+  const isTextActive = editorMode === EDITOR_MODE.TEXT || editorMode === EDITOR_MODE.OBJECT_SELECTED
+
+  return (
+    <div className="mx-auto flex h-[74px] max-w-[348px] items-center justify-around rounded-[24px] bg-white/96 px-3 shadow-[0_12px_34px_rgba(59,36,24,0.14)] backdrop-blur">
+      {cardType === 'polaroid' ? (
+        <MiniToolButton active={false} icon={Camera} label="사진" onClick={onPickPhoto} />
+      ) : null}
+      <MiniToolButton active={isTextActive} icon={Type} label="텍스트" onClick={onText} />
+      <MiniToolButton active={editorMode === EDITOR_MODE.PEN} icon={PenLine} label="펜" onClick={onPen} />
+      <MiniToolButton active={editorMode === 'sticker'} icon={Smile} label="꾸미기" onClick={onStickerMode} />
+      {cardType === 'postit' ? (
+        <MiniToolButton active={editorMode === 'paper'} icon={ImageIcon} label="종이" onClick={onPaperMode} />
+      ) : null}
+    </div>
+  )
+}
+
+function CompactTextOptions({ textStyle, selectedObject, onStyle, onDelete }) {
+  return (
+    <div className="mx-auto mb-2 max-w-[348px] rounded-[20px] border border-[#EFE4D7] bg-white/96 px-3 py-2 shadow-[0_10px_28px_rgba(59,36,24,0.11)] backdrop-blur">
+      <div className="flex items-center gap-2">
+        {FONTS.slice(0, 3).map((font) => (
+          <button
+            key={font.id}
+            type="button"
+            onClick={() => onStyle({ fontFamily: font.family })}
+            className="h-8 flex-1 rounded-xl text-[11px] font-extrabold"
+            style={{
+              backgroundColor: textStyle.fontFamily === font.family ? '#FFECA0' : '#F8F2EA',
+              color: '#3B2418',
+              fontFamily: font.family,
+            }}
+          >
+            {font.id === 'basic' ? '기본' : font.id === 'mood' ? '감성' : '손글씨'}
+          </button>
+        ))}
+        {selectedObject ? (
+          <button type="button" onClick={onDelete} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#F8F2EA] text-[#A74831]">
+            <Trash2 size={15} />
+          </button>
+        ) : null}
+      </div>
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
+          {TEXT_COLORS.slice(0, 5).map((color) => (
+            <button
+              key={color}
+              type="button"
+              onClick={() => onStyle({ color })}
+              className="h-6 w-6 rounded-full"
+              style={{
+                backgroundColor: color,
+                outline: textStyle.color === color ? '2px solid #6B3A2A' : '1px solid #E8DDD1',
+                outlineOffset: 1,
+              }}
+            />
+          ))}
+        </div>
+        <div className="flex h-8 items-center rounded-xl bg-[#F8F2EA] text-[12px] font-extrabold text-[#3B2418]">
+          <button type="button" onClick={() => onStyle({ fontSize: Math.max(15, textStyle.fontSize - 2) })} className="h-full px-3">A-</button>
+          <span className="min-w-7 text-center">{textStyle.fontSize}</span>
+          <button type="button" onClick={() => onStyle({ fontSize: Math.min(34, textStyle.fontSize + 2) })} className="h-full px-3">A+</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CompactPenOptions({ penStyle, onPenStyle, onClear }) {
+  return (
+    <div className="mx-auto mb-2 max-w-[348px] rounded-[20px] border border-[#EFE4D7] bg-white/96 px-3 py-2 shadow-[0_10px_28px_rgba(59,36,24,0.11)] backdrop-blur">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5">
+          {Object.entries(PEN_WIDTHS).map(([key, width]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => onPenStyle({ widthKey: key, width })}
+              className="flex h-8 w-10 items-center justify-center rounded-xl"
+              style={{ backgroundColor: penStyle.widthKey === key ? '#FFECA0' : '#F8F2EA' }}
+            >
+              <span className="rounded-full bg-[#3B2418]" style={{ width: 20, height: Math.max(2, width / 2) }} />
+            </button>
+          ))}
+        </div>
+        <button type="button" onClick={onClear} className="h-8 rounded-xl bg-[#F8F2EA] px-3 text-[11px] font-extrabold text-[#A74831]">
+          전체 지우기
+        </button>
+      </div>
+      <div className="mt-2 flex items-center gap-1.5">
+        {PEN_COLORS.slice(0, 6).map((color) => (
+          <button
+            key={color}
+            type="button"
+            onClick={() => onPenStyle({ color })}
+            className="h-6 w-6 rounded-full"
+            style={{
+              backgroundColor: color,
+              outline: penStyle.color === color ? '2px solid #6B3A2A' : '1px solid #E8DDD1',
+              outlineOffset: 1,
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function CompactStickerOptions({ onSticker }) {
+  return (
+    <div className="mx-auto mb-2 flex h-12 max-w-[300px] items-center justify-center gap-2 rounded-[18px] bg-white/96 px-3 shadow-[0_10px_28px_rgba(59,36,24,0.11)] backdrop-blur">
+      {STICKERS.map((sticker) => (
+        <button key={sticker} type="button" onClick={() => onSticker(sticker)} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F8F2EA] text-[17px]">
+          {sticker}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function CompactPaperOptions({ currentTemplate }) {
+  return (
+    <div className="mx-auto mb-2 flex h-12 max-w-[300px] items-center justify-center gap-2 rounded-[18px] bg-white/96 px-3 shadow-[0_10px_28px_rgba(59,36,24,0.11)] backdrop-blur">
+      {POSTIT_TEMPLATES.slice(0, 4).map((template) => (
+        <button
+          key={template.id}
+          type="button"
+          disabled={template.id !== currentTemplate?.id}
+          className="h-8 w-8 rounded-lg border border-white shadow-sm disabled:opacity-45"
+          style={{
+            background: `linear-gradient(145deg, ${template.color}, #FFF8E7)`,
+            outline: template.id === currentTemplate?.id ? '2px solid #9B4F3F' : '1px solid #E8DDD1',
+            outlineOffset: 1,
+          }}
+          title={template.id === currentTemplate?.id ? '현재 종이' : '추후 연결 예정'}
+        />
+      ))}
+    </div>
+  )
+}
+
 function BottomTools({
   cardType,
   editorMode,
   selectedObject,
+  postitTemplate,
   textStyle,
   penStyle,
   onText,
   onPen,
   onStickerMode,
+  onPaperMode,
   onPickPhoto,
   onTextStyle,
   onPenStyle,
@@ -1078,16 +1261,25 @@ function BottomTools({
   if (!cardType) return null
 
   return (
-    <div className="relative z-30 flex-none pb-5">
+    <div className="relative z-30 flex-none px-4 pb-4">
       {editorMode === EDITOR_MODE.TEXT || editorMode === EDITOR_MODE.OBJECT_SELECTED ? (
-        <TextToolbar textStyle={textStyle} selectedObject={selectedObject} onStyle={onTextStyle} onDelete={onDelete} />
+        <CompactTextOptions textStyle={textStyle} selectedObject={selectedObject} onStyle={onTextStyle} onDelete={onDelete} />
       ) : editorMode === EDITOR_MODE.PEN ? (
-        <PenToolbar penStyle={penStyle} onPenStyle={onPenStyle} onClear={onClearStrokes} />
+        <CompactPenOptions penStyle={penStyle} onPenStyle={onPenStyle} onClear={onClearStrokes} />
       ) : editorMode === 'sticker' ? (
-        <StickerToolbar onSticker={onSticker} />
-      ) : (
-        <QuickToolbar cardType={cardType} onText={onText} onPen={onPen} onSticker={onStickerMode} onPhoto={onPickPhoto} />
-      )}
+        <CompactStickerOptions onSticker={onSticker} />
+      ) : editorMode === 'paper' ? (
+        <CompactPaperOptions currentTemplate={postitTemplate} />
+      ) : null}
+      <CompactMainToolbar
+        cardType={cardType}
+        editorMode={editorMode}
+        onText={onText}
+        onPen={onPen}
+        onStickerMode={onStickerMode}
+        onPaperMode={onPaperMode}
+        onPickPhoto={onPickPhoto}
+      />
     </div>
   )
 }
@@ -1564,10 +1756,9 @@ function PostItEditor() {
       <div className="pointer-events-none absolute inset-0 z-[1] bg-white/20" />
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
 
-      <Header
+      <EditorHeaderV2
         isCompleting={isCompleting}
         canComplete={canComplete}
-        isEditing={step === EDITOR_STEP.EDITING}
         onClose={() => navigate(-1)}
         onComplete={complete}
       />
@@ -1585,7 +1776,7 @@ function PostItEditor() {
         {step === EDITOR_STEP.EMPTY || !cardType ? (
           <EmptyStage />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center px-2 pb-[92px] pt-4">
+          <div className="absolute inset-0 flex items-center justify-center px-2 pb-[118px] pt-1">
             <EditableCard
               cardType={cardType}
               postitTemplate={postitTemplate}
@@ -1640,6 +1831,7 @@ function PostItEditor() {
         cardType={cardType}
         editorMode={editorMode}
         selectedObject={selectedObject}
+        postitTemplate={postitTemplate}
         textStyle={textStyle}
         penStyle={penStyle}
         onText={() => {
@@ -1653,6 +1845,7 @@ function PostItEditor() {
           setEditingObjectId(null)
         }}
         onStickerMode={() => setEditorMode('sticker')}
+        onPaperMode={() => setEditorMode('paper')}
         onPickPhoto={() => fileInputRef.current?.click()}
         onTextStyle={handleTextStyle}
         onPenStyle={(next) => setPenStyle((prev) => ({ ...prev, ...next }))}

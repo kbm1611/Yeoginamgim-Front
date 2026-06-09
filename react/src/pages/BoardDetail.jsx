@@ -22,7 +22,7 @@ import { API_BASE_URL, clearAuthToken } from '../api/client'
 import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
 import { createTrace, fetchBoardTraces, uploadTraceImage } from '../api/traces'
 import boardBg from '../assets/image.png'
-import BoardCanvas from '../components/board/BoardCanvas'
+import BoardCanvas, { BOARD_HEIGHT, BOARD_WIDTH, findEmptySpotNear } from '../components/board/BoardCanvas'
 import BottomNavigation from '../components/BottomNavigation'
 import { traceToPost } from './tracePost.utils'
 
@@ -126,6 +126,68 @@ function findEmptyCell(posts) {
   }
 
   return { row: 0, col: 0 }
+}
+
+function safeParseJson(value) {
+  if (!value) return null
+
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
+  }
+}
+
+function getTraceDefaultSize(type) {
+  const isPolaroid = type === 'polaroid' || type === 'POLAROID'
+  return isPolaroid
+    ? { width: 300, height: 360 }
+    : { width: 260, height: 260 }
+}
+
+function getFallbackBoardCenter() {
+  return { x: BOARD_WIDTH / 2, y: BOARD_HEIGHT / 2 }
+}
+
+function getLastViewportCenter(boardId, locationState) {
+  const stateCenter = locationState?.lastViewportCenter
+  if (Number.isFinite(stateCenter?.x) && Number.isFinite(stateCenter?.y)) return stateCenter
+
+  const stored = safeParseJson(sessionStorage.getItem(`board:${boardId}:lastViewportCenter`))
+  if (Number.isFinite(stored?.x) && Number.isFinite(stored?.y)) return stored
+
+  return getFallbackBoardCenter()
+}
+
+function createBoardPageStub() {
+  return {
+    boardPageId: 'page-1',
+    width: BOARD_WIDTH,
+    height: BOARD_HEIGHT,
+    status: 'stub',
+  }
+}
+
+function createBoardPlacement({ boardId, draft, locationState, posts }) {
+  const center = getLastViewportCenter(boardId, locationState)
+  const size = getTraceDefaultSize(draft.type)
+  const position = findEmptySpotNear(center, size, posts)
+  const seed = Date.now() % 100000
+  const rotation = Math.round(((Math.sin(seed) + 1) / 2 * 6 - 3) * 10) / 10
+  const zIndex = 20 + posts.length
+
+  return {
+    boardPage: createBoardPageStub(),
+    boardPosition: {
+      x: position.x,
+      y: position.y,
+      width: size.width,
+      height: size.height,
+      rotation,
+      scale: 1,
+      zIndex,
+    },
+  }
 }
 
 function BoardTopBar({ title, onBack, children }) {
@@ -542,21 +604,33 @@ function BoardDetail() {
   }, [])
 
   const handleAdd = useCallback(() => {
+    const viewportCenter = transformRef.current?.getViewportCenter?.() ?? null
+    if (viewportCenter) {
+      sessionStorage.setItem(`board:${boardId}:lastViewportCenter`, JSON.stringify(viewportCenter))
+    }
+
     navigate(`/board/${boardId}/postit`, {
       state: {
         boardName: board.name,
         boardType: board.boardType,
+        lastViewportCenter: viewportCenter,
       },
     })
   }, [board.boardType, board.name, boardId, navigate])
 
-  const handlePlace = useCallback(async (cell) => {
+  const handlePlace = useCallback(async () => {
     if (!placementDraft || isSaving) return
 
     setIsSaving(true)
     setActionMessage('')
 
     try {
+      const placement = createBoardPlacement({
+        boardId,
+        draft: placementDraft,
+        locationState: location.state,
+        posts,
+      })
       let imageUrl = null
       if (placementDraft.capturedImage) {
         const response = await fetch(placementDraft.capturedImage)
@@ -569,27 +643,57 @@ function BoardDetail() {
       const contentType = placementDraft.type === 'polaroid' || placementDraft.type === 'POLAROID'
         ? 'POLAROID'
         : 'POST_IT'
+      const nextStyle = {
+        ...(placementDraft.style ?? {}),
+        boardPageId: placement.boardPage.boardPageId,
+        boardPosition: placement.boardPosition,
+      }
       const createdTrace = await createTrace(boardId, {
-        traceX: cell.col,
-        traceY: cell.row,
+        traceX: Math.round(placement.boardPosition.x),
+        traceY: Math.round(placement.boardPosition.y),
         elements: [{
           contentType,
           imageUrl: imageUrl ?? placementDraft.media?.image ?? null,
-          styleJson: JSON.stringify(placementDraft.style ?? {}),
+          styleJson: JSON.stringify(nextStyle),
           textContent: placementDraft.content ?? '',
         }],
       })
 
-      const fresh = await fetchBoardTraces(boardId, { sort, limit: 100 })
-      const newPosts = (fresh.traces ?? []).map(traceToPost)
       const createdId = createdTrace?.traceId ?? createdTrace?.id
-      const saved = newPosts.find((post) => {
-        return getPostId(post) === createdId || (post.cell?.col === cell.col && post.cell?.row === cell.row)
+      const fresh = await fetchBoardTraces(boardId, { sort, limit: 100 })
+      const newPosts = (fresh.traces ?? []).map(traceToPost).map((post) => {
+        if (getPostId(post) !== createdId) return post
+        return {
+          ...post,
+          boardId,
+          boardPageId: post.boardPageId ?? placement.boardPage.boardPageId,
+          x: post.x ?? placement.boardPosition.x,
+          y: post.y ?? placement.boardPosition.y,
+          width: post.width ?? placement.boardPosition.width,
+          height: post.height ?? placement.boardPosition.height,
+          rotation: post.rotation ?? placement.boardPosition.rotation,
+          scale: post.scale ?? placement.boardPosition.scale,
+          zIndex: post.zIndex ?? placement.boardPosition.zIndex,
+          style: {
+            ...(post.style ?? {}),
+            boardPageId: post.style?.boardPageId ?? placement.boardPage.boardPageId,
+            boardPosition: {
+              ...placement.boardPosition,
+              ...(post.style?.boardPosition ?? {}),
+            },
+          },
+        }
       })
+      const saved = newPosts.find((post) => {
+        return getPostId(post) === createdId ||
+          (Math.round(post.x ?? -1) === Math.round(placement.boardPosition.x) && Math.round(post.y ?? -1) === Math.round(placement.boardPosition.y))
+      })
+      const savedId = saved ? getPostId(saved) : createdId ?? placementDraft.id
 
       setPosts(newPosts)
       setPlacementDraft(null)
-      if (saved) setNewPostId(getPostId(saved))
+      sessionStorage.removeItem(`board:${boardId}:lastViewportCenter`)
+      if (savedId) setNewPostId(savedId)
     } catch (error) {
       if (handleUnauthorizedApiError(error, {
         clearToken: clearAuthToken,
@@ -610,15 +714,14 @@ function BoardDetail() {
     } finally {
       setIsSaving(false)
     }
-  }, [boardId, isSaving, location, navigate, placementDraft, sort])
+  }, [boardId, isSaving, location, navigate, placementDraft, posts, sort])
 
   useEffect(() => {
     if (!placementDraft || isLoading || isSaving) return undefined
 
-    const cell = findEmptyCell(posts)
-    const timerId = window.setTimeout(() => handlePlace(cell), 0)
+    const timerId = window.setTimeout(() => handlePlace(), 0)
     return () => window.clearTimeout(timerId)
-  }, [handlePlace, isLoading, isSaving, placementDraft, posts])
+  }, [handlePlace, isLoading, isSaving, placementDraft])
 
   const handleCopyInvite = async () => {
     try {
@@ -630,12 +733,12 @@ function BoardDetail() {
   }
 
   const handleZoomIn = () => {
-    setZoom((value) => Math.min(value + 25, 200))
+    setZoom((value) => Math.min(value + 25, 160))
     transformRef.current?.zoomIn(0.25)
   }
 
   const handleZoomOut = () => {
-    setZoom((value) => Math.max(value - 25, 50))
+    setZoom((value) => Math.max(value - 25, 45))
     transformRef.current?.zoomOut(0.25)
   }
 

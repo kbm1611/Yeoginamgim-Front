@@ -58,6 +58,19 @@ body {
   to   { transform: rotate(360deg); }
 }
 
+@keyframes trace-card-pop {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.trace-card-highlight {
+  animation: trace-card-pop 260ms ease-out both;
+}
+
 .screen-bg {
   position: absolute;
   inset: 0;
