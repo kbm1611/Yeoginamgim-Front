@@ -2,20 +2,60 @@ import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { ChevronLeft, Copy, MessageCircle, UserRound } from 'lucide-react'
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { joinCustomBoard } from '../api/customBoards'
+
+function getJoinedBoardId(joinedBoard) {
+  return (
+    joinedBoard?.boardId ??
+    joinedBoard?.customBoardId ??
+    joinedBoard?.id ??
+    joinedBoard?.board?.boardId ??
+    joinedBoard?.board?.customBoardId ??
+    joinedBoard?.board?.id
+  )
+}
+
+function getJoinedBoardName(joinedBoard, fallback) {
+  return (
+    joinedBoard?.boardTitle ??
+    joinedBoard?.boardName ??
+    joinedBoard?.name ??
+    joinedBoard?.board?.boardTitle ??
+    joinedBoard?.board?.boardName ??
+    joinedBoard?.board?.name ??
+    fallback
+  )
+}
+
+function getJoinErrorMessage(error) {
+  if (error?.status === 404) return '잘못되었거나 만료된 초대 링크예요.'
+  if (error?.status === 409) return '이미 참여한 보드예요.'
+  if (error?.status === 403) return '이 초대 링크로 참여할 권한이 없어요.'
+
+  return error?.message ?? '초대 링크로 참여하지 못했어요. 다시 시도해주세요.'
+}
 
 function InviteBoardPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { id } = useParams()
+  const { id, inviteCode } = useParams()
   const { boardName, boardType = 'CUSTOM' } = location.state ?? {}
   const [copyMessage, setCopyMessage] = useState('')
+  const [joinMessage, setJoinMessage] = useState('')
+  const [isJoining, setIsJoining] = useState(false)
+  const isJoinMode = Boolean(inviteCode)
 
   const inviteLink = useMemo(() => {
+    if (isJoinMode) {
+      if (typeof window === 'undefined') return `/board/join/${inviteCode}`
+      return `${window.location.origin}/board/join/${inviteCode}`
+    }
+
     if (typeof window === 'undefined') return `/board/${id}`
     return `${window.location.origin}/board/${id}`
-  }, [id])
+  }, [id, inviteCode, isJoinMode])
 
-  if (!id) {
+  if (!id && !inviteCode) {
     return <Navigate to="/record/new" replace />
   }
 
@@ -59,6 +99,35 @@ function InviteBoardPage() {
     handleCopy()
   }
 
+  const handleJoin = async () => {
+    if (!inviteCode || isJoining) return
+
+    setIsJoining(true)
+    setJoinMessage('')
+
+    try {
+      const joinedBoard = await joinCustomBoard(inviteCode)
+      const joinedBoardId = getJoinedBoardId(joinedBoard)
+
+      if (!joinedBoardId) {
+        throw new Error('참여한 보드 정보를 확인하지 못했어요.')
+      }
+
+      navigate(`/board/${joinedBoardId}`, {
+        replace: true,
+        state: {
+          boardId: joinedBoardId,
+          boardName: getJoinedBoardName(joinedBoard, boardName),
+          boardType: 'CUSTOM',
+        },
+      })
+    } catch (error) {
+      setJoinMessage(getJoinErrorMessage(error))
+    } finally {
+      setIsJoining(false)
+    }
+  }
+
   return (
     <motion.main
       className="app-device flex flex-col overflow-hidden bg-[#F8F1E7]"
@@ -76,7 +145,9 @@ function InviteBoardPage() {
         >
           <ChevronLeft size={24} strokeWidth={1.8} />
         </button>
-        <h1 className="text-[17px] font-bold text-[#2B1810]">친구 초대하기</h1>
+        <h1 className="text-[17px] font-bold text-[#2B1810]">
+          {isJoinMode ? '보드 참여하기' : '친구 초대하기'}
+        </h1>
       </header>
 
       <section className="flex-1 overflow-y-auto px-5 pb-8 pt-4 scrollbar-hide">
@@ -88,26 +159,31 @@ function InviteBoardPage() {
           {copyMessage ? (
             <p className="mt-2 text-[12px] font-semibold text-[#7A5D46]">{copyMessage}</p>
           ) : null}
+          {joinMessage ? (
+            <p className="mt-2 text-[12px] font-semibold text-[#A74831]">{joinMessage}</p>
+          ) : null}
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={handleCopy}
-            className="flex h-[52px] items-center justify-center gap-2 rounded-full bg-[#3D2415] text-[14px] font-bold text-white shadow-[0_8px_18px_rgba(61,36,21,0.18)]"
-          >
-            <Copy size={16} strokeWidth={2} />
-            링크 복사
-          </button>
-          <button
-            type="button"
-            onClick={handleKakaoShare}
-            className="flex h-[52px] items-center justify-center gap-2 rounded-full bg-[#FEE500] text-[14px] font-bold text-[#3A2920]"
-          >
-            <MessageCircle size={16} strokeWidth={2} />
-            카카오톡 공유
-          </button>
-        </div>
+        {!isJoinMode ? (
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="flex h-[52px] items-center justify-center gap-2 rounded-full bg-[#3D2415] text-[14px] font-bold text-white shadow-[0_8px_18px_rgba(61,36,21,0.18)]"
+            >
+              <Copy size={16} strokeWidth={2} />
+              링크 복사
+            </button>
+            <button
+              type="button"
+              onClick={handleKakaoShare}
+              className="flex h-[52px] items-center justify-center gap-2 rounded-full bg-[#FEE500] text-[14px] font-bold text-[#3A2920]"
+            >
+              <MessageCircle size={16} strokeWidth={2} />
+              카카오톡 공유
+            </button>
+          </div>
+        ) : null}
 
         <section className="mt-8">
           <div className="mb-3 flex items-center justify-between">
@@ -135,10 +211,11 @@ function InviteBoardPage() {
       <footer className="px-5 pb-10 pt-3">
         <button
           type="button"
-          onClick={() => navigate(`/board/${id}`, { state: { boardId: id, boardName, boardType } })}
+          onClick={isJoinMode ? handleJoin : () => navigate(`/board/${id}`, { state: { boardId: id, boardName, boardType } })}
+          disabled={isJoinMode && isJoining}
           className="h-14 w-full rounded-full border border-[#D9C7B4] bg-white/85 text-[15px] font-bold text-[#5B3E2B]"
         >
-          보드 바로가기
+          {isJoinMode ? (isJoining ? '참여 중...' : '참여하기') : '보드 바로가기'}
         </button>
       </footer>
     </motion.main>

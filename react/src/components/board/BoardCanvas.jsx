@@ -1,11 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Flag, Heart, RefreshCw } from 'lucide-react'
-import { getApiErrorMessage } from '../../api/errors'
-import postitTexture from '../../assets/postit/postit.png'
+import { RefreshCw } from 'lucide-react'
+import postitTexture from '../../assets/editor/postit.png'
+import polaroidFrame from '../../assets/editor/polaroid.png'
 import TraceBottomSheet from './TraceBottomSheet'
-
-const polaroidFrames = import.meta.glob('../../assets/poloaroid/*.png', { eager: true, import: 'default' })
-const polaroidFrame = Object.values(polaroidFrames)[0]
 
 const BOARD_CANVAS_W = 760
 const TRACE_CARD_W = 190
@@ -14,14 +11,16 @@ const GRID_GAP_X = 42
 const GRID_GAP_Y = 68
 const GRID_PADDING_X = 34
 const GRID_PADDING_Y = 52
-
-const REPORT_REASONS = [
-  { value: 'ABUSE', label: '욕설/비방' },
-  { value: 'INAPPROPRIATE_IMAGE', label: '부적절한 사진' },
-  { value: 'SPAM', label: '광고/도배' },
-  { value: 'PRIVACY', label: '개인정보 노출' },
-  { value: 'ETC', label: '기타' },
-]
+const POSTIT_TRIMMED_SIZE = {
+  width: 1536,
+  height: 1024,
+}
+const POSTIT_CAPTURED_ASPECT_RATIO = POSTIT_TRIMMED_SIZE.width / POSTIT_TRIMMED_SIZE.height
+const POLAROID_TRIMMED_SIZE = {
+  width: 608,
+  height: 656,
+}
+const POLAROID_SOURCE_CROP = { x: 464, y: 148, width: 608, height: 656 }
 
 function seeded(value) {
   const x = Math.sin(value + 1.5) * 10000
@@ -43,34 +42,36 @@ function isPolaroidTrace(post) {
   return post.type === 'POLAROID' || post.type === 'polaroid'
 }
 
+function hasSavedPostitImage(post) {
+  return Boolean(post.capturedImage || post.imageUrl)
+}
+
+function getPostitAspectRatio(post) {
+  if (hasSavedPostitImage(post)) {
+    return Number(post.style?.capturedAspectRatio) || POSTIT_CAPTURED_ASPECT_RATIO
+  }
+
+  return POSTIT_TRIMMED_SIZE.width / POSTIT_TRIMMED_SIZE.height
+}
+
 function getTraceId(post) {
   return post.traceId ?? post.id
 }
 
-function getAuthorName(post) {
-  return post.authorName ?? post.nickname ?? '익명'
-}
-
-function getLikeCount(post) {
-  return post.likeCount ?? post.likes ?? 0
+function cropImageStyle(crop, sourceWidth = 1536, sourceHeight = 1024) {
+  return {
+    height: `${(sourceHeight / crop.height) * 100}%`,
+    left: `${(-crop.x / crop.width) * 100}%`,
+    top: `${(-crop.y / crop.height) * 100}%`,
+    width: `${(sourceWidth / crop.width) * 100}%`,
+  }
 }
 
 function getCardHeight(post) {
   const cardW = post._cardW ?? TRACE_CARD_W
-  return isPolaroidTrace(post) ? cardW * 1.5 : cardW
-}
-
-function getActionErrorMessage(error) {
-  return getApiErrorMessage(error, {
-    fallback: '처리하지 못했습니다.',
-    statusMessages: {
-      401: '로그인이 필요합니다.',
-      403: '이 작업을 수행할 권한이 없습니다.',
-      404: '흔적을 찾을 수 없습니다.',
-      409: '이미 신고했거나 상태가 변경된 흔적입니다.',
-      500: '처리하지 못했습니다. 잠시 후 다시 시도해주세요.',
-    },
-  })
+  return isPolaroidTrace(post)
+    ? cardW * (POLAROID_TRIMMED_SIZE.height / POLAROID_TRIMMED_SIZE.width)
+    : cardW / getPostitAspectRatio(post)
 }
 
 function hasOverlap(rect, placedRects) {
@@ -94,7 +95,7 @@ function getTraceLayoutPosition(post, index) {
   const baseY = GRID_PADDING_Y + row * (TRACE_CARD_W * 1.5 + GRID_GAP_Y)
   const offsetX = (seeded(traceSeed * 2.17) - 0.5) * 26
   const offsetY = (seeded(traceSeed * 3.41) - 0.5) * 34
-  const rotation = (seeded(traceSeed * 4.73) - 0.5) * 10
+  const rotation = (seeded(traceSeed * 4.73) - 0.5) * 6
 
   return {
     x: baseX + offsetX,
@@ -109,7 +110,9 @@ function layoutPosts(posts) {
   return posts.map((post, index) => {
     const base = getTraceLayoutPosition(post, index)
     const cardW = TRACE_CARD_W
-    const cardH = isPolaroidTrace(post) ? cardW * 1.5 : cardW
+    const cardH = isPolaroidTrace(post)
+      ? cardW * (POLAROID_TRIMMED_SIZE.height / POLAROID_TRIMMED_SIZE.width)
+      : cardW / getPostitAspectRatio(post)
     let x = base.x
     let y = base.y
     let attempts = 0
@@ -129,66 +132,24 @@ function layoutPosts(posts) {
       ...post,
       _x: x,
       _y: y,
-      _rotate: base.rotation,
+      _rotate: isPolaroidTrace(post) ? base.rotation : 0,
       _cardW: cardW,
     }
   })
 }
 
-function TraceMeta({ post, onToggleLike }) {
-  const [isPending, setIsPending] = useState(false)
-  const [message, setMessage] = useState('')
-
-  const handleLikeClick = async (event) => {
-    event.preventDefault()
-    event.stopPropagation()
-    if (!onToggleLike || isPending) return
-
-    setIsPending(true)
-    setMessage('')
-
-    try {
-      await onToggleLike(post)
-    } catch (error) {
-      setMessage(getActionErrorMessage(error))
-    } finally {
-      setIsPending(false)
-    }
-  }
-
-  return (
-    <div className="min-w-0">
-      <div className="flex min-w-0 items-center justify-between gap-3 text-[12px] font-bold text-[#6E5542]">
-        <span className="min-w-0 truncate">- {getAuthorName(post)}</span>
-        <button
-          type="button"
-          onClick={handleLikeClick}
-          disabled={isPending}
-          aria-label={post.liked ? '좋아요 취소' : '좋아요'}
-          className={`flex shrink-0 items-center gap-1 rounded-full px-1.5 py-1 transition-colors ${
-            post.liked ? 'text-[#A64A3A]' : 'text-[#7D6652]/80'
-          } disabled:opacity-60`}
-        >
-          <Heart size={13} strokeWidth={1.8} fill={post.liked ? 'currentColor' : 'none'} />
-          <span>{getLikeCount(post)}</span>
-        </button>
-      </div>
-      {message ? <p className="mt-1 truncate text-right text-[10px] font-bold text-[#A74831]">{message}</p> : null}
-    </div>
-  )
-}
-
-function PostItTraceCard({ post, onToggleLike, isHighlighted }) {
+function PostItTraceCard({ post, isHighlighted }) {
   const cardW = post._cardW ?? TRACE_CARD_W
+  const hasSavedImage = Boolean(post.capturedImage || post.imageUrl)
   const postitImage = post.capturedImage ?? post.imageUrl ?? postitTexture
-  const shouldRenderText = !post.capturedImage && !post.imageUrl
+  const shouldRenderText = !hasSavedImage
 
   return (
     <article
       className="absolute flex flex-col overflow-hidden text-[#35241A]"
       style={{
         filter: isHighlighted ? 'drop-shadow(0 0 12px rgba(255,200,50,0.8))' : 'none',
-        height: cardW,
+        height: cardW / getPostitAspectRatio(post),
         left: post._x,
         pointerEvents: 'auto',
         top: post._y,
@@ -198,7 +159,11 @@ function PostItTraceCard({ post, onToggleLike, isHighlighted }) {
         width: cardW,
       }}
     >
-      <img src={postitImage} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-fill" />
+      <img
+        src={postitImage}
+        alt=""
+        className="pointer-events-none absolute inset-0 h-full w-full object-fill"
+      />
       <div className="relative z-10 flex h-full flex-col px-[15px] pb-[12px] pt-[21px]">
         {shouldRenderText ? (
           <p
@@ -216,20 +181,21 @@ function PostItTraceCard({ post, onToggleLike, isHighlighted }) {
         ) : (
           <div className="min-h-0 flex-1" />
         )}
-        <TraceMeta post={post} onToggleLike={onToggleLike} />
       </div>
     </article>
   )
 }
 
-function PolaroidTraceCard({ post, onToggleLike, isHighlighted }) {
+function PolaroidTraceCard({ post, isHighlighted }) {
   const cardW = post._cardW ?? TRACE_CARD_W
-  const cardH = cardW * 1.5
-  const imageUrl = post.capturedImage ?? post.imageUrl ?? post.media?.image
+  const cardH = cardW * (POLAROID_TRIMMED_SIZE.height / POLAROID_TRIMMED_SIZE.width)
+  const savedPolaroidImage = post.capturedImage ?? null
+  const fallbackPhotoImage = post.media?.image ?? post.imageUrl
+  const shouldRenderFrameLayers = !savedPolaroidImage
 
   return (
     <article
-      className="absolute overflow-hidden rounded-[5px] bg-[#FFFDF8] p-[10px] shadow-[0_8px_22px_rgba(42,28,20,0.16)]"
+      className="absolute overflow-hidden text-[#35241A]"
       style={{
         filter: isHighlighted ? 'drop-shadow(0 0 12px rgba(255,200,50,0.8))' : 'none',
         height: cardH,
@@ -242,15 +208,34 @@ function PolaroidTraceCard({ post, onToggleLike, isHighlighted }) {
         width: cardW,
       }}
     >
-      {polaroidFrame ? (
-        <img src={polaroidFrame} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-fill" />
+      {savedPolaroidImage ? (
+        <img
+          src={savedPolaroidImage}
+          alt=""
+          className="pointer-events-none absolute inset-0 h-full w-full object-fill"
+          draggable="false"
+        />
       ) : null}
-      <div className="relative z-10 h-[66%] w-full overflow-hidden rounded-[3px] bg-[#E4D3BF]">
-        {imageUrl ? <img src={imageUrl} alt="" className="h-full w-full object-cover" draggable="false" /> : null}
-      </div>
-      <div className="relative z-10 flex h-[34%] flex-col px-1 pb-1 pt-2">
+
+      {shouldRenderFrameLayers && fallbackPhotoImage ? (
+        <div className="absolute left-[6.4%] top-[6.1%] h-[74.4%] w-[87%] overflow-hidden">
+          <img src={fallbackPhotoImage} alt="" className="h-full w-full object-cover" draggable="false" />
+        </div>
+      ) : null}
+
+      {shouldRenderFrameLayers ? (
+        <img
+          src={polaroidFrame}
+          alt=""
+          className="pointer-events-none absolute object-fill"
+          style={cropImageStyle(POLAROID_SOURCE_CROP)}
+          draggable="false"
+        />
+      ) : null}
+
+      {shouldRenderFrameLayers && post.content ? (
         <p
-          className="min-h-0 flex-1 overflow-hidden text-center text-[21px] leading-[1.05] text-[#3A2A20]"
+          className="absolute bottom-[6.5%] left-[10%] right-[10%] overflow-hidden text-center text-[21px] leading-[1.05] text-[#3A2A20]"
           style={{
             display: '-webkit-box',
             fontFamily: "'Nanum Pen Script', 'Gaegu', cursive",
@@ -260,107 +245,8 @@ function PolaroidTraceCard({ post, onToggleLike, isHighlighted }) {
         >
           {post.content}
         </p>
-        <TraceMeta post={post} onToggleLike={onToggleLike} />
-      </div>
-    </article>
-  )
-}
-
-function ReportAction({ post, onReport }) {
-  const [isOpen, setIsOpen] = useState(false)
-  const [reportKind, setReportKind] = useState(REPORT_REASONS[0].value)
-  const [isPending, setIsPending] = useState(false)
-  const [message, setMessage] = useState('')
-  const traceId = getTraceId(post)
-
-  const stopBoardGesture = (event) => {
-    event.preventDefault()
-    event.stopPropagation()
-  }
-
-  const handleReportSubmit = async (event) => {
-    event.preventDefault()
-    event.stopPropagation()
-    if (!onReport || isPending) return
-
-    setIsPending(true)
-    setMessage('')
-
-    try {
-      await onReport(post, reportKind)
-      setMessage('신고가 접수되었습니다.')
-      setIsOpen(false)
-    } catch (error) {
-      setMessage(getActionErrorMessage(error))
-    } finally {
-      setIsPending(false)
-    }
-  }
-
-  return (
-    <div
-      className="absolute z-30"
-      style={{
-        left: post._x + (post._cardW ?? TRACE_CARD_W) - 14,
-        pointerEvents: 'auto',
-        top: post._y + getCardHeight(post) - 8,
-      }}
-      onClick={stopBoardGesture}
-      onMouseDown={stopBoardGesture}
-      onPointerDown={stopBoardGesture}
-      onTouchStart={stopBoardGesture}
-    >
-      <div className="relative">
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation()
-            setIsOpen((open) => !open)
-            setMessage('')
-          }}
-          aria-label="신고하기"
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-[#6B5344] shadow-md backdrop-blur-sm"
-        >
-          <Flag size={15} strokeWidth={2} />
-        </button>
-
-        {isOpen ? (
-          <form
-            onSubmit={handleReportSubmit}
-            className="absolute bottom-10 right-0 w-[190px] rounded-[8px] bg-white p-3 text-[#3D2B1F] shadow-[0_10px_28px_rgba(42,28,20,0.20)]"
-          >
-            <label className="block text-[12px] font-bold" htmlFor={`report-${traceId}`}>
-              신고 사유
-            </label>
-            <select
-              id={`report-${traceId}`}
-              value={reportKind}
-              onChange={(event) => setReportKind(event.target.value)}
-              className="mt-2 h-9 w-full rounded-[6px] border border-[#D8CEC2] bg-[#F8F4EE] px-2 text-[12px] outline-none"
-            >
-              {REPORT_REASONS.map((reason) => (
-                <option key={reason.value} value={reason.value}>
-                  {reason.label}
-                </option>
-              ))}
-            </select>
-            <button
-              type="submit"
-              disabled={isPending}
-              className="mt-2 h-9 w-full rounded-[6px] bg-[#3D2B1F] text-[12px] font-bold text-white disabled:opacity-60"
-            >
-              {isPending ? '접수 중' : '신고하기'}
-            </button>
-          </form>
-        ) : null}
-      </div>
-
-      {message ? (
-        <p className="mt-1 max-w-[190px] rounded-full bg-white/90 px-2 py-1 text-right text-[11px] font-semibold text-[#7A4D3B] shadow-sm">
-          {message}
-        </p>
       ) : null}
-    </div>
+    </article>
   )
 }
 
@@ -541,6 +427,7 @@ function useBoardTransform(transformRef, onZoomChange, initialScale) {
     onPointerDown,
     onTouchEnd,
     onTouchStart,
+    setTransform,
     stateRef,
     transform,
   }
@@ -572,6 +459,7 @@ function BoardCanvas({
     onPointerDown,
     onTouchEnd,
     onTouchStart,
+    setTransform,
     stateRef,
     transform,
   } = useBoardTransform(transformRef, onZoomChange, initialScale)
@@ -585,10 +473,10 @@ function BoardCanvas({
     const rect = containerRef.current?.getBoundingClientRect()
     if (!rect) return undefined
 
-    const scale = stateRef.current.scale
-    const targetX = rect.width / 2 - (post._x + (post._cardW ?? TRACE_CARD_W) / 2) * scale
-    const targetY = rect.height / 2 - (post._y + (post._cardW ?? TRACE_CARD_W) / 2) * scale
-    const start = { x: stateRef.current.x, y: stateRef.current.y }
+    const start = { x: stateRef.current.x, y: stateRef.current.y, scale: stateRef.current.scale }
+    const targetScale = Math.min(1.05, Math.max(start.scale, 0.78))
+    const targetX = rect.width / 2 - (post._x + (post._cardW ?? TRACE_CARD_W) / 2) * targetScale
+    const targetY = rect.height / 2 - (post._y + (post._cardW ?? TRACE_CARD_W) / 2) * targetScale
     const startTime = performance.now()
     const duration = 600
     let timeoutId
@@ -600,11 +488,13 @@ function BoardCanvas({
         ...stateRef.current,
         x: start.x + (targetX - start.x) * ease,
         y: start.y + (targetY - start.y) * ease,
+        scale: start.scale + (targetScale - start.scale) * ease,
       }
+      setTransform({ ...stateRef.current })
 
       const canvasElement = containerRef.current?.querySelector('[data-board-canvas]')
       if (canvasElement) {
-        canvasElement.style.transform = `translate(${stateRef.current.x}px, ${stateRef.current.y}px) scale(${scale})`
+        canvasElement.style.transform = `translate(${stateRef.current.x}px, ${stateRef.current.y}px) scale(${stateRef.current.scale})`
       }
 
       if (t < 1) {
@@ -613,6 +503,7 @@ function BoardCanvas({
       }
 
       setHighlightId(newPostId)
+      onZoomChange?.(Math.round((targetScale / initialScale) * 100))
       timeoutId = window.setTimeout(() => {
         setHighlightId(null)
         onNewPostFocused?.()
@@ -624,7 +515,7 @@ function BoardCanvas({
     return () => {
       if (timeoutId) window.clearTimeout(timeoutId)
     }
-  }, [containerRef, laid, newPostId, onNewPostFocused, stateRef])
+  }, [containerRef, initialScale, laid, newPostId, onNewPostFocused, onZoomChange, setTransform, stateRef])
 
   const handleContainerPointerDown = useCallback((event) => {
     pointerDownInfo.current = { x: event.clientX, y: event.clientY }
@@ -648,7 +539,9 @@ function BoardCanvas({
     for (let index = laid.length - 1; index >= 0; index -= 1) {
       const post = laid[index]
       const cardW = post._cardW ?? TRACE_CARD_W
-      const cardH = isPolaroidTrace(post) ? cardW * 1.5 : cardW
+      const cardH = isPolaroidTrace(post)
+        ? cardW * (POLAROID_TRIMMED_SIZE.height / POLAROID_TRIMMED_SIZE.width)
+        : cardW / getPostitAspectRatio(post)
       if (cx >= post._x && cx <= post._x + cardW && cy >= post._y && cy <= post._y + cardH) {
         setSelectedPost(post)
         return
@@ -689,11 +582,10 @@ function BoardCanvas({
           return (
             <div key={key}>
               {isPolaroidTrace(post) ? (
-                <PolaroidTraceCard post={post} onToggleLike={onToggleLike} isHighlighted={isHighlighted} />
+                <PolaroidTraceCard post={post} isHighlighted={isHighlighted} />
               ) : (
-                <PostItTraceCard post={post} onToggleLike={onToggleLike} isHighlighted={isHighlighted} />
+                <PostItTraceCard post={post} isHighlighted={isHighlighted} />
               )}
-              {onReport ? <ReportAction post={post} onReport={onReport} /> : null}
             </div>
           )
         })}

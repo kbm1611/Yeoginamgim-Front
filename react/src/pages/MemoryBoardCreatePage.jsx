@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Camera, ChevronLeft, ImagePlus } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { createBoard } from '../api/boards'
+import { createCustomBoard } from '../api/customBoards'
 import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
 import { clearAuthToken } from '../api/client'
 
@@ -34,15 +34,12 @@ function MemoryBoardCreatePage() {
     setErrorMessage('')
 
     try {
-      const createdBoard = await createBoard({
-        boardName: trimmedName,
-        coverImageUrl: coverImage || null,
-        description: description.trim(),
-        groupName: trimmedName,
-        name: trimmedName,
-        placeName: trimmedName,
+      const createdBoard = await createCustomBoard({
+        boardTitle: trimmedName,
+        boardDescription: description.trim(),
+        boardImageUrl: coverImage || null,
       })
-      const boardId = createdBoard?.boardId ?? createdBoard?.id
+      const boardId = createdBoard?.boardId ?? createdBoard?.customBoardId ?? createdBoard?.id
 
       if (!boardId) {
         throw new Error('생성된 보드 ID를 확인할 수 없습니다.')
@@ -52,7 +49,7 @@ function MemoryBoardCreatePage() {
         replace: true,
         state: {
           boardId,
-          boardName: createdBoard?.boardName ?? createdBoard?.name ?? trimmedName,
+          boardName: createdBoard?.boardTitle ?? createdBoard?.boardName ?? createdBoard?.name ?? trimmedName,
           boardType: 'CUSTOM',
           coverImage,
           description: description.trim(),

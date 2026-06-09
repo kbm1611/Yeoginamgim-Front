@@ -20,8 +20,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { fetchBoardDetail } from '../api/boards'
 import { API_BASE_URL, clearAuthToken } from '../api/client'
 import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
-import { createTraceReport } from '../api/reports'
-import { addTraceLike, createTrace, fetchBoardTraces, removeTraceLike, uploadTraceImage } from '../api/traces'
+import { createTrace, fetchBoardTraces, uploadTraceImage } from '../api/traces'
 import boardBg from '../assets/image.png'
 import BoardCanvas from '../components/board/BoardCanvas'
 import BottomNavigation from '../components/BottomNavigation'
@@ -115,10 +114,6 @@ function sortPosts(posts, sort) {
 
 function getPostId(post) {
   return post.traceId ?? post.id
-}
-
-function getLikeCount(post) {
-  return post.likeCount ?? post.likes ?? 0
 }
 
 function findEmptyCell(posts) {
@@ -625,94 +620,6 @@ function BoardDetail() {
     return () => window.clearTimeout(timerId)
   }, [handlePlace, isLoading, isSaving, placementDraft, posts])
 
-  const handleToggleLike = useCallback(async (post) => {
-    const postId = getPostId(post)
-    const nextLiked = !post.liked
-    const previousLikes = getLikeCount(post)
-    const nextLikes = Math.max(0, previousLikes + (nextLiked ? 1 : -1))
-
-    setActionMessage('')
-    setPosts((prev) =>
-      prev.map((item) =>
-        getPostId(item) === postId
-          ? { ...item, liked: nextLiked, likeCount: nextLikes, likes: nextLikes }
-          : item,
-      ),
-    )
-
-    try {
-      const result = nextLiked ? await addTraceLike(postId) : await removeTraceLike(postId)
-      const resultLikes = result?.likeCount ?? nextLikes
-      const resultLiked = result?.liked ?? nextLiked
-
-      setPosts((prev) =>
-        prev.map((item) =>
-          getPostId(item) === postId
-            ? { ...item, liked: resultLiked, likeCount: resultLikes, likes: resultLikes }
-            : item,
-        ),
-      )
-
-      return result
-    } catch (error) {
-      setPosts((prev) =>
-        prev.map((item) =>
-          getPostId(item) === postId
-            ? { ...item, liked: post.liked, likeCount: previousLikes, likes: previousLikes }
-            : item,
-        ),
-      )
-
-      if (!handleUnauthorizedApiError(error, {
-        clearToken: clearAuthToken,
-        location,
-        navigate,
-        redirect: true,
-      })) {
-        setActionMessage(getApiErrorMessage(error, {
-          fallback: '좋아요를 처리하지 못했습니다.',
-          statusMessages: {
-            403: '좋아요를 누를 권한이 없습니다.',
-            404: '흔적을 찾을 수 없습니다.',
-            500: '좋아요를 처리하지 못했습니다. 잠시 후 다시 시도해주세요.',
-          },
-        }))
-      }
-
-      throw error
-    }
-  }, [location, navigate])
-
-  const handleCreateReport = useCallback(async (post, reportKind) => {
-    const postId = getPostId(post)
-    setActionMessage('')
-
-    try {
-      const result = await createTraceReport(postId, { reportKind })
-      setActionMessage('신고가 접수되었습니다.')
-      return result
-    } catch (error) {
-      if (!handleUnauthorizedApiError(error, {
-        clearToken: clearAuthToken,
-        location,
-        navigate,
-        redirect: true,
-      })) {
-        setActionMessage(getApiErrorMessage(error, {
-          fallback: '신고를 접수하지 못했습니다.',
-          statusMessages: {
-            403: '신고 권한이 없습니다.',
-            404: '신고할 흔적을 찾을 수 없습니다.',
-            409: '이미 신고한 흔적입니다.',
-            500: '신고를 접수하지 못했습니다. 잠시 후 다시 시도해주세요.',
-          },
-        }))
-      }
-
-      throw error
-    }
-  }, [location, navigate])
-
   const handleCopyInvite = async () => {
     try {
       await navigator.clipboard.writeText(inviteLink)
@@ -759,8 +666,6 @@ function BoardDetail() {
         onRefresh={refreshTraces}
         transformRef={transformRef}
         onZoomChange={setZoom}
-        onToggleLike={handleToggleLike}
-        onReport={handleCreateReport}
         onPostDeleted={(postId) => setPosts((prev) => prev.filter((post) => getPostId(post) !== postId))}
         newPostId={newPostId}
         onNewPostFocused={() => setNewPostId(null)}

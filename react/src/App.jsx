@@ -59,6 +59,14 @@ function AnimatedRoutes() {
         <Route path="/record/success" element={<RequireAuth><MemoryBoardSuccessPage /></RequireAuth>} />
 
         <Route path="/place/:id" element={<PlaceDetail />} />
+        <Route
+          path="/board/join/:inviteCode"
+          element={
+            <RequireAuth>
+              <InviteBoardPage />
+            </RequireAuth>
+          }
+        />
         <Route path="/board/:id">
           <Route index element={<BoardDetail />} />
           <Route
