@@ -1,1708 +1,879 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { AlignCenter, AlignLeft, AlignRight, Archive, Camera, Home, Image as ImageIcon, MapPin, PenLine, Plus, Settings, Smile, Trash2, Type, X } from 'lucide-react'
+import { Camera, RotateCcw, X } from 'lucide-react'
 import { getStroke } from 'perfect-freehand'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import postitImage from '../assets/editor/image.png'
+import postitTexture from '../assets/editor/33dab845-d565-4111-b90b-9d2382288463.png'
 import polaroidFrame from '../assets/images/recent-trace-default-polaroid.png'
 import bgImage from '../assets/배경.png'
 
-const EDITOR_STEP = {
-  EMPTY: 'empty',
-  TYPE_PICKER: 'typePicker',
-  POSTIT_PICKER: 'postitPicker',
-  PHOTO_CROP: 'photoCrop',
-  EDITING: 'editing',
-}
+// ─── 상수 ────────────────────────────────────────────────────────────────────
 
-const EDITOR_MODE = {
-  IDLE: 'idle',
-  TEXT: 'text',
-  PEN: 'pen',
-  OBJECT_SELECTED: 'objectSelected',
-}
-
-const OBJECT_TYPE = {
-  TEXT: 'text',
-  STROKE: 'stroke',
-  STICKER: 'sticker',
-}
-
-const POSTIT_SOURCE_CROP = { x: 0, y: 0, width: 1024, height: 1536 }
-const POSTIT_SIZE = { width: POSTIT_SOURCE_CROP.width, height: POSTIT_SOURCE_CROP.height }
-const POSTIT_EXPORT_CROP = { x: 0, y: 0, width: 1, height: 1 }
-const POSTIT_EXPORT_ASPECT_RATIO = (POSTIT_SIZE.width * POSTIT_EXPORT_CROP.width) / (POSTIT_SIZE.height * POSTIT_EXPORT_CROP.height)
-const POLAROID_SOURCE_CROP = { x: 0, y: 0, width: 512, height: 512 }
-const POLAROID_SIZE = { width: POLAROID_SOURCE_CROP.width, height: POLAROID_SOURCE_CROP.height }
-
-const POSTIT_TEMPLATES = [
-  { id: 'yellow', label: '노랑', color: '#F7E58A', tape: '#F2C55C' },
-  { id: 'pink', label: '핑크', color: '#F6C3CF', tape: '#EFA6B8' },
-  { id: 'sky', label: '하늘', color: '#C8E2F2', tape: '#9EC8E8' },
-  { id: 'green', label: '연두', color: '#D7E7B4', tape: '#AECF80' },
-  { id: 'cream', label: '격자', color: '#FFF4CC', tape: '#D2D97E' },
-  { id: 'purple', label: '보라', color: '#E6D4F2', tape: '#C3A2E5' },
+const POSTIT_COLORS = [
+  { id: 'yellow', color: '#F7E58A' },
+  { id: 'pink',   color: '#F6ABBE' },
+  { id: 'sky',    color: '#A8D8F0' },
+  { id: 'green',  color: '#B8E0A0' },
+  { id: 'cream',  color: '#FFF0CC' },
+  { id: 'purple', color: '#D4B8F0' },
 ]
-
-const CARD_TEMPLATE = {
-  postit: {
-    size: POSTIT_SIZE,
-    textBounds: { x: 0.26, y: 0.18, width: 0.5, height: 0.58 },
-    drawBounds: { x: 0.245, y: 0.14, width: 0.525, height: 0.69 },
-    excludedZones: [],
-  },
-  polaroid: {
-    size: POLAROID_SIZE,
-    imageBounds: { x: 0.064, y: 0.061, width: 0.87, height: 0.744 },
-    textBounds: { x: 0.11, y: 0.835, width: 0.78, height: 0.11 },
-    drawBounds: { x: 0.064, y: 0.061, width: 0.87, height: 0.744 },
-    excludedZones: [],
-  },
-}
 
 const FONTS = [
-  { id: 'basic', label: '기본체', family: "'Pretendard', sans-serif" },
-  { id: 'mood', label: '손글씨', family: "'Cafe24Oneprettynight', 'Nanum Pen Script', 'Gaegu', cursive" },
-  { id: 'round', label: '둥근체', family: "'Gaegu', 'Pretendard', sans-serif" },
-  { id: 'serif', label: '카페체', family: "'MaruBuri', 'Noto Serif KR', serif" },
+  { id: 'gaegu',   label: '귀여운',  family: "'Gaegu', cursive" },
+  { id: 'jua',     label: '통통',    family: "'Jua', sans-serif" },
+  { id: 'poor',    label: '낙서',    family: "'Poor Story', cursive" },
+  { id: 'dokdo',   label: '개성',    family: "'Dokdo', cursive" },
 ]
 
-const TEXT_COLORS = ['#2C1A0E', '#77716A', '#F5B400', '#F97316', '#F28AA8', '#9B59B6', '#2D9CDB', '#2FA84F']
-const PEN_COLORS = ['#2C1A0E', '#EF4444', '#F97316', '#E7B949', '#2FA84F', '#2D9CDB', '#9B59B6']
-const PEN_WIDTHS = { thin: 2, medium: 5, thick: 9 }
-const STICKERS = ['♡', '☕', '✿', '☆']
-const MAX_TEXT_LENGTH = 200
-const FREEHAND_OPTIONS = {
-  thinning: 0.44,
-  smoothing: 0.62,
-  streamline: 0.5,
-  simulatePressure: true,
-  start: { taper: 2, cap: true },
-  end: { taper: 2, cap: true },
+const TEXT_COLORS = ['#1A1A1A', '#FFFFFF', '#C0392B', '#2D9CDB', '#27AE60', '#F39C12', '#9B59B6', '#F6ABBE']
+const PEN_COLORS  = ['#1A1A1A', '#FFFFFF', '#C0392B', '#2D9CDB', '#27AE60', '#F39C12', '#9B59B6']
+
+const TOOL = { NONE: 'none', TEXT: 'text', PEN: 'pen', COLOR: 'color' }
+const PEN_TYPE = { NORMAL: 'normal', HIGHLIGHT: 'highlight', ERASER: 'eraser' }
+
+const FREEHAND_OPT = {
+  thinning: 0.5, smoothing: 0.6, streamline: 0.5, simulatePressure: true,
+  start: { taper: 3, cap: true }, end: { taper: 3, cap: true },
+}
+const HIGHLIGHT_OPT = {
+  thinning: 0, smoothing: 0.6, streamline: 0.5, simulatePressure: false,
+  start: { taper: 0, cap: true }, end: { taper: 0, cap: true },
 }
 
-function today() {
-  const d = new Date()
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
+const POSTIT_ASPECT = 1        // 1:1 정사각형
+const POLAROID_ASPECT = 1      // 폴라로이드도 1:1
+
+// ─── 유틸 ────────────────────────────────────────────────────────────────────
+
+function createId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 }
 
-function createId(prefix) {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+function clamp(v, min, max) {
+  return Math.max(min, Math.min(max, v))
 }
 
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value))
+function outlineToPath(pts) {
+  if (!pts.length) return ''
+  const [f, ...r] = pts
+  return [`M ${f[0].toFixed(2)} ${f[1].toFixed(2)}`, ...r.map(([x, y]) => `L ${x.toFixed(2)} ${y.toFixed(2)}`), 'Z'].join(' ')
 }
 
-function isInsideBounds(point, bounds) {
-  return point.x >= bounds.x && point.x <= bounds.x + bounds.width && point.y >= bounds.y && point.y <= bounds.y + bounds.height
-}
-
-function isInsideExcludedZone(point, zones = []) {
-  return zones.some((zone) => isInsideBounds(point, zone))
-}
-
-function canUsePoint(point, bounds, zones = []) {
-  return isInsideBounds(point, bounds) && !isInsideExcludedZone(point, zones)
-}
-
-function clampPointToBounds(point, bounds) {
-  return {
-    ...point,
-    x: clamp(point.x, bounds.x, bounds.x + bounds.width),
-    y: clamp(point.y, bounds.y, bounds.y + bounds.height),
-  }
-}
-
-function clampObjectToBounds(object, bounds) {
-  return {
-    ...object,
-    x: clamp(object.x, bounds.x, bounds.x + bounds.width - (object.width ?? 0)),
-    y: clamp(object.y, bounds.y, bounds.y + bounds.height - (object.height ?? 0)),
-  }
-}
-
-function boundsToStyle(bounds) {
-  return {
-    left: `${bounds.x * 100}%`,
-    top: `${bounds.y * 100}%`,
-    width: `${bounds.width * 100}%`,
-    height: `${bounds.height * 100}%`,
-  }
-}
-
-function boundsToPixels(bounds, width, height) {
-  return {
-    x: bounds.x * width,
-    y: bounds.y * height,
-    width: bounds.width * width,
-    height: bounds.height * height,
-  }
-}
-
-function remapPointToCrop(point, crop) {
-  return {
-    ...point,
-    x: (point.x - crop.x) / crop.width,
-    y: (point.y - crop.y) / crop.height,
-  }
-}
-
-function remapBoundsToCrop(bounds, crop) {
-  return {
-    x: (bounds.x - crop.x) / crop.width,
-    y: (bounds.y - crop.y) / crop.height,
-    width: bounds.width / crop.width,
-    height: bounds.height / crop.height,
-  }
-}
-
-function cropImageStyle(crop, sourceWidth = 1536, sourceHeight = 1024) {
-  return {
-    height: `${(sourceHeight / crop.height) * 100}%`,
-    left: `${(-crop.x / crop.width) * 100}%`,
-    top: `${(-crop.y / crop.height) * 100}%`,
-    width: `${(sourceWidth / crop.width) * 100}%`,
-  }
-}
-
-function pointFromEvent(event, ref) {
-  const rect = ref.current?.getBoundingClientRect()
-  if (!rect) return null
-  const source = event.touches?.[0] ?? event
-
-  return {
-    x: clamp((source.clientX - rect.left) / rect.width, 0, 1),
-    y: clamp((source.clientY - rect.top) / rect.height, 0, 1),
-  }
-}
-
-function getStrokeOutline(points, coordinateScale = 100, sizeScale = 0.48) {
-  if (!points?.length) return []
-
+function getOutline(points, size, isHL) {
   return getStroke(
-    points.map((point) => [point.x * coordinateScale, point.y * coordinateScale, point.pressure ?? 0.5]),
-    {
-      ...FREEHAND_OPTIONS,
-      size: (points[0]?.size ?? PEN_WIDTHS.medium) * sizeScale,
-    },
+    points.map(p => [p.x * 100, p.y * 100, p.pressure ?? 0.5]),
+    { ...(isHL ? HIGHLIGHT_OPT : FREEHAND_OPT), size: size * 0.5 },
   )
 }
 
-function outlineToPath(outline) {
-  if (!outline.length) return ''
-  const [first, ...rest] = outline
-  return [
-    `M ${first[0].toFixed(2)} ${first[1].toFixed(2)}`,
-    ...rest.map(([x, y]) => `L ${x.toFixed(2)} ${y.toFixed(2)}`),
-    'Z',
-  ].join(' ')
-}
-
-function distance(a, b) {
-  return Math.hypot(a.x - b.x, a.y - b.y)
-}
-
-function drawImageCover(ctx, image, x, y, width, height) {
-  const sourceRatio = image.naturalWidth / image.naturalHeight
-  const targetRatio = width / height
-  let sx = 0
-  let sy = 0
-  let sw = image.naturalWidth
-  let sh = image.naturalHeight
-
-  if (sourceRatio > targetRatio) {
-    sw = image.naturalHeight * targetRatio
-    sx = (image.naturalWidth - sw) / 2
-  } else {
-    sh = image.naturalWidth / targetRatio
-    sy = (image.naturalHeight - sh) / 2
+function pointFromEvent(e, ref) {
+  const rect = ref.current?.getBoundingClientRect()
+  if (!rect) return null
+  const src = e.touches?.[0] ?? e
+  return {
+    x: clamp((src.clientX - rect.left) / rect.width, 0, 1),
+    y: clamp((src.clientY - rect.top) / rect.height, 0, 1),
   }
-
-  ctx.drawImage(image, sx, sy, sw, sh, x, y, width, height)
 }
 
-function drawImageWithCrop(ctx, image, x, y, width, height, crop) {
-  const scale = crop?.scale ?? 1
-  const offsetX = crop?.x ?? 0.5
-  const offsetY = crop?.y ?? 0.5
-  const sourceRatio = image.naturalWidth / image.naturalHeight
-  const targetRatio = width / height
-  let sw = image.naturalWidth
-  let sh = image.naturalHeight
-
-  if (sourceRatio > targetRatio) {
-    sh = image.naturalHeight / scale
-    sw = sh * targetRatio
-  } else {
-    sw = image.naturalWidth / scale
-    sh = sw / targetRatio
-  }
-
-  const maxSx = Math.max(0, image.naturalWidth - sw)
-  const maxSy = Math.max(0, image.naturalHeight - sh)
-  const sx = clamp(maxSx * offsetX, 0, maxSx)
-  const sy = clamp(maxSy * offsetY, 0, maxSy)
-
-  ctx.drawImage(image, sx, sy, sw, sh, x, y, width, height)
+function isInsideCard(e, ref) {
+  const rect = ref.current?.getBoundingClientRect()
+  if (!rect) return false
+  const src = e.touches?.[0] ?? e
+  return (
+    src.clientX >= rect.left && src.clientX <= rect.right &&
+    src.clientY >= rect.top  && src.clientY <= rect.bottom
+  )
 }
 
 function loadImage(src) {
   return new Promise((resolve, reject) => {
-    fetch(src)
-      .then((res) => res.blob())
-      .then((blob) => {
-        const url = URL.createObjectURL(blob)
-        const image = new Image()
-        image.onload = () => {
-          URL.revokeObjectURL(url)
-          resolve(image)
-        }
-        image.onerror = reject
-        image.src = url
-      })
-      .catch(reject)
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => resolve(img)
+    img.onerror = reject
+    img.src = src
   })
 }
 
-function wrapLines(ctx, text, maxWidth, maxLines) {
-  const result = []
-
-  String(text ?? '').split('\n').forEach((paragraph) => {
-    const chars = Array.from(paragraph)
+function wrapText(ctx, text, maxWidth) {
+  const lines = []
+  for (const para of String(text ?? '').split('\n')) {
     let line = ''
-
-    chars.forEach((char) => {
-      const next = `${line}${char}`
-      if (ctx.measureText(next).width <= maxWidth || !line) {
-        line = next
-      } else {
-        result.push(line)
-        line = char
-      }
-    })
-
-    if (line) result.push(line)
-  })
-
-  return result.slice(0, maxLines)
-}
-
-function cropCanvasByAlpha(canvas, alphaThreshold = 1) {
-  const ctx = canvas.getContext('2d')
-  const { data, width, height } = ctx.getImageData(0, 0, canvas.width, canvas.height)
-  let minX = width
-  let minY = height
-  let maxX = -1
-  let maxY = -1
-
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      const alpha = data[(y * width + x) * 4 + 3]
-      if (alpha >= alphaThreshold) {
-        minX = Math.min(minX, x)
-        minY = Math.min(minY, y)
-        maxX = Math.max(maxX, x)
-        maxY = Math.max(maxY, y)
-      }
+    for (const char of Array.from(para)) {
+      const next = line + char
+      if (ctx.measureText(next).width > maxWidth && line) { lines.push(line); line = char }
+      else line = next
     }
+    lines.push(line)
   }
-
-  if (maxX < minX || maxY < minY) return canvas
-
-  const output = document.createElement('canvas')
-  output.width = maxX - minX + 1
-  output.height = maxY - minY + 1
-  output.getContext('2d').drawImage(canvas, minX, minY, output.width, output.height, 0, 0, output.width, output.height)
-  return output
+  return lines
 }
 
-function Header({ isCompleting, canComplete, isEditing, onClose, onComplete }) {
+// ─── 펜 SVG 레이어 ────────────────────────────────────────────────────────────
+
+function StrokeLayer({ strokes, activeStroke }) {
   return (
-    <header className="relative z-20 flex h-[58px] flex-none items-center justify-between px-5">
-      <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center text-[#2C1A0E]">
-        <X size={23} strokeWidth={2.1} />
-      </button>
-      <h1 className="text-[18px] font-extrabold text-[#111]">{isEditing ? '흔적 남기기' : '여기남김'}</h1>
-      {isEditing ? (
-        <button
-          type="button"
-          onClick={onComplete}
-          disabled={!canComplete || isCompleting}
-          className="h-11 rounded-full px-5 text-[14px] font-extrabold text-white disabled:opacity-45"
-          style={{ backgroundColor: canComplete && !isCompleting ? '#9B4F3F' : '#D6A090' }}
-        >
-          {isCompleting ? '저장 중' : '완료'}
-        </button>
-      ) : (
-        <button type="button" className="flex h-10 w-10 items-center justify-center text-[#2C1A0E]" aria-label="설정">
-          <Settings size={20} strokeWidth={1.9} />
-        </button>
-      )}
-    </header>
-  )
-}
-
-function EditorHeaderV2({ isCompleting, canComplete, onClose, onComplete }) {
-  return (
-    <header className="relative z-20 flex h-[58px] flex-none items-center justify-between px-5">
-      <button type="button" onClick={onClose} className="h-10 text-[14px] font-bold text-[#3B2418]">
-        취소
-      </button>
-      <h1 className="absolute left-1/2 -translate-x-1/2 text-[17px] font-extrabold text-[#1F140E]">
-        흔적 남기기
-      </h1>
-      <button
-        type="button"
-        onClick={onComplete}
-        disabled={!canComplete || isCompleting}
-        className="h-10 rounded-full px-4 text-[14px] font-extrabold text-white shadow-[0_8px_18px_rgba(97,49,36,0.18)] disabled:opacity-45"
-        style={{ backgroundColor: canComplete && !isCompleting ? '#9B4F3F' : '#D8B3A5' }}
-      >
-        {isCompleting ? '저장 중' : '완료'}
-      </button>
-    </header>
-  )
-}
-
-function EmptyStage() {
-  return (
-    <div className="flex h-full flex-col items-center justify-center px-8 text-center">
-      <p className="text-[22px] font-extrabold text-[#3B2418]">어떤 흔적을 남길까요?</p>
-      <p className="mt-2 text-[13px] font-semibold leading-relaxed text-[#8A715D]">
-        포스트잇처럼 짧게 쓰거나, 사진 한 장에 오늘의 순간을 붙여보세요.
-      </p>
-    </div>
-  )
-}
-
-function EditorAppBar({ active, onOpenPicker }) {
-  return (
-    <nav className="pointer-events-none absolute bottom-0 left-0 right-0 z-30 h-[86px] border-t border-[#EEE2D3] bg-white/92 shadow-[0_-8px_24px_rgba(59,36,24,0.08)] backdrop-blur">
-      <div className="pointer-events-auto mx-auto grid h-full max-w-[390px] grid-cols-5 items-center px-5 pb-4 pt-2">
-        {[
-          { key: 'home', label: '홈', icon: Home },
-          { key: 'map', label: '지도', icon: MapPin },
-          { key: 'add', label: '추가', icon: Plus },
-          { key: 'archive', label: '보관함', icon: Archive },
-          { key: 'my', label: '마이', icon: Settings },
-        ].map((item) => {
-          const Icon = item.icon
-          const isAdd = item.key === 'add'
-          const selected = active === item.key
-
-          return (
-            <button
-              key={item.key}
-              type="button"
-              onClick={isAdd ? onOpenPicker : undefined}
-              className="flex flex-col items-center justify-center gap-1 text-[11px] font-bold"
-              style={{ color: selected || isAdd ? '#3B2418' : '#9A8270' }}
-            >
-              <span
-                className={isAdd ? 'flex h-[56px] w-[56px] -translate-y-5 items-center justify-center rounded-full bg-white shadow-[0_6px_18px_rgba(59,36,24,0.22)]' : 'flex h-6 items-center justify-center'}
-                style={isAdd ? { border: '2px solid #F0A000', color: '#2C1A0E' } : undefined}
-              >
-                <Icon size={isAdd ? 28 : 20} strokeWidth={isAdd ? 2 : 1.8} />
-              </span>
-              <span className={isAdd ? '-mt-4 opacity-0' : ''}>{item.label}</span>
-            </button>
-          )
-        })}
-      </div>
-    </nav>
-  )
-}
-
-function AddDock({ step, onOpenPicker, onBackToEmpty }) {
-  if (step === EDITOR_STEP.EDITING) return null
-  if (step === EDITOR_STEP.EMPTY) return <EditorAppBar active="add" onOpenPicker={onOpenPicker} />
-
-  return (
-    <div className="absolute bottom-[102px] left-0 right-0 z-40 flex justify-center">
-      <button
-        type="button"
-        onClick={onBackToEmpty}
-        className="flex h-10 items-center justify-center rounded-full bg-white/94 px-5 text-[13px] font-extrabold text-[#6B4E3B] shadow-[0_8px_20px_rgba(59,36,24,0.14)]"
-        aria-label="닫기"
-      >
-        취소
-      </button>
-    </div>
-  )
-}
-
-function PickerScreen({ title, subtitle, children }) {
-  return (
-    <motion.div
-      initial={{ scale: 0.96, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      exit={{ scale: 0.96, opacity: 0 }}
-      transition={{ duration: 0.18 }}
-      className="absolute inset-x-5 top-4 z-30 rounded-[24px] border border-[#EEE0D1] bg-white/88 px-4 pb-5 pt-4 shadow-[0_14px_34px_rgba(59,36,24,0.14)] backdrop-blur"
+    <svg
+      className="pointer-events-none absolute inset-0 h-full w-full"
+      viewBox="0 0 100 100"
+      preserveAspectRatio="none"
     >
-      <p className="text-center text-[14px] font-extrabold text-[#3B2418]">{title}</p>
-      {subtitle ? <p className="mt-1 text-center text-[11px] font-semibold text-[#9A8270]">{subtitle}</p> : null}
-      {children}
-    </motion.div>
+      {[...strokes, ...(activeStroke ? [activeStroke] : [])].map(s => {
+        const isHL = s.penType === PEN_TYPE.HIGHLIGHT
+        const outline = getOutline(s.points, s.size, isHL)
+        return (
+          <path
+            key={s.id}
+            d={outlineToPath(outline)}
+            fill={s.color}
+            fillOpacity={isHL ? 0.38 : 1}
+            stroke="none"
+          />
+        )
+      })}
+    </svg>
   )
 }
 
-function TypePicker({ onPickPostit, onPickPolaroid }) {
-  return (
-    <PickerScreen title="흔적 추가" subtitle="어떤 방식으로 추억을 남길까요?">
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <button type="button" onClick={onPickPostit} className="rounded-[18px] bg-[#FFF4CD] px-4 py-5 text-left shadow-sm active:scale-[0.99]">
-          <span className="block h-10 w-10 rounded-[10px] bg-[#F7E58A] shadow-sm" />
-          <span className="mt-4 block text-[15px] font-extrabold text-[#3B2418]">포스트잇</span>
-          <span className="mt-1 block text-[12px] font-semibold leading-relaxed text-[#8A715D]">텍스트 중심으로 빠르게 남겨요</span>
-        </button>
-        <button type="button" onClick={onPickPolaroid} className="rounded-[18px] bg-[#F4F1FF] px-4 py-5 text-left shadow-sm active:scale-[0.99]">
-          <ImageIcon size={33} strokeWidth={1.7} />
-          <span className="mt-4 block text-[15px] font-extrabold text-[#3B2418]">포토카드</span>
-          <span className="mt-1 block text-[12px] font-semibold leading-relaxed text-[#8A715D]">사진을 먼저 고르고 꾸며요</span>
-        </button>
-      </div>
-    </PickerScreen>
-  )
-}
 
-function PostitPicker({ onPick, onCancel }) {
-  const [selectedTemplateId, setSelectedTemplateId] = useState(POSTIT_TEMPLATES[0].id)
-  const selectedTemplate = POSTIT_TEMPLATES.find((template) => template.id === selectedTemplateId) ?? POSTIT_TEMPLATES[0]
+// ─── 선택된 텍스트 — corner handle로 크기+회전 ────────────────────────────────
+// 우하단 핸들 드래그 → 텍스트 중심 기준 각도/거리 계산해서 scale+rotate 동시 조절
 
-  return (
-    <PickerScreen title="포스트잇 선택" subtitle="원하는 색상과 형태의 포스트잇을 골라주세요">
-      <div className="mt-4 grid grid-cols-2 gap-4 px-1">
-        {POSTIT_TEMPLATES.map((template) => (
-          <button
-            key={template.id}
-            type="button"
-            onClick={() => setSelectedTemplateId(template.id)}
-            className="relative flex aspect-[1.08/1] flex-col items-center justify-center rounded-[14px] border border-[#EADBCB] shadow-sm active:scale-[0.98]"
-            style={{
-              background: `linear-gradient(145deg, ${template.color}, #FFF8E7)`,
-              outline: selectedTemplateId === template.id ? '2px solid #F0A000' : 'none',
-              outlineOffset: 2,
-            }}
-          >
-            <span className="absolute top-3 h-2 w-9 rounded-full" style={{ backgroundColor: template.tape }} />
-            <span className="mt-4 text-[12px] font-extrabold text-[#5A3D2B]">{template.label}</span>
-          </button>
-        ))}
-      </div>
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <button type="button" onClick={onCancel} className="h-10 rounded-xl bg-[#F8F3EA] text-[12px] font-extrabold text-[#8A715D]">취소</button>
-        <button type="button" onClick={() => onPick(selectedTemplate)} className="h-10 rounded-xl bg-[#3B2418] text-[12px] font-extrabold text-white">선택</button>
-      </div>
-    </PickerScreen>
-  )
-}
-
-function PhotoCropScreen({ photo, crop, onCrop, onCancel, onConfirm }) {
+function TextWithHandles({ obj, cardRef, onUpdate, onEdit, onDelete }) {
   const dragRef = useRef(null)
+  const clickRef = useRef({ count: 0, timer: null })
 
-  const handlePointerDown = (event) => {
-    event.preventDefault()
-    const source = event.touches?.[0] ?? event
+  // 텍스트 자체 드래그 (이동)
+  const handleTextDown = e => {
+    e.stopPropagation()
+    e.preventDefault()
 
-    dragRef.current = {
-      startX: source.clientX,
-      startY: source.clientY,
-      cropX: crop.x,
-      cropY: crop.y,
+    clickRef.current.count += 1
+    if (clickRef.current.timer) clearTimeout(clickRef.current.timer)
+    clickRef.current.timer = setTimeout(() => { clickRef.current.count = 0 }, 300)
+    if (clickRef.current.count >= 2) {
+      clickRef.current.count = 0
+      onEdit(obj.id)
+      return
     }
 
-    const move = (moveEvent) => {
+    const src = e.touches?.[0] ?? e
+    dragRef.current = { startX: src.clientX, startY: src.clientY, origX: obj.x, origY: obj.y }
+
+    const onMove = me => {
       if (!dragRef.current) return
-      const current = moveEvent.touches?.[0] ?? moveEvent
-      const dx = (current.clientX - dragRef.current.startX) / 220
-      const dy = (current.clientY - dragRef.current.startY) / 220
-      onCrop({
-        ...crop,
-        x: clamp(dragRef.current.cropX - dx, 0, 1),
-        y: clamp(dragRef.current.cropY - dy, 0, 1),
+      me.preventDefault()
+      const cur = me.touches?.[0] ?? me
+      const rect = cardRef.current?.getBoundingClientRect()
+      if (!rect) return
+      onUpdate(obj.id, {
+        x: clamp(dragRef.current.origX + (cur.clientX - dragRef.current.startX) / rect.width, 0.05, 0.95),
+        y: clamp(dragRef.current.origY + (cur.clientY - dragRef.current.startY) / rect.height, 0.05, 0.95),
       })
     }
-
-    const end = () => {
+    const onEnd = () => {
       dragRef.current = null
-      window.removeEventListener('mousemove', move)
-      window.removeEventListener('mouseup', end)
-      window.removeEventListener('touchmove', move)
-      window.removeEventListener('touchend', end)
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onEnd)
+      window.removeEventListener('touchmove', onMove)
+      window.removeEventListener('touchend', onEnd)
     }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onEnd)
+    window.addEventListener('touchmove', onMove, { passive: false })
+    window.addEventListener('touchend', onEnd)
+  }
 
-    window.addEventListener('mousemove', move)
-    window.addEventListener('mouseup', end)
-    window.addEventListener('touchmove', move, { passive: false })
-    window.addEventListener('touchend', end)
+  // 우하단 핸들 드래그 (크기 + 회전)
+  const handleCornerDown = e => {
+    e.stopPropagation()
+    e.preventDefault()
+    const rect = cardRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const src = e.touches?.[0] ?? e
+    const cx = rect.left + obj.x * rect.width
+    const cy = rect.top + obj.y * rect.height
+    const initDist = Math.hypot(src.clientX - cx, src.clientY - cy)
+    const initAngle = Math.atan2(src.clientY - cy, src.clientX - cx) * (180 / Math.PI)
+    const origFontSize = obj.fontSize
+    const origRotate = obj.rotate
+
+    const onMove = me => {
+      me.preventDefault()
+      const cur = me.touches?.[0] ?? me
+      const dist = Math.hypot(cur.clientX - cx, cur.clientY - cy)
+      const angle = Math.atan2(cur.clientY - cy, cur.clientX - cx) * (180 / Math.PI)
+      onUpdate(obj.id, {
+        fontSize: clamp(Math.round(origFontSize * (dist / Math.max(initDist, 1))), 8, 72),
+        rotate: origRotate + (angle - initAngle),
+      })
+    }
+    const onEnd = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onEnd)
+      window.removeEventListener('touchmove', onMove)
+      window.removeEventListener('touchend', onEnd)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onEnd)
+    window.addEventListener('touchmove', onMove, { passive: false })
+    window.addEventListener('touchend', onEnd)
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 12 }}
-      transition={{ duration: 0.18 }}
-      className="absolute inset-x-5 top-4 z-30 rounded-[24px] border border-[#E5D8F5] bg-white/90 px-4 pb-5 pt-4 shadow-[0_14px_34px_rgba(70,46,110,0.14)] backdrop-blur"
+    <div
+      className="absolute"
+      style={{
+        left: `${obj.x * 100}%`,
+        top: `${obj.y * 100}%`,
+        transform: `translate(-50%, -50%) rotate(${obj.rotate}deg)`,
+        transformOrigin: 'center',
+        zIndex: 10,
+        touchAction: 'none',
+        userSelect: 'none',
+      }}
     >
-      <p className="text-center text-[14px] font-extrabold text-[#3B2418]">사진 편집</p>
-      <p className="mt-1 text-center text-[11px] font-semibold text-[#9A8270]">드래그로 위치를 맞추고, 확대/축소로 크기를 조정하세요</p>
-
+      {/* 텍스트 본체 */}
       <div
-        className="relative mx-auto mt-4 aspect-[4/5] w-[210px] overflow-hidden rounded-[18px] bg-[#F4EDE4] shadow-inner"
-        onMouseDown={handlePointerDown}
-        onTouchStart={handlePointerDown}
+        onMouseDown={handleTextDown}
+        onTouchStart={handleTextDown}
+        style={{
+          fontSize: obj.fontSize,
+          fontFamily: obj.fontFamily,
+          color: obj.color,
+          fontWeight: 600,
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+          textAlign: 'center',
+          maxWidth: '200px',
+          lineHeight: 1.35,
+          cursor: 'grab',
+          outline: '2px dashed rgba(255,255,255,0.7)',
+          outlineOffset: 6,
+          borderRadius: 4,
+          padding: '2px 4px',
+        }}
       >
-        {photo ? (
-          <img
-            src={photo}
-            alt=""
-            draggable={false}
-            className="h-full w-full object-cover"
-            style={{
-              objectPosition: `${crop.x * 100}% ${crop.y * 100}%`,
-              transform: `scale(${crop.scale})`,
-              transformOrigin: `${crop.x * 100}% ${crop.y * 100}%`,
-            }}
-          />
-        ) : null}
-        <div className="pointer-events-none absolute inset-0 grid grid-cols-3 grid-rows-3">
-          {Array.from({ length: 9 }).map((_, index) => (
-            <span key={index} className="border border-white/45" />
-          ))}
-        </div>
+        {obj.text}
       </div>
 
-      <div className="mt-4 flex items-center justify-center gap-3">
-        <button
-          type="button"
-          onClick={() => onCrop({ ...crop, scale: Math.max(1, crop.scale - 0.1) })}
-          className="h-9 rounded-xl bg-[#F8F3EA] px-5 text-[12px] font-extrabold text-[#3B2418]"
-        >
-          축소
-        </button>
-        <span className="min-w-[46px] text-center text-[12px] font-extrabold text-[#6B4E3B]">{Math.round(crop.scale * 100)}%</span>
-        <button
-          type="button"
-          onClick={() => onCrop({ ...crop, scale: Math.min(2.2, crop.scale + 0.1) })}
-          className="h-9 rounded-xl bg-[#F8F3EA] px-5 text-[12px] font-extrabold text-[#3B2418]"
-        >
-          확대
-        </button>
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <button type="button" onClick={onCancel} className="h-10 rounded-xl bg-[#F8F3EA] text-[12px] font-extrabold text-[#8A715D]">취소</button>
-        <button type="button" onClick={onConfirm} className="h-10 rounded-xl bg-[#3B2418] text-[12px] font-extrabold text-white">확인</button>
-      </div>
-    </motion.div>
-  )
-}
-
-function StrokeLayer({ strokes, bounds }) {
-  return (
-    <div className="pointer-events-none absolute z-[4] overflow-hidden" style={boundsToStyle(bounds)}>
-      <svg
-        className="h-full w-full"
-        viewBox={`${bounds.x * 100} ${bounds.y * 100} ${bounds.width * 100} ${bounds.height * 100}`}
-        preserveAspectRatio="none"
-        style={{ overflow: 'hidden' }}
+      {/* 삭제 버튼 — 좌상단 */}
+      <button
+        type="button"
+        onMouseDown={e => { e.stopPropagation(); onDelete(obj.id) }}
+        onTouchStart={e => { e.stopPropagation(); onDelete(obj.id) }}
+        className="absolute flex items-center justify-center rounded-full bg-black/70 text-white"
+        style={{ width: 22, height: 22, top: -11, left: -11, fontSize: 13, lineHeight: 1 }}
       >
-        {strokes.map((stroke) => (
-          <path key={stroke.id} d={outlineToPath(getStrokeOutline(stroke.points))} fill={stroke.style.color} stroke="none" />
-        ))}
-      </svg>
+        ×
+      </button>
+
+      {/* 크기+회전 핸들 — 우하단 */}
+      <div
+        onMouseDown={handleCornerDown}
+        onTouchStart={handleCornerDown}
+        className="absolute flex items-center justify-center rounded-full bg-white shadow-md"
+        style={{ width: 22, height: 22, bottom: -11, right: -11, cursor: 'se-resize', touchAction: 'none' }}
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <path d="M2 8 L8 2 M5 8 L8 5 M8 2 L8 8 L2 8" stroke="#333" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </div>
     </div>
   )
 }
 
-function TextObject({
-  object,
-  bounds,
-  selected,
-  editing,
-  onSelect,
-  onStartEdit,
-  onTextChange,
-  onFinishEdit,
-  onMove,
-}) {
-  const editRef = useRef(null)
-  const composingRef = useRef(false)
-  const dragRef = useRef(null)
-  const isSticker = object.type === OBJECT_TYPE.STICKER
+// ─── 카드 위 텍스트 직접 입력 ─────────────────────────────────────────────────
+// 카드가 그대로 보이는 상태에서 카드 위에 textarea가 투명하게 올라옴
+
+function CardTextEditor({ initialText, fontIndex, onFontChange, textColor, onColorChange, onConfirm, onCancel }) {
+  const [text, setText] = useState(initialText ?? '')
+  const taRef = useRef(null)
+  const font = FONTS[fontIndex]
 
   useEffect(() => {
-    if (!editing || !editRef.current) return
+    setTimeout(() => {
+      taRef.current?.focus()
+      const len = taRef.current?.value.length ?? 0
+      taRef.current?.setSelectionRange(len, len)
+    }, 60)
+  }, [])
 
-    const el = editRef.current
-    el.textContent = object.text ?? ''
-    el.focus()
-
-    const range = document.createRange()
-    const selection = window.getSelection()
-    range.selectNodeContents(el)
-    range.collapse(false)
-    selection?.removeAllRanges()
-    selection?.addRange(range)
-  }, [editing, object.id])
-
-  const startDrag = (event) => {
-    if (editing) return
-    event.preventDefault()
-    event.stopPropagation()
-    onSelect(object.id)
-
-    const parent = event.currentTarget.parentElement?.getBoundingClientRect()
-    if (!parent) return
-    const source = event.touches?.[0] ?? event
-
-    dragRef.current = {
-      sx: source.clientX,
-      sy: source.clientY,
-      x: object.x,
-      y: object.y,
-      w: parent.width,
-      h: parent.height,
-    }
-
-    const move = (moveEvent) => {
-      if (!dragRef.current) return
-      const current = moveEvent.touches?.[0] ?? moveEvent
-      const dx = (current.clientX - dragRef.current.sx) / dragRef.current.w
-      const dy = (current.clientY - dragRef.current.sy) / dragRef.current.h
-      onMove(object.id, clampObjectToBounds({ ...object, x: dragRef.current.x + dx, y: dragRef.current.y + dy }, bounds))
-    }
-
-    const end = () => {
-      dragRef.current = null
-      window.removeEventListener('mousemove', move)
-      window.removeEventListener('mouseup', end)
-      window.removeEventListener('touchmove', move)
-      window.removeEventListener('touchend', end)
-    }
-
-    window.addEventListener('mousemove', move)
-    window.addEventListener('mouseup', end)
-    window.addEventListener('touchmove', move, { passive: false })
-    window.addEventListener('touchend', end)
-  }
-
-  const style = {
-    position: 'absolute',
-    left: `${object.x * 100}%`,
-    top: `${object.y * 100}%`,
-    width: isSticker ? 'auto' : `${object.width * 100}%`,
-    height: isSticker ? 'auto' : `${object.height * 100}%`,
-    color: object.style?.color ?? '#2C1A0E',
-    fontFamily: object.style?.fontFamily ?? FONTS[1].family,
-    fontSize: isSticker ? object.size ?? 28 : object.style?.fontSize ?? 22,
-    lineHeight: isSticker ? 1 : 1.35,
-    textAlign: object.style?.align ?? 'center',
-    whiteSpace: 'pre-wrap',
-    wordBreak: 'break-word',
-    overflowWrap: 'anywhere',
-    overflow: 'hidden',
-    border: selected && !editing ? '1px solid rgba(54,37,25,0.24)' : 'none',
-    borderRadius: 5,
-    padding: isSticker ? 0 : '2px 3px',
-    userSelect: editing ? 'text' : 'none',
-    touchAction: 'none',
-  }
+  // textarea 높이 자동 조절
+  useEffect(() => {
+    const el = taRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [text])
 
   return (
-    <div
-      style={style}
-      onMouseDown={startDrag}
-      onTouchStart={startDrag}
-      onClick={(event) => {
-        event.stopPropagation()
-        onSelect(object.id)
-      }}
-      onDoubleClick={(event) => {
-        event.stopPropagation()
-        if (!isSticker) onStartEdit(object.id)
-      }}
-    >
-      {isSticker ? (
-        <span>{object.value}</span>
-      ) : editing ? (
+    // 카드 dimming 없이 — 카드가 그대로 보임
+    <div className="absolute inset-0 z-50 flex flex-col pointer-events-none">
+
+      {/* ── 상단: 취소 + 폰트바 + 완료 ── */}
+      <div className="pointer-events-auto flex items-center gap-2 bg-black/45 px-4 py-3 backdrop-blur-sm">
+        <button type="button" onClick={onCancel}
+          className="shrink-0 text-[13px] font-semibold text-white/80"
+        >
+          취소
+        </button>
+
+        <div className="flex flex-1 items-center justify-center gap-1.5 overflow-x-auto no-scrollbar">
+          {FONTS.map((f, i) => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => onFontChange(i)}
+              className="shrink-0 rounded-full px-3 py-1.5 transition-all"
+              style={{
+                fontFamily: f.family,
+                fontSize: 15,
+                backgroundColor: fontIndex === i ? 'white' : 'rgba(255,255,255,0.12)',
+                color: fontIndex === i ? '#1A1A1A' : 'rgba(255,255,255,0.9)',
+                border: fontIndex === i ? 'none' : '1px solid rgba(255,255,255,0.2)',
+              }}
+            >
+              가나다
+            </button>
+          ))}
+        </div>
+
+        <button type="button" onClick={() => onConfirm(text)}
+          className="shrink-0 text-[13px] font-extrabold text-white"
+        >
+          완료
+        </button>
+      </div>
+
+      {/* ── 중앙: 카드 위에 투명하게 올라오는 textarea ── */}
+      <div className="pointer-events-auto flex flex-1 items-center justify-center">
         <div
-          ref={editRef}
-          contentEditable
-          suppressContentEditableWarning
-          onCompositionStart={() => {
-            composingRef.current = true
-          }}
-          onCompositionEnd={(event) => {
-            composingRef.current = false
-            onTextChange(object.id, event.currentTarget.textContent ?? '')
-          }}
-          onInput={(event) => {
-            if (composingRef.current) return
-            onTextChange(object.id, event.currentTarget.textContent ?? '')
-          }}
-          onBlur={() => onFinishEdit(object.id)}
-          style={{ height: '100%', minHeight: 24, outline: 'none', overflow: 'hidden' }}
-        />
-      ) : (
-        <div>{object.text}</div>
-      )}
-    </div>
-  )
-}
-
-function EditableCard({
-  cardType,
-  postitTemplate,
-  selectedPhoto,
-  photoCrop,
-  objects,
-  editorMode,
-  selectedObjectId,
-  editingObjectId,
-  onPickPhoto,
-  onCardTap,
-  onStartStroke,
-  onAppendStroke,
-  onEndStroke,
-  onSelectObject,
-  onStartEdit,
-  onTextChange,
-  onFinishEdit,
-  onMoveObject,
-}) {
-  const cardRef = useRef(null)
-  const template = CARD_TEMPLATE[cardType]
-  const strokeBounds = template.drawBounds
-  const textBounds = template.textBounds
-  const strokes = objects.filter((object) => object.type === OBJECT_TYPE.STROKE)
-  const textObjects = objects.filter((object) => object.type !== OBJECT_TYPE.STROKE)
-
-  const handleTap = (event) => {
-    event.stopPropagation()
-    const point = pointFromEvent(event, cardRef)
-    if (!point) return
-    onCardTap(point)
-  }
-
-  const handlePointerDown = (event) => {
-    if (editorMode !== EDITOR_MODE.PEN) return
-    event.preventDefault()
-    event.stopPropagation()
-    const point = pointFromEvent(event, cardRef)
-    if (!point || !canUsePoint(point, strokeBounds, template.excludedZones)) return
-    onStartStroke(point)
-
-    const move = (moveEvent) => {
-      moveEvent.preventDefault()
-      const next = pointFromEvent(moveEvent, cardRef)
-      if (!next || isInsideExcludedZone(next, template.excludedZones)) {
-        onEndStroke()
-        window.removeEventListener('mousemove', move)
-        window.removeEventListener('mouseup', end)
-        window.removeEventListener('touchmove', move)
-        window.removeEventListener('touchend', end)
-        return
-      }
-      onAppendStroke(clampPointToBounds(next, strokeBounds))
-    }
-
-    const end = () => {
-      onEndStroke()
-      window.removeEventListener('mousemove', move)
-      window.removeEventListener('mouseup', end)
-      window.removeEventListener('touchmove', move)
-      window.removeEventListener('touchend', end)
-    }
-
-    window.addEventListener('mousemove', move)
-    window.addEventListener('mouseup', end)
-    window.addEventListener('touchmove', move, { passive: false })
-    window.addEventListener('touchend', end)
-  }
-
-  return (
-    <div
-      ref={cardRef}
-      className="relative shrink-0"
-      onClick={editorMode === EDITOR_MODE.PEN ? undefined : handleTap}
-      onMouseDown={handlePointerDown}
-      onTouchStart={handlePointerDown}
-      style={{
-        aspectRatio: `${template.size.width} / ${template.size.height}`,
-        cursor: editorMode === EDITOR_MODE.PEN ? 'crosshair' : 'default',
-        overflow: 'hidden',
-        width: cardType === 'polaroid' ? 'min(82vw, 320px)' : 'min(94vw, 376px)',
-      }}
-    >
-      {cardType === 'postit' ? (
-        <>
-          <img
-            src={postitImage}
-            alt=""
-            draggable={false}
-            className="pointer-events-none absolute inset-0 z-0 h-full w-full object-fill"
-          />
-        </>
-      ) : (
-        <>
-          <div className="absolute z-[1] overflow-hidden" style={boundsToStyle(template.imageBounds)}>
-            {selectedPhoto ? (
-              <img
-                src={selectedPhoto}
-                alt=""
-                draggable={false}
-                className="h-full w-full object-cover"
-                style={{
-                  objectPosition: `${(photoCrop?.x ?? 0.5) * 100}% ${(photoCrop?.y ?? 0.5) * 100}%`,
-                  transform: `scale(${photoCrop?.scale ?? 1})`,
-                  transformOrigin: `${(photoCrop?.x ?? 0.5) * 100}% ${(photoCrop?.y ?? 0.5) * 100}%`,
-                }}
-              />
-            ) : (
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  onPickPhoto()
-                }}
-                className="flex h-full w-full flex-col items-center justify-center gap-2 bg-[#F6EFE5]/80 text-[#9A8374]"
-              >
-                <Camera size={26} />
-                <span className="text-[12px] font-bold">사진 추가</span>
-              </button>
-            )}
-          </div>
-          <img
-            src={polaroidFrame}
-            alt=""
-            draggable={false}
-            className="pointer-events-none absolute z-[2] object-fill"
-            style={cropImageStyle(POLAROID_SOURCE_CROP, 512, 512)}
-          />
-        </>
-      )}
-
-      <StrokeLayer strokes={strokes} bounds={strokeBounds} />
-      <div className="absolute inset-0 z-[5]">
-        {textObjects.map((object) => (
-          <TextObject
-            key={object.id}
-            object={object}
-            bounds={textBounds}
-            selected={selectedObjectId === object.id}
-            editing={editingObjectId === object.id}
-            onSelect={onSelectObject}
-            onStartEdit={onStartEdit}
-            onTextChange={onTextChange}
-            onFinishEdit={onFinishEdit}
-            onMove={onMoveObject}
-          />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function QuickToolbar({ cardType, onText, onPen, onSticker, onPhoto }) {
-  return (
-    <div className="mx-auto flex h-[58px] w-fit items-center gap-3 rounded-[20px] bg-white/94 px-4 shadow-[0_10px_28px_rgba(59,36,24,0.13)]">
-      {cardType === 'polaroid' ? (
-        <button type="button" onClick={onPhoto} className="flex h-10 w-10 items-center justify-center rounded-full text-[#2C1A0E]">
-          <Camera size={21} strokeWidth={1.9} />
-        </button>
-      ) : null}
-      <button type="button" onClick={onText} className="flex h-10 w-10 items-center justify-center rounded-full text-[#2C1A0E]">
-        <Type size={21} strokeWidth={1.9} />
-      </button>
-      <button type="button" onClick={onPen} className="flex h-10 w-10 items-center justify-center rounded-full text-[#2C1A0E]">
-        <PenLine size={21} strokeWidth={1.9} />
-      </button>
-      <button type="button" onClick={onSticker} className="flex h-10 w-10 items-center justify-center rounded-full text-[#2C1A0E]">
-        <Smile size={21} strokeWidth={1.9} />
-      </button>
-    </div>
-  )
-}
-
-function TextToolbar({ textStyle, selectedObject, onStyle, onDelete }) {
-  const [activeTab, setActiveTab] = useState('font')
-
-  return (
-    <div className="mx-4 rounded-[20px] border border-[#EEE0D1] bg-white/96 px-3 py-3 shadow-[0_10px_30px_rgba(59,36,24,0.12)]">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-[12px] font-extrabold text-[#3B2418]">텍스트 편집</span>
-        {selectedObject ? (
-          <button type="button" onClick={onDelete} className="flex h-8 items-center gap-1 rounded-full bg-[#F8F3EA] px-3 text-[12px] font-bold text-[#A74831]">
-            <Trash2 size={14} />
-            삭제
-          </button>
-        ) : null}
-      </div>
-      <div className="mb-2 grid grid-cols-4 gap-1 rounded-xl bg-[#F8F3EA] p-1">
-        {[
-          ['font', '글꼴'],
-          ['color', '색상'],
-          ['size', '크기'],
-          ['align', '정렬'],
-        ].map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setActiveTab(key)}
-            className={`h-8 rounded-lg text-[11px] font-extrabold ${activeTab === key ? 'bg-white text-[#3B2418] shadow-sm' : 'text-[#7A6250]'}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {activeTab === 'font' ? (
-        <div className="grid grid-cols-4 gap-1">
-          {FONTS.map((font) => (
-            <button
-              key={font.id}
-              type="button"
-              onClick={() => onStyle({ fontFamily: font.family })}
-              className={`h-9 rounded-xl text-[11px] font-bold ${textStyle.fontFamily === font.family ? 'bg-[#FFECA0] text-[#3B2418]' : 'bg-[#F8F3EA] text-[#7A6250]'}`}
-              style={{ fontFamily: font.family }}
-            >
-              {font.label}
-            </button>
-          ))}
-        </div>
-      ) : null}
-
-      {activeTab === 'color' ? (
-        <div className="flex h-9 items-center gap-2 overflow-x-auto px-1">
-          {TEXT_COLORS.map((color) => (
-            <button
-              key={color}
-              type="button"
-              onClick={() => onStyle({ color })}
-              className="h-7 w-7 shrink-0 rounded-full"
-              style={{
-                backgroundColor: color,
-                outline: textStyle.color === color ? '2px solid #6B3A2A' : '1px solid #E8DDD1',
-                outlineOffset: 2,
-              }}
-            />
-          ))}
-        </div>
-      ) : null}
-
-      {activeTab === 'size' ? (
-        <div className="flex h-9 items-center justify-between rounded-xl bg-[#F8F3EA] px-3">
-          <button type="button" onClick={() => onStyle({ fontSize: Math.max(15, textStyle.fontSize - 2) })} className="px-2 text-[12px] font-extrabold">A-</button>
-          <span className="text-[12px] font-extrabold">{textStyle.fontSize}</span>
-          <button type="button" onClick={() => onStyle({ fontSize: Math.min(34, textStyle.fontSize + 2) })} className="px-2 text-[12px] font-extrabold">A+</button>
-        </div>
-      ) : null}
-
-      {activeTab === 'align' ? (
-        <div className="grid grid-cols-3 gap-2">
-          <button
-            type="button"
-            onClick={() => onStyle({ align: 'left' })}
-            className={`flex h-9 items-center justify-center rounded-xl ${textStyle.align === 'left' ? 'bg-[#FFECA0]' : 'bg-[#F8F3EA]'}`}
-          >
-            <AlignLeft size={16} />
-          </button>
-          <button
-            type="button"
-            onClick={() => onStyle({ align: 'center' })}
-            className={`flex h-9 items-center justify-center rounded-xl ${textStyle.align === 'center' ? 'bg-[#FFECA0]' : 'bg-[#F8F3EA]'}`}
-          >
-            <AlignCenter size={16} />
-          </button>
-          <button
-            type="button"
-            onClick={() => onStyle({ align: 'right' })}
-            className={`flex h-9 items-center justify-center rounded-xl ${textStyle.align === 'right' ? 'bg-[#FFECA0]' : 'bg-[#F8F3EA]'}`}
-          >
-            <AlignRight size={16} />
-          </button>
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
-function PenToolbar({ penStyle, onPenStyle, onClear }) {
-  return (
-    <div className="mx-4 rounded-[20px] border border-[#EEE0D1] bg-white/96 px-3 py-3 shadow-[0_10px_30px_rgba(59,36,24,0.12)]">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-[12px] font-extrabold text-[#3B2418]">펜/낙서</span>
-        <button type="button" onClick={onClear} className="rounded-full bg-[#F8F3EA] px-3 py-1.5 text-[12px] font-bold text-[#A74831]">전체 지우기</button>
-      </div>
-      <div className="flex items-center gap-2">
-        {Object.entries(PEN_WIDTHS).map(([key, width]) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => onPenStyle({ widthKey: key, width })}
-            className={`flex h-8 w-12 items-center justify-center rounded-xl ${penStyle.widthKey === key ? 'bg-[#FFECA0]' : 'bg-[#F8F3EA]'}`}
-          >
-            <span className="rounded-full bg-[#2C1A0E]" style={{ width: 22, height: Math.max(2, width / 2) }} />
-          </button>
-        ))}
-      </div>
-      <div className="mt-2 flex items-center gap-2 overflow-x-auto pb-1">
-        {PEN_COLORS.map((color) => (
-          <button
-            key={color}
-            type="button"
-            onClick={() => onPenStyle({ color })}
-            className="h-7 w-7 shrink-0 rounded-full"
+          className="relative flex items-center justify-center"
+          style={{ width: 'min(78vw, 320px)', aspectRatio: '1 / 1' }}
+        >
+          <textarea
+            ref={taRef}
+            value={text}
+            onChange={e => setText(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Escape') onCancel() }}
+            placeholder="탭해서 입력..."
+            maxLength={200}
+            rows={1}
+            className="card-text-input w-[88%] resize-none bg-transparent text-center outline-none"
             style={{
-              backgroundColor: color,
-              outline: penStyle.color === color ? '2px solid #6B3A2A' : '1px solid #E8DDD1',
-              outlineOffset: 2,
-            }}
-          />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function StickerToolbar({ onSticker }) {
-  return (
-    <div className="mx-auto flex h-[54px] w-fit items-center gap-2 rounded-[18px] bg-white/96 px-4 shadow-[0_10px_30px_rgba(59,36,24,0.12)]">
-      {STICKERS.map((sticker) => (
-        <button key={sticker} type="button" onClick={() => onSticker(sticker)} className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F8F3EA] text-[19px]">
-          {sticker}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-function MiniToolButton({ active, icon: Icon, label, onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex min-w-[62px] flex-col items-center justify-center gap-1 rounded-[16px] px-3 py-2 text-[11px] font-extrabold transition"
-      style={{
-        backgroundColor: active ? '#FFF0A6' : 'transparent',
-        color: active ? '#3B2418' : '#4B372B',
-      }}
-    >
-      <Icon size={21} strokeWidth={1.9} />
-      <span>{label}</span>
-    </button>
-  )
-}
-
-function CompactMainToolbar({ cardType, editorMode, onText, onPen, onStickerMode, onPaperMode, onPickPhoto }) {
-  const isTextActive = editorMode === EDITOR_MODE.TEXT || editorMode === EDITOR_MODE.OBJECT_SELECTED
-
-  return (
-    <div className="mx-auto flex h-[74px] max-w-[348px] items-center justify-around rounded-[24px] bg-white/96 px-3 shadow-[0_12px_34px_rgba(59,36,24,0.14)] backdrop-blur">
-      {cardType === 'polaroid' ? (
-        <MiniToolButton active={false} icon={Camera} label="사진" onClick={onPickPhoto} />
-      ) : null}
-      <MiniToolButton active={isTextActive} icon={Type} label="텍스트" onClick={onText} />
-      <MiniToolButton active={editorMode === EDITOR_MODE.PEN} icon={PenLine} label="펜" onClick={onPen} />
-      <MiniToolButton active={editorMode === 'sticker'} icon={Smile} label="꾸미기" onClick={onStickerMode} />
-      {cardType === 'postit' ? (
-        <MiniToolButton active={editorMode === 'paper'} icon={ImageIcon} label="종이" onClick={onPaperMode} />
-      ) : null}
-    </div>
-  )
-}
-
-function CompactTextOptions({ textStyle, selectedObject, onStyle, onDelete }) {
-  return (
-    <div className="mx-auto mb-2 max-w-[348px] rounded-[20px] border border-[#EFE4D7] bg-white/96 px-3 py-2 shadow-[0_10px_28px_rgba(59,36,24,0.11)] backdrop-blur">
-      <div className="flex items-center gap-2">
-        {FONTS.slice(0, 3).map((font) => (
-          <button
-            key={font.id}
-            type="button"
-            onClick={() => onStyle({ fontFamily: font.family })}
-            className="h-8 flex-1 rounded-xl text-[11px] font-extrabold"
-            style={{
-              backgroundColor: textStyle.fontFamily === font.family ? '#FFECA0' : '#F8F2EA',
-              color: '#3B2418',
               fontFamily: font.family,
+              fontSize: 24,
+              color: textColor,
+              lineHeight: 1.5,
+              caretColor: textColor,
+              overflowY: 'hidden',
+              // placeholder 색상은 CSS로
             }}
-          >
-            {font.id === 'basic' ? '기본' : font.id === 'mood' ? '감성' : '손글씨'}
-          </button>
-        ))}
-        {selectedObject ? (
-          <button type="button" onClick={onDelete} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#F8F2EA] text-[#A74831]">
-            <Trash2 size={15} />
-          </button>
-        ) : null}
-      </div>
-      <div className="mt-2 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5">
-          {TEXT_COLORS.slice(0, 5).map((color) => (
-            <button
-              key={color}
-              type="button"
-              onClick={() => onStyle({ color })}
-              className="h-6 w-6 rounded-full"
-              style={{
-                backgroundColor: color,
-                outline: textStyle.color === color ? '2px solid #6B3A2A' : '1px solid #E8DDD1',
-                outlineOffset: 1,
-              }}
-            />
-          ))}
-        </div>
-        <div className="flex h-8 items-center rounded-xl bg-[#F8F2EA] text-[12px] font-extrabold text-[#3B2418]">
-          <button type="button" onClick={() => onStyle({ fontSize: Math.max(15, textStyle.fontSize - 2) })} className="h-full px-3">A-</button>
-          <span className="min-w-7 text-center">{textStyle.fontSize}</span>
-          <button type="button" onClick={() => onStyle({ fontSize: Math.min(34, textStyle.fontSize + 2) })} className="h-full px-3">A+</button>
+          />
         </div>
       </div>
-    </div>
-  )
-}
 
-function CompactPenOptions({ penStyle, onPenStyle, onClear }) {
-  return (
-    <div className="mx-auto mb-2 max-w-[348px] rounded-[20px] border border-[#EFE4D7] bg-white/96 px-3 py-2 shadow-[0_10px_28px_rgba(59,36,24,0.11)] backdrop-blur">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5">
-          {Object.entries(PEN_WIDTHS).map(([key, width]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => onPenStyle({ widthKey: key, width })}
-              className="flex h-8 w-10 items-center justify-center rounded-xl"
-              style={{ backgroundColor: penStyle.widthKey === key ? '#FFECA0' : '#F8F2EA' }}
-            >
-              <span className="rounded-full bg-[#3B2418]" style={{ width: 20, height: Math.max(2, width / 2) }} />
-            </button>
-          ))}
-        </div>
-        <button type="button" onClick={onClear} className="h-8 rounded-xl bg-[#F8F2EA] px-3 text-[11px] font-extrabold text-[#A74831]">
-          전체 지우기
-        </button>
-      </div>
-      <div className="mt-2 flex items-center gap-1.5">
-        {PEN_COLORS.slice(0, 6).map((color) => (
+      {/* ── 하단: 색상 팔레트 ── */}
+      <div className="pointer-events-auto flex items-center justify-center gap-2.5 bg-black/45 px-4 py-4 backdrop-blur-sm">
+        {TEXT_COLORS.map(c => (
           <button
-            key={color}
+            key={c}
             type="button"
-            onClick={() => onPenStyle({ color })}
-            className="h-6 w-6 rounded-full"
+            onClick={() => onColorChange(c)}
+            className="h-7 w-7 rounded-full transition-transform active:scale-90"
             style={{
-              backgroundColor: color,
-              outline: penStyle.color === color ? '2px solid #6B3A2A' : '1px solid #E8DDD1',
-              outlineOffset: 1,
+              backgroundColor: c,
+              outline: textColor === c ? '2.5px solid white' : '1.5px solid rgba(255,255,255,0.3)',
+              outlineOffset: 2,
+              boxShadow: '0 1px 6px rgba(0,0,0,0.25)',
             }}
           />
         ))}
       </div>
+      <div style={{ height: 'env(safe-area-inset-bottom, 8px)' }} className="pointer-events-auto bg-black/45" />
     </div>
   )
 }
 
-function CompactStickerOptions({ onSticker }) {
-  return (
-    <div className="mx-auto mb-2 flex h-12 max-w-[300px] items-center justify-center gap-2 rounded-[18px] bg-white/96 px-3 shadow-[0_10px_28px_rgba(59,36,24,0.11)] backdrop-blur">
-      {STICKERS.map((sticker) => (
-        <button key={sticker} type="button" onClick={() => onSticker(sticker)} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F8F2EA] text-[17px]">
-          {sticker}
-        </button>
-      ))}
-    </div>
-  )
-}
 
-function CompactPaperOptions({ currentTemplate }) {
+// ─── 하단 툴바 옵션들 ─────────────────────────────────────────────────────────
+
+function TextToolOptions({ fontIndex, textColor, onCycleFont, onColor }) {
   return (
-    <div className="mx-auto mb-2 flex h-12 max-w-[300px] items-center justify-center gap-2 rounded-[18px] bg-white/96 px-3 shadow-[0_10px_28px_rgba(59,36,24,0.11)] backdrop-blur">
-      {POSTIT_TEMPLATES.slice(0, 4).map((template) => (
+    <motion.div
+      key="text-opt"
+      initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+      transition={{ duration: 0.15 }}
+      className="flex flex-col gap-3 px-5 pt-4 pb-2"
+    >
+      {/* 폰트 순환 버튼 */}
+      <div className="flex items-center justify-center">
         <button
-          key={template.id}
           type="button"
-          disabled={template.id !== currentTemplate?.id}
-          className="h-8 w-8 rounded-lg border border-white shadow-sm disabled:opacity-45"
+          onClick={onCycleFont}
+          className="rounded-full border border-white/30 bg-white/10 px-6 py-2 text-[14px] font-bold text-white backdrop-blur-sm"
+          style={{ fontFamily: FONTS[fontIndex].family }}
+        >
+          {FONTS[fontIndex].label}  →  탭해서 변경
+        </button>
+      </div>
+      {/* 색상 팔레트 */}
+      <div className="flex items-center justify-center gap-2.5">
+        {TEXT_COLORS.map(c => (
+          <button
+            key={c}
+            type="button"
+            onClick={() => onColor(c)}
+            className="h-7 w-7 rounded-full transition-transform active:scale-90"
+            style={{
+              backgroundColor: c,
+              outline: textColor === c ? '2.5px solid white' : '1px solid rgba(255,255,255,0.3)',
+              outlineOffset: 2,
+              boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+            }}
+          />
+        ))}
+      </div>
+    </motion.div>
+  )
+}
+
+function PenToolOptions({ penStyle, onPenStyle, onUndo, canUndo }) {
+  return (
+    <motion.div
+      key="pen-opt"
+      initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+      transition={{ duration: 0.15 }}
+      className="flex flex-col gap-3 px-5 pt-4 pb-2"
+    >
+      {/* 펜 종류 + undo */}
+      <div className="flex items-center justify-between">
+        <div className="flex gap-1.5">
+          {[
+            { type: PEN_TYPE.NORMAL,    label: '펜' },
+            { type: PEN_TYPE.HIGHLIGHT, label: '형광펜' },
+            { type: PEN_TYPE.ERASER,    label: '지우개' },
+          ].map(p => (
+            <button
+              key={p.type}
+              type="button"
+              onClick={() => onPenStyle({ penType: p.type })}
+              className="rounded-full px-4 py-1.5 text-[12px] font-bold transition-all"
+              style={{
+                backgroundColor: penStyle.penType === p.type ? 'white' : 'rgba(255,255,255,0.15)',
+                color: penStyle.penType === p.type ? '#1A1A1A' : 'white',
+              }}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={onUndo}
+          disabled={!canUndo}
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 disabled:opacity-30"
+        >
+          <RotateCcw size={14} color="white" />
+        </button>
+      </div>
+      {/* 굵기 */}
+      <div className="flex items-center gap-3">
+        <span className="text-[11px] font-bold text-white/60">굵기</span>
+        <input
+          type="range" min={2} max={20} value={penStyle.size}
+          onChange={e => onPenStyle({ size: Number(e.target.value) })}
+          className="flex-1 accent-white"
+        />
+        <div
+          className="rounded-full bg-white"
+          style={{ width: Math.max(4, penStyle.size / 2), height: Math.max(4, penStyle.size / 2) }}
+        />
+      </div>
+      {/* 색상 */}
+      {penStyle.penType !== PEN_TYPE.ERASER && (
+        <div className="flex items-center justify-center gap-2.5">
+          {PEN_COLORS.map(c => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => onPenStyle({ color: c })}
+              className="h-7 w-7 rounded-full transition-transform active:scale-90"
+              style={{
+                backgroundColor: c,
+                outline: penStyle.color === c ? '2.5px solid white' : '1px solid rgba(255,255,255,0.3)',
+                outlineOffset: 2,
+                boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+              }}
+            />
+          ))}
+        </div>
+      )}
+    </motion.div>
+  )
+}
+
+function ColorToolOptions({ currentColor, onColor }) {
+  return (
+    <motion.div
+      key="color-opt"
+      initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+      transition={{ duration: 0.15 }}
+      className="flex items-center justify-center gap-3 px-5 py-5"
+    >
+      {POSTIT_COLORS.map(c => (
+        <button
+          key={c.id}
+          type="button"
+          onClick={() => onColor(c.color)}
+          className="h-10 w-10 rounded-full transition-transform active:scale-90"
           style={{
-            background: `linear-gradient(145deg, ${template.color}, #FFF8E7)`,
-            outline: template.id === currentTemplate?.id ? '2px solid #9B4F3F' : '1px solid #E8DDD1',
-            outlineOffset: 1,
+            backgroundColor: c.color,
+            outline: currentColor === c.color ? '3px solid white' : '2px solid rgba(255,255,255,0.3)',
+            outlineOffset: 2,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
           }}
-          title={template.id === currentTemplate?.id ? '현재 종이' : '추후 연결 예정'}
         />
       ))}
-    </div>
+    </motion.div>
   )
 }
 
-function BottomTools({
-  cardType,
-  editorMode,
-  selectedObject,
-  postitTemplate,
-  textStyle,
-  penStyle,
-  onText,
-  onPen,
-  onStickerMode,
-  onPaperMode,
-  onPickPhoto,
-  onTextStyle,
-  onPenStyle,
-  onDelete,
-  onClearStrokes,
-  onSticker,
-}) {
-  if (!cardType) return null
+// ─── 메인 에디터 ──────────────────────────────────────────────────────────────
 
-  return (
-    <div className="relative z-30 flex-none px-4 pb-4">
-      {editorMode === EDITOR_MODE.TEXT || editorMode === EDITOR_MODE.OBJECT_SELECTED ? (
-        <CompactTextOptions textStyle={textStyle} selectedObject={selectedObject} onStyle={onTextStyle} onDelete={onDelete} />
-      ) : editorMode === EDITOR_MODE.PEN ? (
-        <CompactPenOptions penStyle={penStyle} onPenStyle={onPenStyle} onClear={onClearStrokes} />
-      ) : editorMode === 'sticker' ? (
-        <CompactStickerOptions onSticker={onSticker} />
-      ) : editorMode === 'paper' ? (
-        <CompactPaperOptions currentTemplate={postitTemplate} />
-      ) : null}
-      <CompactMainToolbar
-        cardType={cardType}
-        editorMode={editorMode}
-        onText={onText}
-        onPen={onPen}
-        onStickerMode={onStickerMode}
-        onPaperMode={onPaperMode}
-        onPickPhoto={onPickPhoto}
-      />
-    </div>
-  )
-}
-
-function PostItEditor() {
+export default function PostItEditor() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { id } = useParams()
-  const boardId = id ?? 'default'
-  const fileInputRef = useRef(null)
-  const pendingPhotoRef = useRef(false)
-  const currentStrokeIdRef = useRef(null)
+  const { id: boardId } = useParams()
+  const cardType = location.state?.initialTab === 'polaroid' ? 'polaroid' : 'postit'
 
-  const [step, setStep] = useState(EDITOR_STEP.EMPTY)
-  const [cardType, setCardType] = useState(location.state?.initialTab === 'polaroid' ? 'polaroid' : null)
-  const [postitTemplate, setPostitTemplate] = useState(POSTIT_TEMPLATES[0])
+  // ── 상태 ──
+  const [postitColor, setPostitColor] = useState(POSTIT_COLORS[0].color)
+  const [textObjects, setTextObjects] = useState([])
+  const [strokes, setStrokes] = useState([])
+  const [strokeHistory, setStrokeHistory] = useState([])
+  const [activeStroke, setActiveStroke] = useState(null)
+
+  const [activeTool, setActiveTool] = useState(TOOL.NONE)
+  const [fontIndex, setFontIndex] = useState(0)
+  const [textColor, setTextColor] = useState('#1A1A1A')
+  const [penStyle, setPenStyle] = useState({ penType: PEN_TYPE.NORMAL, color: '#1A1A1A', size: 6 })
+
+  const [selectedTextId, setSelectedTextId] = useState(null)
+  const [editingText, setEditingText] = useState(null)
+
+  // 폴라로이드
   const [selectedPhoto, setSelectedPhoto] = useState(null)
-  const [pendingPhoto, setPendingPhoto] = useState(null)
   const [photoCrop, setPhotoCrop] = useState({ x: 0.5, y: 0.5, scale: 1 })
-  const [objects, setObjects] = useState([])
-  const [editorMode, setEditorMode] = useState(EDITOR_MODE.IDLE)
-  const [selectedObjectId, setSelectedObjectId] = useState(null)
-  const [editingObjectId, setEditingObjectId] = useState(null)
+  const [polaroidText, setPolaroidText] = useState('')
+  const [polaroidFontIndex, setPolaroidFontIndex] = useState(0)
+  const [isEditingPolaroidText, setIsEditingPolaroidText] = useState(false)
+  const photoDragRef = useRef(null)
+  const pinchRef = useRef(null)
+
   const [isCompleting, setIsCompleting] = useState(false)
-  const [editorError, setEditorError] = useState('')
-  const [textStyle, setTextStyle] = useState({
-    align: 'center',
-    color: '#2C1A0E',
-    fontFamily: FONTS[1].family,
-    fontSize: 22,
-  })
-  const [penStyle, setPenStyle] = useState({
-    color: '#7F3D2E',
-    width: PEN_WIDTHS.medium,
-    widthKey: 'medium',
-  })
+  const [error, setError] = useState('')
+
+  const cardRef = useRef(null)
+  const fileInputRef = useRef(null)
+  const activeStrokeRef = useRef(null)
+  const pendingBlobRef = useRef(null)
+
+  // ── 초기화 ──
+  useEffect(() => {
+    if (cardType === 'polaroid') setTimeout(() => fileInputRef.current?.click(), 150)
+  }, [cardType])
+
+  // ── 폴라로이드 사진 드래그 이동 ──
+  const handlePhotoDragStart = e => {
+    if (cardType !== 'polaroid' || !selectedPhoto) return
+    e.preventDefault()
+    e.stopPropagation()
+    const src = e.touches?.[0] ?? e
+    photoDragRef.current = { startX: src.clientX, startY: src.clientY, origX: photoCrop.x, origY: photoCrop.y }
+
+    const onMove = me => {
+      if (!photoDragRef.current) return
+      me.preventDefault()
+      const cur = me.touches?.[0] ?? me
+      const dx = (cur.clientX - photoDragRef.current.startX) / 200
+      const dy = (cur.clientY - photoDragRef.current.startY) / 200
+      setPhotoCrop(prev => ({
+        ...prev,
+        x: clamp(photoDragRef.current.origX - dx, 0, 1),
+        y: clamp(photoDragRef.current.origY - dy, 0, 1),
+      }))
+    }
+    const onEnd = () => {
+      photoDragRef.current = null
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onEnd)
+      window.removeEventListener('touchmove', onMove)
+      window.removeEventListener('touchend', onEnd)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onEnd)
+    window.addEventListener('touchmove', onMove, { passive: false })
+    window.addEventListener('touchend', onEnd)
+  }
+
+  // ── 폴라로이드 핀치 줌 ──
+  const handlePhotoTouchStart = e => {
+    if (e.touches.length === 2) {
+      e.preventDefault()
+      const d = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY,
+      )
+      pinchRef.current = { initDist: d, initScale: photoCrop.scale }
+    } else {
+      handlePhotoDragStart(e)
+    }
+  }
+
+  const handlePhotoTouchMove = e => {
+    if (e.touches.length === 2 && pinchRef.current) {
+      e.preventDefault()
+      const d = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY,
+      )
+      setPhotoCrop(prev => ({
+        ...prev,
+        scale: clamp(pinchRef.current.initScale * (d / pinchRef.current.initDist), 1, 4),
+      }))
+    }
+  }
 
   useEffect(() => {
-    if (location.state?.initialTab === 'polaroid') {
-      pendingPhotoRef.current = true
-      setStep(EDITOR_STEP.EDITING)
-      window.setTimeout(() => fileInputRef.current?.click(), 150)
+    const ref = pendingBlobRef
+    return () => { if (ref.current) URL.revokeObjectURL(ref.current) }
+  }, [])
+
+  // ── 툴 전환 ──
+  const handleToolTap = tool => {
+    if (tool === TOOL.TEXT) {
+      // 텍스트 탭 → 바로 입력창 열기
+      setSelectedTextId(null)
+      setEditingText({ id: null })
+      setActiveTool(TOOL.TEXT)
+      return
     }
-  }, [location.state?.initialTab])
-
-  const selectedObject = useMemo(() => objects.find((object) => object.id === selectedObjectId) ?? null, [objects, selectedObjectId])
-  const template = cardType ? CARD_TEMPLATE[cardType] : null
-  const canComplete = cardType === 'postit'
-    ? objects.some((object) => object.type === OBJECT_TYPE.TEXT && object.text.trim()) || objects.some((object) => object.type === OBJECT_TYPE.STROKE || object.type === OBJECT_TYPE.STICKER)
-    : Boolean(selectedPhoto)
-
-  const resetSelection = () => {
-    setSelectedObjectId(null)
-    setEditingObjectId(null)
-    if (editorMode === EDITOR_MODE.OBJECT_SELECTED) setEditorMode(EDITOR_MODE.IDLE)
+    setActiveTool(prev => prev === tool ? TOOL.NONE : tool)
   }
 
-  const addTextObject = (point, autoEdit = true) => {
-    if (!template || !cardType) return null
-
-    const bounds = template.textBounds
-    const target = cardType === 'polaroid'
-      ? { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
-      : point
-
-    if (!canUsePoint(target, bounds, template.excludedZones)) return null
-
-    const objectWidth = cardType === 'polaroid' ? 0.68 : Math.min(bounds.width, 0.42)
-    const objectHeight = cardType === 'polaroid' ? 0.09 : Math.min(bounds.height, 0.18)
-    const object = clampObjectToBounds({
-      id: createId('text'),
-      type: OBJECT_TYPE.TEXT,
-      text: '',
-      x: target.x - objectWidth / 2,
-      y: target.y - objectHeight / 2,
-      width: objectWidth,
-      height: objectHeight,
-      style: { ...textStyle },
-    }, bounds)
-
-    setObjects((prev) => [...prev, object])
-    setSelectedObjectId(object.id)
-    setEditingObjectId(autoEdit ? object.id : null)
-    setEditorMode(autoEdit ? EDITOR_MODE.TEXT : EDITOR_MODE.OBJECT_SELECTED)
-    return object
+  const handleCardTap = e => {
+    if (!isInsideCard(e, cardRef)) return
+    setSelectedTextId(null)
   }
 
-  const makeTextObject = (nextCardType, point, nextStyle = textStyle) => {
-    const nextTemplate = CARD_TEMPLATE[nextCardType]
-    const bounds = nextTemplate.textBounds
-    const target = nextCardType === 'polaroid'
-      ? { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
-      : point
-    const objectWidth = nextCardType === 'polaroid' ? 0.68 : Math.min(bounds.width, 0.42)
-    const objectHeight = nextCardType === 'polaroid' ? 0.09 : Math.min(bounds.height, 0.18)
-
-    return clampObjectToBounds({
-      id: createId('text'),
-      type: OBJECT_TYPE.TEXT,
-      text: '',
-      x: target.x - objectWidth / 2,
-      y: target.y - objectHeight / 2,
-      width: objectWidth,
-      height: objectHeight,
-      style: { ...nextStyle },
-    }, bounds)
+  // ── 텍스트 확인 ──
+  const confirmText = text => {
+    if (!text.trim()) { setEditingText(null); return }
+    if (editingText?.id) {
+      setTextObjects(prev => prev.map(o => o.id === editingText.id ? { ...o, text } : o))
+    } else {
+      setTextObjects(prev => [...prev, {
+        id: createId(),
+        text,
+        x: 0.5,
+        y: 0.45,
+        fontSize: 20,
+        fontFamily: FONTS[fontIndex].family,
+        color: textColor,
+        rotate: 0,
+        scale: 1,
+      }])
+    }
+    setEditingText(null)
   }
 
-  const createPostit = (templateItem) => {
-    const textObject = makeTextObject('postit', {
-      x: CARD_TEMPLATE.postit.textBounds.x + CARD_TEMPLATE.postit.textBounds.width / 2,
-      y: CARD_TEMPLATE.postit.textBounds.y + CARD_TEMPLATE.postit.textBounds.height / 2,
-    })
-
-    setPostitTemplate(templateItem)
-    setCardType('postit')
-    setStep(EDITOR_STEP.EDITING)
-    setObjects([textObject])
-    setSelectedPhoto(null)
-    setSelectedObjectId(textObject.id)
-    setEditingObjectId(textObject.id)
-    setEditorMode(EDITOR_MODE.TEXT)
+  // ── 텍스트 더블클릭/더블탭으로 수정 ──
+  const handleTextDoubleTap = id => {
+    setEditingText({ id })
   }
 
-  const createPolaroid = () => {
-    pendingPhotoRef.current = true
-    setCardType('polaroid')
-    setStep(EDITOR_STEP.TYPE_PICKER)
-    setObjects([])
-    setSelectedPhoto(null)
-    setPendingPhoto(null)
-    setPhotoCrop({ x: 0.5, y: 0.5, scale: 1 })
-    setEditorMode(EDITOR_MODE.IDLE)
-    window.setTimeout(() => fileInputRef.current?.click(), 80)
+  // ── 텍스트 삭제 ──
+  const handleTextDelete = id => {
+    setTextObjects(prev => prev.filter(o => o.id !== id))
+    setSelectedTextId(null)
   }
 
-  const handlePhotoChange = (event) => {
-    const file = event.target.files?.[0]
-    event.target.value = ''
-    if (!file) {
-      if (pendingPhotoRef.current && !selectedPhoto && !pendingPhoto) {
-        setCardType(null)
-        setStep(EDITOR_STEP.EMPTY)
+  // ── 펜 이벤트 ──
+  const handlePenDown = e => {
+    if (activeTool !== TOOL.PEN) return
+    if (!isInsideCard(e, cardRef)) return
+    e.preventDefault()
+
+    const point = pointFromEvent(e, cardRef)
+    if (!point) return
+
+    if (penStyle.penType === PEN_TYPE.ERASER) {
+      setStrokes(prev => prev.filter(s => !s.points.some(p => Math.hypot(p.x - point.x, p.y - point.y) < 0.06)))
+      return
+    }
+
+    const stroke = { id: createId(), points: [{ ...point, pressure: 0.5 }], color: penStyle.color, size: penStyle.size, penType: penStyle.penType }
+    activeStrokeRef.current = stroke
+    setActiveStroke(stroke)
+
+    const move = me => {
+      me.preventDefault()
+      const p = pointFromEvent(me, cardRef)
+      if (!p || !activeStrokeRef.current) return
+      const updated = { ...activeStrokeRef.current, points: [...activeStrokeRef.current.points, { ...p, pressure: 0.5 }] }
+      activeStrokeRef.current = updated
+      setActiveStroke({ ...updated })
+    }
+    let ended = false
+    const end = () => {
+      if (ended) return
+      ended = true
+      const finished = activeStrokeRef.current
+      activeStrokeRef.current = null
+      setActiveStroke(null)
+      if (finished) {
+        setStrokes(prev => [...prev, finished])
+        setStrokeHistory(prev => [...prev, finished.id])
       }
-      pendingPhotoRef.current = false
-      return
+      window.removeEventListener('mousemove', move)
+      window.removeEventListener('mouseup', end)
+      window.removeEventListener('touchmove', move)
+      window.removeEventListener('touchend', end)
     }
-
-    pendingPhotoRef.current = false
-    setCardType('polaroid')
-    setPendingPhoto(URL.createObjectURL(file))
-    setSelectedPhoto(null)
-    setPhotoCrop({ x: 0.5, y: 0.5, scale: 1 })
-    setStep(EDITOR_STEP.PHOTO_CROP)
-    setObjects([])
-    setSelectedObjectId(null)
-    setEditingObjectId(null)
-    setEditorMode(EDITOR_MODE.IDLE)
+    window.addEventListener('mousemove', move)
+    window.addEventListener('mouseup', end)
+    window.addEventListener('touchmove', move, { passive: false })
+    window.addEventListener('touchend', end)
   }
 
-  const confirmPhotoCrop = () => {
-    if (!pendingPhoto) return
-
-    const textObject = makeTextObject('polaroid', {
-      x: CARD_TEMPLATE.polaroid.textBounds.x + CARD_TEMPLATE.polaroid.textBounds.width / 2,
-      y: CARD_TEMPLATE.polaroid.textBounds.y + CARD_TEMPLATE.polaroid.textBounds.height / 2,
-    })
-
-    setSelectedPhoto(pendingPhoto)
-    setPendingPhoto(null)
-    setStep(EDITOR_STEP.EDITING)
-    setObjects([textObject])
-    setSelectedObjectId(textObject.id)
-    setEditingObjectId(textObject.id)
-    setEditorMode(EDITOR_MODE.TEXT)
+  const handleUndo = () => {
+    if (!strokeHistory.length) return
+    const lastId = strokeHistory[strokeHistory.length - 1]
+    setStrokes(prev => prev.filter(s => s.id !== lastId))
+    setStrokeHistory(prev => prev.slice(0, -1))
   }
 
-  const cancelPhotoCrop = () => {
-    setPendingPhoto(null)
-    setSelectedPhoto(null)
-    setCardType(null)
-    setStep(EDITOR_STEP.TYPE_PICKER)
+  // ── 사진 ──
+  const handlePhotoChange = e => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) { if (cardType === 'polaroid' && !selectedPhoto) navigate(-1); return }
+    if (pendingBlobRef.current) URL.revokeObjectURL(pendingBlobRef.current)
+    const url = URL.createObjectURL(file)
+    pendingBlobRef.current = url
+    setSelectedPhoto(url)
     setPhotoCrop({ x: 0.5, y: 0.5, scale: 1 })
   }
 
-  const handleCardTap = (point) => {
-    if (!template || !cardType) return
+  // ── canComplete ──
+  const canComplete = cardType === 'polaroid'
+    ? Boolean(selectedPhoto)
+    : (textObjects.some(o => o.text.trim()) || strokes.length > 0)
 
-    if (editorMode === EDITOR_MODE.TEXT) {
-      addTextObject(point, true)
-      return
-    }
-
-    if (cardType === 'postit' && editorMode === EDITOR_MODE.IDLE && objects.filter((object) => object.type === OBJECT_TYPE.TEXT).length === 0) {
-      addTextObject(point, true)
-      return
-    }
-
-    resetSelection()
-  }
-
-  const handleTextChange = (objectId, value) => {
-    const text = Array.from(value ?? '').slice(0, MAX_TEXT_LENGTH).join('')
-    setObjects((prev) => prev.map((object) => (object.id === objectId ? { ...object, text } : object)))
-  }
-
-  const handleFinishEdit = (objectId) => {
-    setObjects((prev) => prev.filter((object) => object.type !== OBJECT_TYPE.TEXT || object.id !== objectId || object.text.trim()))
-    setEditingObjectId(null)
-    setEditorMode(objectId ? EDITOR_MODE.OBJECT_SELECTED : EDITOR_MODE.IDLE)
-  }
-
-  const handleSelectObject = (objectId) => {
-    const object = objects.find((item) => item.id === objectId)
-    if (!object) return
-
-    setSelectedObjectId(objectId)
-    setEditingObjectId(null)
-    setEditorMode(EDITOR_MODE.OBJECT_SELECTED)
-    if (object.type === OBJECT_TYPE.TEXT) {
-      setTextStyle((prev) => ({ ...prev, ...object.style }))
-    }
-  }
-
-  const handleTextStyle = (next) => {
-    setTextStyle((prev) => ({ ...prev, ...next }))
-    if (!selectedObjectId) return
-
-    setObjects((prev) => prev.map((object) => (
-      object.id === selectedObjectId && object.type === OBJECT_TYPE.TEXT
-        ? { ...object, style: { ...object.style, ...next } }
-        : object
-    )))
-  }
-
-  const handleMoveObject = (objectId, nextObject) => {
-    setObjects((prev) => prev.map((object) => (object.id === objectId ? nextObject : object)))
-  }
-
-  const deleteSelectedObject = () => {
-    if (!selectedObjectId) return
-    setObjects((prev) => prev.filter((object) => object.id !== selectedObjectId))
-    setSelectedObjectId(null)
-    setEditingObjectId(null)
-    setEditorMode(EDITOR_MODE.IDLE)
-  }
-
-  const addSticker = (value) => {
-    if (!template || !cardType) return
-    const bounds = cardType === 'polaroid' ? template.imageBounds : template.textBounds
-    const object = clampObjectToBounds({
-      id: createId('sticker'),
-      type: OBJECT_TYPE.STICKER,
-      value,
-      x: bounds.x + bounds.width / 2,
-      y: bounds.y + bounds.height / 2,
-      width: 0.08,
-      height: 0.08,
-      size: 30,
-      style: { color: '#EF4444' },
-    }, bounds)
-    setObjects((prev) => [...prev, object])
-    setSelectedObjectId(object.id)
-    setEditorMode(EDITOR_MODE.OBJECT_SELECTED)
-  }
-
-  const startStroke = (point) => {
-    const stroke = {
-      id: createId('stroke'),
-      type: OBJECT_TYPE.STROKE,
-      points: [{ ...point, size: penStyle.width, pressure: 0.5 }],
-      style: { color: penStyle.color, width: penStyle.width },
-    }
-    currentStrokeIdRef.current = stroke.id
-    setObjects((prev) => [...prev, stroke])
-  }
-
-  const appendStroke = (point) => {
-    const strokeId = currentStrokeIdRef.current
-    if (!strokeId) return
-
-    setObjects((prev) => prev.map((object) => (
-      object.id === strokeId
-        ? { ...object, points: [...object.points, { ...point, size: object.style.width, pressure: 0.5 }] }
-        : object
-    )))
-  }
-
-  const endStroke = () => {
-    currentStrokeIdRef.current = null
-  }
-
-  const clearStrokes = () => {
-    currentStrokeIdRef.current = null
-    setObjects((prev) => prev.filter((object) => object.type !== OBJECT_TYPE.STROKE))
-  }
-
+  // ── export ──
   const exportImage = async () => {
-    if (!cardType) return ''
-
-    const size = cardType === 'polaroid' ? POLAROID_SIZE : POSTIT_SIZE
-    const exportCrop = cardType === 'postit' ? POSTIT_EXPORT_CROP : { x: 0, y: 0, width: 1, height: 1 }
-    const W = 700
-    const H = Math.round(W * ((size.height * exportCrop.height) / (size.width * exportCrop.width)))
+    const W = 1200, H = 1200
     const canvas = document.createElement('canvas')
+    canvas.width = W; canvas.height = H
     const ctx = canvas.getContext('2d')
-    canvas.width = W
-    canvas.height = H
 
     if (cardType === 'postit') {
-      const paper = await loadImage(postitImage)
-      ctx.drawImage(
-        paper,
-        POSTIT_SOURCE_CROP.x + POSTIT_SOURCE_CROP.width * exportCrop.x,
-        POSTIT_SOURCE_CROP.y + POSTIT_SOURCE_CROP.height * exportCrop.y,
-        POSTIT_SOURCE_CROP.width * exportCrop.width,
-        POSTIT_SOURCE_CROP.height * exportCrop.height,
-        0,
-        0,
-        W,
-        H,
-      )
-    } else {
-      if (selectedPhoto) {
-        const photo = await loadImage(selectedPhoto)
-        const photoRect = boundsToPixels(CARD_TEMPLATE.polaroid.imageBounds, W, H)
-        ctx.save()
-        ctx.rect(photoRect.x, photoRect.y, photoRect.width, photoRect.height)
-        ctx.clip()
-        drawImageWithCrop(ctx, photo, photoRect.x, photoRect.y, photoRect.width, photoRect.height, photoCrop)
-        ctx.restore()
-      }
-      const frame = await loadImage(polaroidFrame)
-      ctx.drawImage(
-        frame,
-        POLAROID_SOURCE_CROP.x,
-        POLAROID_SOURCE_CROP.y,
-        POLAROID_SOURCE_CROP.width,
-        POLAROID_SOURCE_CROP.height,
-        0,
-        0,
-        W,
-        H,
-      )
-    }
+      // 둥근 모서리 클리핑
+      const r = 24
+      ctx.beginPath()
+      ctx.moveTo(r, 0)
+      ctx.lineTo(W - r, 0)
+      ctx.quadraticCurveTo(W, 0, W, r)
+      ctx.lineTo(W, H - r)
+      ctx.quadraticCurveTo(W, H, W - r, H)
+      ctx.lineTo(r, H)
+      ctx.quadraticCurveTo(0, H, 0, H - r)
+      ctx.lineTo(0, r)
+      ctx.quadraticCurveTo(0, 0, r, 0)
+      ctx.closePath()
+      ctx.clip()
 
-    const activeTemplate = CARD_TEMPLATE[cardType]
-    objects.forEach((object) => {
-      if (object.type === OBJECT_TYPE.STROKE) {
-        const strokeBounds = remapBoundsToCrop(activeTemplate.drawBounds, exportCrop)
-        const bounds = boundsToPixels(strokeBounds, W, H)
+      ctx.fillStyle = postitColor
+      ctx.fillRect(0, 0, W, H)
+      const tex = await loadImage(postitTexture)
+      ctx.save()
+      ctx.globalCompositeOperation = 'multiply'
+      ctx.globalAlpha = 0.15
+      ctx.drawImage(tex, 0, 0, W, H)
+      ctx.restore()
+
+      // 획 — SVG는 viewBox 100단위에서 size*0.5, canvas는 1200단위니까 size*0.5*12 = size*6
+      strokes.forEach(s => {
+        const isHL = s.penType === PEN_TYPE.HIGHLIGHT
         const outline = getStroke(
-          object.points
-            .map((point) => remapPointToCrop(point, exportCrop))
-            .map((point) => [point.x * W, point.y * H, point.pressure ?? 0.5]),
-          {
-            ...FREEHAND_OPTIONS,
-            size: object.style.width * (W / 310),
-          },
+          s.points.map(p => [p.x * W, p.y * H, p.pressure ?? 0.5]),
+          { ...(isHL ? HIGHLIGHT_OPT : FREEHAND_OPT), size: s.size * 6 },
         )
-
         if (!outline.length) return
-
         ctx.save()
+        ctx.globalAlpha = isHL ? 0.38 : 1
+        ctx.fillStyle = s.color
         ctx.beginPath()
-        ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height)
-        ctx.clip()
-        ctx.fillStyle = object.style.color
-        ctx.beginPath()
-        outline.forEach(([x, y], index) => {
-          if (index === 0) ctx.moveTo(x, y)
-          else ctx.lineTo(x, y)
-        })
+        outline.forEach(([x, y], i) => i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y))
         ctx.closePath()
         ctx.fill()
         ctx.restore()
-        return
+      })
+
+      // 텍스트
+      textObjects.forEach(obj => {
+        ctx.save()
+        ctx.translate(obj.x * W, obj.y * H)
+        ctx.rotate((obj.rotate * Math.PI) / 180)
+        ctx.scale(obj.scale, obj.scale)
+        ctx.fillStyle = obj.color
+        ctx.font = `600 ${obj.fontSize * (W / 300)}px ${obj.fontFamily}`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        const lines = wrapText(ctx, obj.text, W * 0.85)
+        const lh = obj.fontSize * (W / 300) * 1.35
+        lines.forEach((line, i) => ctx.fillText(line, 0, (i - (lines.length - 1) / 2) * lh))
+        ctx.restore()
+      })
+    } else {
+      if (selectedPhoto) {
+        const photo = await loadImage(selectedPhoto)
+        const iB = { x: 0.064 * W, y: 0.061 * H, w: 0.87 * W, h: 0.744 * H }
+        ctx.save()
+        ctx.beginPath(); ctx.rect(iB.x, iB.y, iB.w, iB.h); ctx.clip()
+        const sr = photo.naturalWidth / photo.naturalHeight
+        const tr = iB.w / iB.h
+        let sw = photo.naturalWidth, sh = photo.naturalHeight
+        if (sr > tr) sw = sh * tr; else sh = sw / tr
+        const maxSx = photo.naturalWidth - sw, maxSy = photo.naturalHeight - sh
+        ctx.drawImage(photo, clamp(maxSx * photoCrop.x, 0, maxSx), clamp(maxSy * photoCrop.y, 0, maxSy), sw, sh, iB.x, iB.y, iB.w, iB.h)
+        ctx.restore()
       }
+      const frame = await loadImage(polaroidFrame)
+      ctx.drawImage(frame, 0, 0, W, H)
 
-      const objectBounds = remapBoundsToCrop({
-        x: object.x,
-        y: object.y,
-        width: object.width ?? 0.1,
-        height: object.height ?? 0.1,
-      }, exportCrop)
-      const x = objectBounds.x * W
-      const y = objectBounds.y * H
-      const width = objectBounds.width * W
-      const height = objectBounds.height * H
-      const fontSize = object.type === OBJECT_TYPE.STICKER ? object.size ?? 30 : object.style.fontSize ?? 22
-
-      ctx.save()
-      ctx.beginPath()
-      ctx.rect(x, y, width, height)
-      ctx.clip()
-      ctx.fillStyle = object.style?.color ?? '#2C1A0E'
-      ctx.textAlign = object.style?.align ?? 'center'
-      ctx.textBaseline = 'top'
-      ctx.font = `${fontSize * (W / 310)}px ${object.style?.fontFamily ?? FONTS[1].family}`
-
-      if (object.type === OBJECT_TYPE.STICKER) {
-        ctx.fillText(object.value, x, y)
-      } else {
-        const lineHeight = fontSize * (W / 310) * 1.35
-        const maxLines = Math.max(1, Math.floor(height / lineHeight))
-        const lines = wrapLines(ctx, object.text, width, maxLines)
-        const alignX = object.style?.align === 'left' ? x : object.style?.align === 'right' ? x + width : x + width / 2
-        lines.forEach((line, index) => ctx.fillText(line, alignX, y + index * lineHeight))
+      // 하단 여백 텍스트
+      if (polaroidText.trim()) {
+        const font = FONTS[polaroidFontIndex]
+        ctx.save()
+        ctx.font = `600 72px ${font.family}`
+        ctx.fillStyle = '#2A1A0E'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(polaroidText.slice(0, 30), W / 2, H * 0.895)
+        ctx.restore()
       }
-      ctx.restore()
-    })
-
-    return cropCanvasByAlpha(canvas).toDataURL('image/png')
+    }
+    return canvas.toDataURL('image/png')
   }
 
   const complete = async () => {
-    if (!canComplete || isCompleting || !cardType) return
-    setIsCompleting(true)
-    setEditorError('')
-    setSelectedObjectId(null)
-    setEditingObjectId(null)
-    await new Promise((resolve) => setTimeout(resolve, 80))
-
+    if (!canComplete || isCompleting) return
+    setIsCompleting(true); setError('')
+    await new Promise(r => setTimeout(r, 60))
     try {
       const capturedImage = await exportImage()
       navigate(`/board/${boardId}`, {
@@ -1711,150 +882,328 @@ function PostItEditor() {
             id: `${cardType}-${Date.now()}`,
             type: cardType,
             capturedImage,
-            content: objects
-              .filter((object) => object.type === OBJECT_TYPE.TEXT)
-              .map((object) => object.text)
-              .filter(Boolean)
-              .join('\n'),
-            media: cardType === 'polaroid' ? { image: selectedPhoto ?? '', dateLabel: today(), crop: photoCrop } : undefined,
+            content: textObjects.map(o => o.text).filter(Boolean).join('\n'),
             style: {
               cardType,
-              capturedAspectRatio: cardType === 'postit' ? POSTIT_EXPORT_ASPECT_RATIO : POLAROID_SIZE.width / POLAROID_SIZE.height,
-              objects,
-              penStyle,
+              capturedAspectRatio: POSTIT_ASPECT,
+              postitColor,
+              textObjects,
+              strokes,
               photoCrop,
-              postitTemplate,
-              textStyle,
             },
-            createdAt: new Date().toISOString(),
           },
         },
       })
     } catch {
-      setEditorError('흔적 이미지를 준비하지 못했어요. 다시 시도해주세요.')
+      setError('저장 실패. 다시 시도해주세요.')
       setIsCompleting(false)
     }
   }
 
+  // ─── 렌더 ────────────────────────────────────────────────────────────────
+
   return (
     <motion.main
-      className="app-device"
-      initial={{ y: '100%' }}
-      animate={{ y: 0 }}
-      exit={{ y: '100%' }}
+      className="app-device relative overflow-hidden"
+      style={{ height: '100dvh', backgroundColor: '#000' }}
+      initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
       transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-      style={{
-        backgroundColor: '#FBF7F1',
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100dvh',
-        overflow: 'hidden',
-        position: 'relative',
-      }}
     >
-      <img src={bgImage} aria-hidden draggable={false} className="pointer-events-none absolute inset-0 z-0 h-full w-full object-cover" />
-      <div className="pointer-events-none absolute inset-0 z-[1] bg-white/20" />
+      {/* 배경 */}
+      {bgImage && <img src={bgImage} aria-hidden draggable={false} className="absolute inset-0 z-0 h-full w-full object-cover opacity-80" />}
+      <div className="absolute inset-0 z-[1] bg-black/30" />
+
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
 
-      <EditorHeaderV2
-        isCompleting={isCompleting}
-        canComplete={canComplete}
-        onClose={() => navigate(-1)}
-        onComplete={complete}
-      />
-
-      {editorError ? (
-        <p className="relative z-30 mx-5 rounded-xl bg-red-50 px-4 py-2 text-center text-[12px] font-bold text-red-500">{editorError}</p>
-      ) : null}
-
-      <section
-        className="relative z-10 min-h-0 flex-1"
-        onClick={() => {
-          if (editorMode === EDITOR_MODE.OBJECT_SELECTED) resetSelection()
+      {/* ── 카드 (풀스크린 중앙) ── */}
+      <div
+        className="absolute inset-0 z-10 flex items-center justify-center"
+        onMouseDown={e => {
+          handleCardTap(e)
+          if (activeTool === TOOL.PEN) handlePenDown(e)
+        }}
+        onTouchStart={e => {
+          handleCardTap(e)
+          if (activeTool === TOOL.PEN) handlePenDown(e)
         }}
       >
-        {step === EDITOR_STEP.EMPTY || !cardType ? (
-          <EmptyStage />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center px-2 pb-[118px] pt-1">
-            <EditableCard
-              cardType={cardType}
-              postitTemplate={postitTemplate}
-              selectedPhoto={selectedPhoto}
-              photoCrop={photoCrop}
-              objects={objects}
-              editorMode={editorMode}
-              selectedObjectId={selectedObjectId}
-              editingObjectId={editingObjectId}
-              onPickPhoto={() => fileInputRef.current?.click()}
-              onCardTap={handleCardTap}
-              onStartStroke={startStroke}
-              onAppendStroke={appendStroke}
-              onEndStroke={endStroke}
-              onSelectObject={handleSelectObject}
-              onStartEdit={(objectId) => {
-                setSelectedObjectId(objectId)
-                setEditingObjectId(objectId)
-                setEditorMode(EDITOR_MODE.TEXT)
-              }}
-              onTextChange={handleTextChange}
-              onFinishEdit={handleFinishEdit}
-              onMoveObject={handleMoveObject}
-            />
+        <div
+          ref={cardRef}
+          className="relative overflow-hidden"
+          style={{
+            width: 'min(78vw, 320px)',
+            aspectRatio: '1 / 1',
+            borderRadius: 8,
+            boxShadow: '4px 6px 0px rgba(0,0,0,0.10), 6px 14px 28px rgba(0,0,0,0.22)',
+          }}
+        >
+          {cardType === 'postit' ? (
+            <>
+              <div className="absolute inset-0" style={{ backgroundColor: postitColor }} />
+              <img
+                src={postitTexture} alt="" draggable={false}
+                className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+                style={{ mixBlendMode: 'multiply', opacity: 0.15 }}
+              />
+              <StrokeLayer strokes={strokes} activeStroke={activeStroke} />
+              {textObjects.map(obj => (
+                selectedTextId === obj.id ? (
+                  <TextWithHandles
+                    key={obj.id}
+                    obj={obj}
+                    cardRef={cardRef}
+                    onUpdate={(id, patch) => setTextObjects(prev => prev.map(o => o.id === id ? { ...o, ...patch } : o))}
+                    onEdit={id => { setEditingText({ id }); setSelectedTextId(null) }}
+                    onDelete={handleTextDelete}
+                  />
+                ) : (
+                  <div
+                    key={obj.id}
+                    onMouseDown={e => { e.stopPropagation(); setSelectedTextId(obj.id); setActiveTool(TOOL.NONE) }}
+                    onTouchStart={e => { e.stopPropagation(); setSelectedTextId(obj.id); setActiveTool(TOOL.NONE) }}
+                    className="absolute"
+                    style={{
+                      left: `${obj.x * 100}%`,
+                      top: `${obj.y * 100}%`,
+                      transform: `translate(-50%, -50%) rotate(${obj.rotate}deg)`,
+                      transformOrigin: 'center',
+                      fontSize: obj.fontSize,
+                      fontFamily: obj.fontFamily,
+                      color: obj.color,
+                      fontWeight: 600,
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      textAlign: 'center',
+                      maxWidth: '200px',
+                      lineHeight: 1.35,
+                      cursor: 'pointer',
+                      touchAction: 'none',
+                      userSelect: 'none',
+                      zIndex: 10,
+                      padding: '2px 4px',
+                    }}
+                  >
+                    {obj.text}
+                  </div>
+                )
+              ))}
+            </>
+          ) : (
+            <>
+              {/* 사진 영역 — 드래그/핀치로 조절 */}
+              <div
+                className="absolute left-[6.4%] top-[6.1%] h-[61%] w-[87%] overflow-hidden bg-[#EEE8DE]"
+                onMouseDown={handlePhotoDragStart}
+                onTouchStart={handlePhotoTouchStart}
+                onTouchMove={handlePhotoTouchMove}
+                style={{ touchAction: 'none', cursor: selectedPhoto ? 'grab' : 'default' }}
+              >
+                {selectedPhoto ? (
+                  <img
+                    src={selectedPhoto} alt="" draggable={false}
+                    className="h-full w-full object-cover select-none pointer-events-none"
+                    style={{
+                      objectPosition: `${photoCrop.x * 100}% ${photoCrop.y * 100}%`,
+                      transform: `scale(${photoCrop.scale})`,
+                      transformOrigin: `${photoCrop.x * 100}% ${photoCrop.y * 100}%`,
+                    }}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={e => { e.stopPropagation(); fileInputRef.current?.click() }}
+                    className="flex h-full w-full flex-col items-center justify-center gap-2 text-[#9A8374]"
+                  >
+                    <Camera size={28} />
+                    <span className="text-[13px] font-bold">사진 추가</span>
+                  </button>
+                )}
+              </div>
+
+              {/* 하단 여백 텍스트 */}
+              <div
+                className="absolute bottom-[4%] left-0 right-0 flex items-center justify-center px-4"
+                style={{ top: '73%' }}
+              >
+                {isEditingPolaroidText ? (
+                  <input
+                    autoFocus
+                    type="text"
+                    value={polaroidText}
+                    onChange={e => setPolaroidText(e.target.value)}
+                    onBlur={() => setIsEditingPolaroidText(false)}
+                    onKeyDown={e => { if (e.key === 'Enter') setIsEditingPolaroidText(false) }}
+                    maxLength={30}
+                    className="w-full bg-transparent text-center outline-none"
+                    style={{
+                      fontFamily: FONTS[polaroidFontIndex].family,
+                      fontSize: 18,
+                      color: '#2A1A0E',
+                      caretColor: '#2A1A0E',
+                    }}
+                    placeholder="한 줄 메모..."
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={e => { e.stopPropagation(); setIsEditingPolaroidText(true) }}
+                    className="w-full text-center"
+                    style={{
+                      fontFamily: FONTS[polaroidFontIndex].family,
+                      fontSize: 18,
+                      color: polaroidText ? '#2A1A0E' : '#C4B8A8',
+                      minHeight: 28,
+                    }}
+                  >
+                    {polaroidText || '한 줄 메모...'}
+                  </button>
+                )}
+              </div>
+
+              {/* 폴라로이드 프레임 */}
+              <img src={polaroidFrame} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full object-fill" />
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ── 헤더 오버레이 ── */}
+      <header className="absolute inset-x-0 top-0 z-30 flex items-center justify-between px-5 pt-safe-top pb-2 pt-4">
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-black/30 backdrop-blur-sm"
+        >
+          <X size={18} color="white" />
+        </button>
+        <button
+          type="button"
+          onClick={complete}
+          disabled={!canComplete || isCompleting}
+          className="rounded-full px-5 py-2 text-[14px] font-extrabold text-white shadow-lg disabled:opacity-40"
+          style={{ backgroundColor: canComplete ? '#9B4F3F' : 'rgba(0,0,0,0.3)' }}
+        >
+          {isCompleting ? '저장 중...' : '완료'}
+        </button>
+      </header>
+
+      {error && (
+        <div className="absolute inset-x-4 top-20 z-30 rounded-xl bg-red-500/90 px-4 py-2 text-center text-[13px] font-bold text-white backdrop-blur-sm">
+          {error}
+        </div>
+      )}
+
+      {/* ── 하단 툴바 오버레이 (포스트잇만) ── */}
+      {cardType === 'postit' && (
+        <div className="absolute inset-x-0 bottom-0 z-30">
+          {/* 툴별 옵션 영역 */}
+          <AnimatePresence mode="wait">
+            {activeTool !== TOOL.NONE && (
+              <motion.div
+                key={activeTool}
+                className="mx-3 mb-2 rounded-2xl bg-black/50 backdrop-blur-md"
+                initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }}
+                transition={{ duration: 0.18 }}
+              >
+                {activeTool === TOOL.TEXT && null}
+                {activeTool === TOOL.PEN && (
+                  <PenToolOptions
+                    penStyle={penStyle}
+                    onPenStyle={s => setPenStyle(prev => ({ ...prev, ...s }))}
+                    onUndo={handleUndo}
+                    canUndo={strokeHistory.length > 0}
+                  />
+                )}
+                {activeTool === TOOL.COLOR && (
+                  <ColorToolOptions currentColor={postitColor} onColor={setPostitColor} />
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* 메인 툴바 */}
+          <div className="mx-3 mb-3 flex items-center justify-around rounded-2xl bg-black/50 px-2 py-3 backdrop-blur-md">
+            {[
+              { id: TOOL.TEXT,  label: '텍스트', icon: 'Aa' },
+              { id: TOOL.PEN,   label: '펜',     icon: '✏️' },
+              { id: TOOL.COLOR, label: '색상',   icon: '🎨' },
+            ].map(t => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => handleToolTap(t.id)}
+                className="flex flex-col items-center gap-1 rounded-xl px-5 py-2 transition-all"
+                style={{
+                  backgroundColor: activeTool === t.id ? 'rgba(255,255,255,0.2)' : 'transparent',
+                }}
+              >
+                <span className="text-[17px] font-black leading-none text-white">{t.icon}</span>
+                <span className="text-[10px] font-bold text-white/80">{t.label}</span>
+              </button>
+            ))}
           </div>
-        )}
 
-        <AnimatePresence>
-          {step === EDITOR_STEP.TYPE_PICKER ? (
-            <TypePicker onPickPostit={() => setStep(EDITOR_STEP.POSTIT_PICKER)} onPickPolaroid={createPolaroid} />
-          ) : null}
-          {step === EDITOR_STEP.POSTIT_PICKER ? <PostitPicker onPick={createPostit} onCancel={() => setStep(EDITOR_STEP.TYPE_PICKER)} /> : null}
-          {step === EDITOR_STEP.PHOTO_CROP ? (
-            <PhotoCropScreen
-              photo={pendingPhoto}
-              crop={photoCrop}
-              onCrop={setPhotoCrop}
-              onCancel={cancelPhotoCrop}
-              onConfirm={confirmPhotoCrop}
+          <div style={{ height: 'env(safe-area-inset-bottom, 8px)' }} />
+        </div>
+      )}
+
+      {/* ── 폴라로이드 하단 툴바 ── */}
+      {cardType === 'polaroid' && (
+        <div className="absolute inset-x-0 bottom-0 z-30">
+          <div className="mx-3 mb-3 flex items-center justify-between rounded-2xl bg-black/50 px-5 py-3 backdrop-blur-md">
+            {/* 폰트 선택 */}
+            <div className="flex gap-1.5">
+              {FONTS.map((f, i) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setPolaroidFontIndex(i)}
+                  className="rounded-full px-3 py-1.5 text-[13px] transition-all"
+                  style={{
+                    fontFamily: f.family,
+                    backgroundColor: polaroidFontIndex === i ? 'white' : 'rgba(255,255,255,0.12)',
+                    color: polaroidFontIndex === i ? '#1A1A1A' : 'rgba(255,255,255,0.85)',
+                  }}
+                >
+                  가나다
+                </button>
+              ))}
+            </div>
+            {/* 사진 교체 */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5"
+            >
+              <Camera size={14} color="white" />
+              <span className="text-[12px] font-bold text-white">교체</span>
+            </button>
+          </div>
+          <div style={{ height: 'env(safe-area-inset-bottom, 8px)' }} />
+        </div>
+      )}
+
+      {/* ── 인라인 텍스트 입력 (인스타 상단 폰트바) ── */}
+      <AnimatePresence>
+        {editingText !== null && (
+          <motion.div
+            className="absolute inset-0 z-50"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+          >
+            <CardTextEditor
+              initialText={editingText.id ? textObjects.find(o => o.id === editingText.id)?.text ?? '' : ''}
+              fontIndex={fontIndex}
+              onFontChange={setFontIndex}
+              textColor={textColor}
+              onColorChange={setTextColor}
+              onConfirm={confirmText}
+              onCancel={() => setEditingText(null)}
             />
-          ) : null}
-        </AnimatePresence>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-        <AddDock
-          step={step}
-          onOpenPicker={() => setStep(EDITOR_STEP.TYPE_PICKER)}
-          onBackToEmpty={() => setStep(EDITOR_STEP.EMPTY)}
-        />
-      </section>
-
-      <BottomTools
-        cardType={cardType}
-        editorMode={editorMode}
-        selectedObject={selectedObject}
-        postitTemplate={postitTemplate}
-        textStyle={textStyle}
-        penStyle={penStyle}
-        onText={() => {
-          setEditorMode(EDITOR_MODE.TEXT)
-          setSelectedObjectId(null)
-          setEditingObjectId(null)
-        }}
-        onPen={() => {
-          setEditorMode(EDITOR_MODE.PEN)
-          setSelectedObjectId(null)
-          setEditingObjectId(null)
-        }}
-        onStickerMode={() => setEditorMode('sticker')}
-        onPaperMode={() => setEditorMode('paper')}
-        onPickPhoto={() => fileInputRef.current?.click()}
-        onTextStyle={handleTextStyle}
-        onPenStyle={(next) => setPenStyle((prev) => ({ ...prev, ...next }))}
-        onDelete={deleteSelectedObject}
-        onClearStrokes={clearStrokes}
-        onSticker={addSticker}
-      />
     </motion.main>
   )
 }
-
-export default PostItEditor

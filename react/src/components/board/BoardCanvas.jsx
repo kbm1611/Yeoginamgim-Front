@@ -12,8 +12,8 @@ const MIN_SCALE = 0.45
 const MAX_SCALE = 1.6
 const TRACE_CARD_W = 260
 const POSTIT_TRIMMED_SIZE = {
-  width: 1024,
-  height: 1536,
+  width: 809,
+  height: 958,
 }
 const POSTIT_CAPTURED_ASPECT_RATIO = POSTIT_TRIMMED_SIZE.width / POSTIT_TRIMMED_SIZE.height
 const POLAROID_TRIMMED_SIZE = {
@@ -263,18 +263,26 @@ export function findEmptySpotNear(center, newTraceSize, existingTraces = []) {
 
 function PostItTraceCard({ post, isHighlighted }) {
   const cardW = post._cardW ?? TRACE_CARD_W
-  const cardH = post._cardH ?? cardW / getPostitAspectRatio(post)
   const hasSavedImage = Boolean(post.capturedImage || post.imageUrl)
-  const postitImage = post.capturedImage ?? post.imageUrl ?? postitTexture
+  const aspectRatio = hasSavedImage
+    ? (Number(post.style?.capturedAspectRatio) || 1)
+    : POSTIT_TRIMMED_SIZE.width / POSTIT_TRIMMED_SIZE.height
+  const cardH = post._cardH ?? cardW / aspectRatio
+  const postitImage = post.capturedImage ?? post.imageUrl ?? null
   const shouldRenderText = !hasSavedImage
 
   return (
     <article
-      className={`absolute flex flex-col overflow-hidden text-[#35241A] ${isHighlighted ? 'trace-card-highlight' : ''}`}
+      className={`absolute flex flex-col text-[#35241A] ${isHighlighted ? 'trace-card-highlight' : ''}`}
       style={{
+        borderRadius: hasSavedImage ? 0 : 4,
+        boxShadow: isHighlighted
+          ? '0 0 0 0 transparent'
+          : '2px 4px 0px rgba(0,0,0,0.08), 3px 8px 16px rgba(0,0,0,0.14)',
         filter: isHighlighted ? 'drop-shadow(0 0 12px rgba(255,200,50,0.8))' : 'none',
         height: cardH,
         left: post._x,
+        overflow: 'hidden',
         pointerEvents: 'auto',
         top: post._y,
         transform: `rotate(${post._rotate}deg) scale(${(post._scale ?? 1) * (isHighlighted ? 1.08 : 1)})`,
@@ -284,29 +292,36 @@ function PostItTraceCard({ post, isHighlighted }) {
         zIndex: post._zIndex,
       }}
     >
-      <img
-        src={postitImage}
-        alt=""
-        className="pointer-events-none absolute inset-0 h-full w-full object-fill"
-      />
-      <div className="relative z-10 flex h-full flex-col px-[15px] pb-[12px] pt-[21px]">
-        {shouldRenderText ? (
-          <p
-            className="min-h-0 flex-1 overflow-hidden text-[23px] leading-[1.12]"
-            style={{
-              display: '-webkit-box',
-              fontFamily: "'Nanum Pen Script', 'Gaegu', cursive",
-              WebkitBoxOrient: 'vertical',
-              WebkitLineClamp: 4,
-              whiteSpace: 'pre-wrap',
-            }}
-          >
-            {post.content}
-          </p>
-        ) : (
-          <div className="min-h-0 flex-1" />
-        )}
-      </div>
+      {postitImage ? (
+        // capturedImage가 있으면 그 자체가 완성된 이미지 — 그대로 표시
+        <img
+          src={postitImage}
+          alt=""
+          draggable={false}
+          className="pointer-events-none block h-full w-full"
+          style={{ objectFit: 'fill', borderRadius: 0 }}
+        />
+      ) : (
+        // 서버에서 온 레거시 포스트잇 (capturedImage 없음)
+        <div className="relative h-full w-full overflow-hidden" style={{ backgroundColor: post.style?.postitColor ?? '#F7E58A' }}>
+          <div className="relative z-10 flex h-full flex-col px-[15px] pb-[12px] pt-[21px]">
+            {shouldRenderText && (
+              <p
+                className="min-h-0 flex-1 overflow-hidden text-[23px] leading-[1.12]"
+                style={{
+                  display: '-webkit-box',
+                  fontFamily: "'Nanum Pen Script', 'Gaegu', cursive",
+                  WebkitBoxOrient: 'vertical',
+                  WebkitLineClamp: 4,
+                  whiteSpace: 'pre-wrap',
+                }}
+              >
+                {post.content}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </article>
   )
 }
@@ -444,6 +459,7 @@ function useBoardTransform(transformRef, onZoomChange, laidPosts) {
   const panStart = useRef(null)
   const pinchRef = useRef(null)
   const containerRef = useRef(null)
+  const initializedRef = useRef(false)
 
   const applyZoom = useCallback((nextScale, origin) => {
     const clampedScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, nextScale))
@@ -488,9 +504,12 @@ function useBoardTransform(transformRef, onZoomChange, laidPosts) {
   }, [setClampedTransform])
 
   useEffect(() => {
+    if (initializedRef.current) return
+    if (!laidPosts?.length) return
     const element = containerRef.current
     if (!element) return
 
+    initializedRef.current = true
     const rect = element.getBoundingClientRect()
     viewportRef.current = { width: rect.width, height: rect.height }
     const initial = getInitialTransform(viewportRef.current, laidPosts)
@@ -739,7 +758,15 @@ function BoardCanvas({
       const post = laid[index]
       const cardW = post._cardW ?? TRACE_CARD_W
       const cardH = post._cardH ?? getCardHeight(post)
-      if (cx >= post._x && cx <= post._x + cardW && cy >= post._y && cy <= post._y + cardH) {
+      const rotate = post._rotate ?? 0
+      const rad = (rotate * Math.PI) / 180
+      const cos = Math.cos(-rad)
+      const sin = Math.sin(-rad)
+      const dx = cx - post._x
+      const dy = cy - post._y
+      const lx = cos * dx - sin * dy
+      const ly = sin * dx + cos * dy
+      if (lx >= 0 && lx <= cardW && ly >= 0 && ly <= cardH) {
         setSelectedPost(post)
         return
       }

@@ -4,7 +4,6 @@ import { getAuthToken } from './api/client'
 import MainLayout from './layouts/MainLayout'
 import ArchivePage from './pages/ArchivePage'
 import BoardDetail from './pages/BoardDetail'
-import BoardV2 from './pages/BoardV2'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import Map from './pages/Map'
@@ -13,7 +12,6 @@ import OAuthCallbackPage from './pages/OAuthCallbackPage'
 import OnboardingPage from './pages/OnboardingPage'
 import PlaceDetail from './pages/PlaceDetail'
 import PostItEditor from './pages/PostItEditor'
-import PostItEditorV2 from './pages/PostItEditorV2'
 import TraceDetail from './pages/TraceDetail'
 import SignupPage from './pages/SignupPage'
 import SplashPage from './pages/SplashPage'
@@ -61,9 +59,6 @@ function AnimatedRoutes() {
         <Route path="/record/success" element={<RequireAuth><MemoryBoardSuccessPage /></RequireAuth>} />
 
         <Route path="/place/:id" element={<PlaceDetail />} />
-        <Route path="/board-v2" element={<BoardV2 />} />
-        <Route path="/board-v2/:id" element={<BoardV2 />} />
-        <Route path="/postit-v2" element={<PostItEditorV2 />} />
         <Route
           path="/board/join/:inviteCode"
           element={
@@ -74,7 +69,6 @@ function AnimatedRoutes() {
         />
         <Route path="/board/:id">
           <Route index element={<BoardDetail />} />
-          <Route path="v2" element={<BoardV2 />} />
           <Route
             path="invite"
             element={
@@ -91,7 +85,6 @@ function AnimatedRoutes() {
               </RequireAuth>
             }
           />
-          <Route path="postit-v2" element={<PostItEditorV2 />} />
           <Route path="trace/:traceId" element={<TraceDetail />} />
         </Route>
 
