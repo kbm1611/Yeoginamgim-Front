@@ -218,8 +218,59 @@ function PlaceBoardHeader({ board, onBack, onOpenPlaceInfo }) {
 }
 
 function CustomBoardHeader({ board, onBack, onOpenInvite }) {
+  const members = board.participants ?? []
+
   return (
-    <BoardTopBar title={board.name} onBack={onBack} onMore={onOpenInvite} />
+    <header className="bg-[#F5EFE6] px-3 pb-2 pt-3">
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="뒤로가기"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#3B2A1E] active:bg-[#E7DCCF]"
+        >
+          <ChevronLeft size={22} strokeWidth={2} />
+        </button>
+
+        <h1 className="max-w-[180px] truncate text-center text-[16px] font-bold text-[#3B2A1E]">{board.name}</h1>
+
+        <button
+          type="button"
+          onClick={onOpenInvite}
+          aria-label="초대 및 멤버"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#3B2A1E] active:bg-[#E7DCCF]"
+        >
+          <UsersRound size={19} strokeWidth={2} />
+        </button>
+      </div>
+
+      {/* 멤버 아바타 행 */}
+      {members.length > 0 && (
+        <div className="mt-1.5 flex items-center justify-center gap-1">
+          <div className="flex items-center">
+            {members.slice(0, 5).map((m, i) => (
+              <div
+                key={m.id ?? i}
+                className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-[#F5EFE6] bg-[#D4C4B0] text-[10px] font-bold text-[#5C4030]"
+                style={{ marginLeft: i === 0 ? 0 : -6, zIndex: 5 - i }}
+                title={m.name}
+              >
+                {m.name?.[0] ?? '?'}
+              </div>
+            ))}
+            {members.length > 5 && (
+              <div
+                className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-[#F5EFE6] bg-[#C4B4A0] text-[9px] font-bold text-[#5C4030]"
+                style={{ marginLeft: -6 }}
+              >
+                +{members.length - 5}
+              </div>
+            )}
+          </div>
+          <span className="text-[12px] font-medium text-[#9B8B7B]">{members.length}명 함께</span>
+        </div>
+      )}
+    </header>
   )
 }
 
@@ -507,6 +558,7 @@ function BoardDetail() {
         setBoardDetail(null)
         setBoardDetailErrorMessage(getApiErrorMessage(error, {
           fallback: '보드 정보를 불러오지 못했습니다.',
+          preferServerMessage: false,
           statusMessages: {
             403: '이 보드에 접근할 권한이 없습니다.',
             404: '보드 정보를 찾을 수 없습니다.',
@@ -604,7 +656,18 @@ function BoardDetail() {
         posts,
       })
       let imageUrl = null
-      if (placementDraft.capturedImage) {
+      const mediaImage = placementDraft.media?.image
+      const isPolaroidDraft = placementDraft.type === 'polaroid' || placementDraft.type === 'POLAROID'
+
+      if (isPolaroidDraft && isUploadableLocalImage(mediaImage)) {
+        const response = await fetch(mediaImage)
+        const blob = await response.blob()
+        const file = new File([blob], 'trace-photo.png', { type: blob.type || 'image/png' })
+        const uploaded = await uploadTraceImage(file)
+        imageUrl = uploaded.imageUrl ?? uploaded.url ?? null
+      }
+
+      if (!imageUrl && placementDraft.capturedImage) {
         const response = await fetch(placementDraft.capturedImage)
         const blob = await response.blob()
         const file = new File([blob], 'trace.png', { type: 'image/png' })
@@ -612,7 +675,6 @@ function BoardDetail() {
         imageUrl = uploaded.imageUrl ?? uploaded.url ?? null
       }
 
-      const mediaImage = placementDraft.media?.image
       if (!imageUrl && isUploadableLocalImage(mediaImage)) {
         const response = await fetch(mediaImage)
         const blob = await response.blob()
@@ -621,7 +683,7 @@ function BoardDetail() {
         imageUrl = uploaded.imageUrl ?? uploaded.url ?? null
       }
 
-      const contentType = placementDraft.type === 'polaroid' || placementDraft.type === 'POLAROID'
+      const contentType = isPolaroidDraft
         ? 'POLAROID'
         : 'POST_IT'
       const nextStyle = {

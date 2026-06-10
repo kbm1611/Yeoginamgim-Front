@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
+import { useNavigate, useParams } from 'react-router-dom'
 import boardCanvasBg from '../../assets/board-bg-3000x2200.png'
 import postitTexture from '../../assets/editor/image.png'
-import polaroidFrame from '../../assets/images/recent-trace-default-polaroid.png'
-import TraceBottomSheet from './TraceBottomSheet'
 
 export const BOARD_WIDTH = 3000
 export const BOARD_HEIGHT = 2200
@@ -17,10 +16,9 @@ const POSTIT_TRIMMED_SIZE = {
 }
 const POSTIT_CAPTURED_ASPECT_RATIO = POSTIT_TRIMMED_SIZE.width / POSTIT_TRIMMED_SIZE.height
 const POLAROID_TRIMMED_SIZE = {
-  width: 512,
-  height: 512,
+  width: 900,
+  height: 1200,
 }
-const POLAROID_SOURCE_CROP = { x: 0, y: 0, width: 512, height: 512 }
 
 function seeded(value) {
   const x = Math.sin(value + 1.5) * 10000
@@ -48,23 +46,16 @@ function hasSavedPostitImage(post) {
 
 function getPostitAspectRatio(post) {
   if (hasSavedPostitImage(post)) {
-    return Number(post.style?.capturedAspectRatio) || POSTIT_CAPTURED_ASPECT_RATIO
+    return Number(post.style?.capturedAspectRatio) || (isPolaroidTrace(post) ? POLAROID_TRIMMED_SIZE.width / POLAROID_TRIMMED_SIZE.height : POSTIT_CAPTURED_ASPECT_RATIO)
   }
 
-  return POSTIT_TRIMMED_SIZE.width / POSTIT_TRIMMED_SIZE.height
+  return isPolaroidTrace(post)
+    ? POLAROID_TRIMMED_SIZE.width / POLAROID_TRIMMED_SIZE.height
+    : POSTIT_TRIMMED_SIZE.width / POSTIT_TRIMMED_SIZE.height
 }
 
 function getTraceId(post) {
   return post.traceId ?? post.id
-}
-
-function cropImageStyle(crop, sourceWidth = 1536, sourceHeight = 1024) {
-  return {
-    height: `${(sourceHeight / crop.height) * 100}%`,
-    left: `${(-crop.x / crop.width) * 100}%`,
-    top: `${(-crop.y / crop.height) * 100}%`,
-    width: `${(sourceWidth / crop.width) * 100}%`,
-  }
 }
 
 function getCardHeight(post) {
@@ -102,12 +93,13 @@ function getTraceSize(post) {
     return { width, height: explicitHeight }
   }
 
-  return {
-    width,
-    height: isPolaroidTrace(post)
-      ? width * (POLAROID_TRIMMED_SIZE.height / POLAROID_TRIMMED_SIZE.width)
-      : width,
-  }
+  const isPolaroid = isPolaroidTrace(post)
+  const hasSavedImage = Boolean(post.capturedImage || post.imageUrl)
+  const aspectRatio = hasSavedImage
+    ? (Number(post.style?.capturedAspectRatio) || (isPolaroid ? 3 / 4 : 1))
+    : (isPolaroid ? 3 / 4 : 1)
+
+  return { width, height: Math.round(width / aspectRatio) }
 }
 
 function clampBoardPosition(x, y, width, height) {
@@ -264,10 +256,11 @@ export function findEmptySpotNear(center, newTraceSize, existingTraces = []) {
 function PostItTraceCard({ post, isHighlighted }) {
   const cardW = post._cardW ?? TRACE_CARD_W
   const hasSavedImage = Boolean(post.capturedImage || post.imageUrl)
+  const isPolaroid = isPolaroidTrace(post)
   const aspectRatio = hasSavedImage
-    ? (Number(post.style?.capturedAspectRatio) || 1)
-    : POSTIT_TRIMMED_SIZE.width / POSTIT_TRIMMED_SIZE.height
-  const cardH = post._cardH ?? cardW / aspectRatio
+    ? (Number(post.style?.capturedAspectRatio) || (isPolaroid ? 3 / 4 : 1))
+    : (isPolaroid ? 3 / 4 : POSTIT_TRIMMED_SIZE.width / POSTIT_TRIMMED_SIZE.height)
+  const cardH = post._cardH ?? Math.round(cardW / aspectRatio)
   const postitImage = post.capturedImage ?? post.imageUrl ?? null
   const shouldRenderText = !hasSavedImage
 
@@ -332,10 +325,12 @@ function PolaroidTraceCard({ post, isHighlighted }) {
   const savedPolaroidImage = post.capturedImage ?? null
   const fallbackPhotoImage = post.media?.image ?? post.imageUrl
   const shouldRenderFrameLayers = !savedPolaroidImage
+  const crop = post.style?.photoCrop ?? {}
+  const photoScale = Number(crop.scale)
 
   return (
     <article
-      className={`absolute overflow-hidden text-[#35241A] ${isHighlighted ? 'trace-card-highlight' : ''}`}
+      className={`absolute text-[#35241A] ${isHighlighted ? 'trace-card-highlight' : ''}`}
       style={{
         filter: isHighlighted ? 'drop-shadow(0 0 12px rgba(255,200,50,0.8))' : 'none',
         height: cardH,
@@ -358,34 +353,57 @@ function PolaroidTraceCard({ post, isHighlighted }) {
         />
       ) : null}
 
-      {shouldRenderFrameLayers && fallbackPhotoImage ? (
-        <div className="absolute left-[6.4%] top-[6.1%] h-[74.4%] w-[87%] overflow-hidden">
-          <img src={fallbackPhotoImage} alt="" className="h-full w-full object-cover" draggable="false" />
-        </div>
-      ) : null}
-
       {shouldRenderFrameLayers ? (
-        <img
-          src={polaroidFrame}
-          alt=""
-          className="pointer-events-none absolute object-fill"
-          style={cropImageStyle(POLAROID_SOURCE_CROP, 512, 512)}
-          draggable="false"
-        />
-      ) : null}
-
-      {shouldRenderFrameLayers && post.content ? (
-        <p
-          className="absolute bottom-[6.5%] left-[10%] right-[10%] overflow-hidden text-center text-[21px] leading-[1.05] text-[#3A2A20]"
+        <div
+          className="absolute inset-0 bg-white"
           style={{
-            display: '-webkit-box',
-            fontFamily: "'Nanum Pen Script', 'Gaegu', cursive",
-            WebkitBoxOrient: 'vertical',
-            WebkitLineClamp: 2,
+            borderRadius: 4,
+            boxShadow: '2px 4px 0 rgba(0,0,0,0.08), 5px 14px 24px rgba(0,0,0,0.16)',
+            padding: Math.max(9, cardW * 0.055),
           }}
         >
-          {post.content}
-        </p>
+          <div
+            className="relative w-full overflow-hidden bg-[#E8E0D4]"
+            style={{ height: '73%' }}
+          >
+            {fallbackPhotoImage ? (
+              <img
+                src={fallbackPhotoImage}
+                alt=""
+                className="h-full w-full object-cover"
+                draggable="false"
+                style={{
+                  objectPosition: `${(Number(crop.x) || 0.5) * 100}% ${(Number(crop.y) || 0.5) * 100}%`,
+                  transform: `scale(${Number.isFinite(photoScale) && photoScale > 1 ? photoScale : 1})`,
+                  transformOrigin: `${(Number(crop.x) || 0.5) * 100}% ${(Number(crop.y) || 0.5) * 100}%`,
+                }}
+              />
+            ) : null}
+          </div>
+
+          {post.content ? (
+            <p
+              className="mt-[7%] overflow-hidden text-center text-[20px] leading-[1.05] text-[#3A2A20]"
+              style={{
+                display: '-webkit-box',
+                fontFamily: "'Nanum Pen Script', 'Gaegu', cursive",
+                WebkitBoxOrient: 'vertical',
+                WebkitLineClamp: 2,
+              }}
+            >
+              {post.content}
+            </p>
+          ) : null}
+
+          <span
+            aria-hidden="true"
+            className="absolute left-1/2 top-[-10px] h-[20px] w-[58px] -translate-x-1/2 rotate-[-3deg]"
+            style={{
+              backgroundColor: 'rgba(200, 171, 126, 0.62)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.35), 0 2px 4px rgba(70,45,20,0.12)',
+            }}
+          />
+        </div>
       ) : null}
     </article>
   )
@@ -527,8 +545,14 @@ function useBoardTransform(transformRef, onZoomChange, laidPosts) {
         positionX: stateRef.current.x,
         positionY: stateRef.current.y,
       },
-      zoomIn: (step = 0.25) => applyZoom(stateRef.current.scale + step, null),
-      zoomOut: (step = 0.25) => applyZoom(stateRef.current.scale - step, null),
+      zoomIn: (step = 0.25) => {
+        const vp = viewportRef.current
+        applyZoom(stateRef.current.scale + step, { x: vp.width / 2, y: vp.height / 2 })
+      },
+      zoomOut: (step = 0.25) => {
+        const vp = viewportRef.current
+        applyZoom(stateRef.current.scale - step, { x: vp.width / 2, y: vp.height / 2 })
+      },
       getViewportCenter: () => getViewportCenter(stateRef.current, viewportRef.current),
     }
   }, [applyZoom, transformRef])
@@ -663,10 +687,10 @@ function BoardCanvas({
   onPostDeleted,
   newPostId,
   onNewPostFocused,
-  showTraceSheet = true,
 }) {
+  const navigate = useNavigate()
+  const { id: boardId } = useParams()
   const laid = useMemo(() => layoutPosts(posts), [posts])
-  const [selectedPost, setSelectedPost] = useState(null)
   const [highlightId, setHighlightId] = useState(null)
   const pointerDownInfo = useRef(null)
 
@@ -767,7 +791,8 @@ function BoardCanvas({
       const lx = cos * dx - sin * dy
       const ly = sin * dx + cos * dy
       if (lx >= 0 && lx <= cardW && ly >= 0 && ly <= cardH) {
-        setSelectedPost(post)
+        const traceId = getTraceId(post)
+        navigate(`/board/${boardId}/trace/${traceId}`, { state: { post } })
         return
       }
     }
@@ -829,16 +854,6 @@ function BoardCanvas({
         </button>
       ) : null}
 
-      {showTraceSheet && selectedPost ? (
-        <TraceBottomSheet
-          post={selectedPost}
-          onClose={() => setSelectedPost(null)}
-          onDeleted={(id) => {
-            onPostDeleted?.(id)
-            setSelectedPost(null)
-          }}
-        />
-      ) : null}
     </div>
   )
 }

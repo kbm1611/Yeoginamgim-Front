@@ -65,7 +65,7 @@ export default function TraceBottomSheet({ post, onClose, onDeleted }) {
       onDeleted?.(post.id)
       onClose()
     } catch (e) {
-      console.warn('삭제 실패:', e)
+      void e
     }
   }
 
@@ -139,13 +139,16 @@ export default function TraceBottomSheet({ post, onClose, onDeleted }) {
               ) : (
                 <div style={{
                   width: 200, height: 200,
-                  background: '#F7E58A',
+                  background: post.style?.backgroundColor ?? (() => {
+                    const COLORS = { yellow: '#F7E58A', cream: '#F0EAD6', pink: '#FFD6DC', green: '#D2ECC8', blue: '#C8E0F4', white: '#FFFFFF' }
+                    return COLORS[post.style?.paperColor] ?? '#F7E58A'
+                  })(),
                   borderRadius: 4,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   padding: 20,
                   boxShadow: '2px 4px 0 rgba(0,0,0,0.08), 4px 12px 28px rgba(0,0,0,0.15)',
                 }}>
-                  <p style={{ fontFamily: "'Gaegu', cursive", fontSize: 22, color: '#2A1A0E', textAlign: 'center', lineHeight: 1.4 }}>
+                  <p style={{ fontFamily: post.style?.fontFamily ?? "'Gaegu', cursive", fontSize: 22, color: '#2A1A0E', textAlign: 'center', lineHeight: 1.4 }}>
                     {post.content}
                   </p>
                 </div>

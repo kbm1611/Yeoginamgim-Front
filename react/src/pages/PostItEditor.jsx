@@ -4,7 +4,6 @@ import { getStroke } from 'perfect-freehand'
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import postitTexture from '../assets/editor/33dab845-d565-4111-b90b-9d2382288463.png'
-import polaroidFrame from '../assets/images/recent-trace-default-polaroid.png'
 import bgImage from '../assets/배경.png'
 
 // ─── 상수 ────────────────────────────────────────────────────────────────────
@@ -41,7 +40,7 @@ const HIGHLIGHT_OPT = {
 }
 
 const POSTIT_ASPECT = 1        // 1:1 정사각형
-const POLAROID_ASPECT = 1      // 폴라로이드도 1:1
+const POLAROID_ASPECT = 3 / 4  // 3:4
 
 // ─── 유틸 ────────────────────────────────────────────────────────────────────
 
@@ -89,7 +88,9 @@ function isInsideCard(e, ref) {
 function loadImage(src) {
   return new Promise((resolve, reject) => {
     const img = new Image()
-    img.crossOrigin = 'anonymous'
+    if (!src.startsWith('blob:') && !src.startsWith('data:')) {
+      img.crossOrigin = 'anonymous'
+    }
     img.onload = () => resolve(img)
     img.onerror = reject
     img.src = src
@@ -309,46 +310,32 @@ function CardTextEditor({ initialText, fontIndex, onFontChange, textColor, onCol
   }, [text])
 
   return (
-    // 카드 dimming 없이 — 카드가 그대로 보임
-    <div className="absolute inset-0 z-50 flex flex-col pointer-events-none">
+    // 배경 탭 → 확정 / 내부 요소는 각자 pointer-events-auto
+    <div className="absolute inset-0 z-50 flex flex-col pointer-events-auto" onClick={e => { if (e.target === e.currentTarget) onConfirm(text) }}>
 
-      {/* ── 상단: 취소 + 폰트바 + 완료 ── */}
-      <div className="pointer-events-auto flex items-center gap-2 bg-black/45 px-4 py-3 backdrop-blur-sm">
-        <button type="button" onClick={onCancel}
-          className="shrink-0 text-[13px] font-semibold text-white/80"
-        >
-          취소
-        </button>
-
-        <div className="flex flex-1 items-center justify-center gap-1.5 overflow-x-auto no-scrollbar">
-          {FONTS.map((f, i) => (
-            <button
-              key={f.id}
-              type="button"
-              onClick={() => onFontChange(i)}
-              className="shrink-0 rounded-full px-3 py-1.5 transition-all"
-              style={{
-                fontFamily: f.family,
-                fontSize: 15,
-                backgroundColor: fontIndex === i ? 'white' : 'rgba(255,255,255,0.12)',
-                color: fontIndex === i ? '#1A1A1A' : 'rgba(255,255,255,0.9)',
-                border: fontIndex === i ? 'none' : '1px solid rgba(255,255,255,0.2)',
-              }}
-            >
-              가나다
-            </button>
-          ))}
-        </div>
-
-        <button type="button" onClick={() => onConfirm(text)}
-          className="shrink-0 text-[13px] font-extrabold text-white"
-        >
-          완료
-        </button>
+      {/* ── 상단: 폰트바 ── */}
+      <div className="pointer-events-auto flex items-center justify-center gap-1.5 overflow-x-auto no-scrollbar bg-black/45 px-4 py-3 backdrop-blur-sm" onClick={e => e.stopPropagation()}>
+        {FONTS.map((f, i) => (
+          <button
+            key={f.id}
+            type="button"
+            onClick={() => onFontChange(i)}
+            className="shrink-0 rounded-full px-3 py-1.5 transition-all"
+            style={{
+              fontFamily: f.family,
+              fontSize: 15,
+              backgroundColor: fontIndex === i ? 'white' : 'rgba(255,255,255,0.12)',
+              color: fontIndex === i ? '#1A1A1A' : 'rgba(255,255,255,0.9)',
+              border: fontIndex === i ? 'none' : '1px solid rgba(255,255,255,0.2)',
+            }}
+          >
+            가나다
+          </button>
+        ))}
       </div>
 
-      {/* ── 중앙: 카드 위에 투명하게 올라오는 textarea ── */}
-      <div className="pointer-events-auto flex flex-1 items-center justify-center">
+      {/* ── 중앙: textarea ── */}
+      <div className="flex flex-1 items-center justify-center" onClick={e => e.stopPropagation()}>
         <div
           className="relative flex items-center justify-center"
           style={{ width: 'min(78vw, 320px)', aspectRatio: '1 / 1' }}
@@ -357,7 +344,9 @@ function CardTextEditor({ initialText, fontIndex, onFontChange, textColor, onCol
             ref={taRef}
             value={text}
             onChange={e => setText(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Escape') onCancel() }}
+            onKeyDown={e => {
+              if (e.key === 'Escape') { onCancel(); return }
+            }}
             placeholder="탭해서 입력..."
             maxLength={200}
             rows={1}
@@ -376,7 +365,7 @@ function CardTextEditor({ initialText, fontIndex, onFontChange, textColor, onCol
       </div>
 
       {/* ── 하단: 색상 팔레트 ── */}
-      <div className="pointer-events-auto flex items-center justify-center gap-2.5 bg-black/45 px-4 py-4 backdrop-blur-sm">
+      <div className="pointer-events-auto flex items-center justify-center gap-2.5 bg-black/45 px-4 py-4 backdrop-blur-sm" onClick={e => e.stopPropagation()}>
         {TEXT_COLORS.map(c => (
           <button
             key={c}
@@ -583,7 +572,12 @@ export default function PostItEditor() {
 
   // ── 초기화 ──
   useEffect(() => {
-    if (cardType === 'polaroid') setTimeout(() => fileInputRef.current?.click(), 150)
+    if (cardType === 'polaroid') {
+      setTimeout(() => fileInputRef.current?.click(), 150)
+    } else {
+      // 포스트잇: 진입 즉시 텍스트 입력 시작
+      setTimeout(() => setEditingText({ id: null }), 100)
+    }
   }, [cardType])
 
   // ── 폴라로이드 사진 드래그 이동 ──
@@ -761,17 +755,18 @@ export default function PostItEditor() {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) { if (cardType === 'polaroid' && !selectedPhoto) navigate(-1); return }
-    if (pendingBlobRef.current) URL.revokeObjectURL(pendingBlobRef.current)
-    const url = URL.createObjectURL(file)
-    pendingBlobRef.current = url
-    setSelectedPhoto(url)
-    setPhotoCrop({ x: 0.5, y: 0.5, scale: 1 })
+    const reader = new FileReader()
+    reader.onload = () => {
+      setSelectedPhoto(String(reader.result ?? ''))
+      setPhotoCrop({ x: 0.5, y: 0.5, scale: 1 })
+    }
+    reader.readAsDataURL(file)
   }
 
-  // ── canComplete ──
+  // ── canComplete ── (editingText 입력 중인 내용도 포함)
   const canComplete = cardType === 'polaroid'
     ? Boolean(selectedPhoto)
-    : (textObjects.some(o => o.text.trim()) || strokes.length > 0)
+    : (textObjects.some(o => o.text.trim()) || strokes.length > 0 || Boolean(editingText !== null))
 
   // ── export ──
   const exportImage = async () => {
@@ -839,31 +834,52 @@ export default function PostItEditor() {
         ctx.restore()
       })
     } else {
+      // 폴라로이드: 900×1200 (3:4)
+      canvas.width = 900
+      canvas.height = 1200
+      const PW = 900, PH = 1200
+
+      // 흰 배경
+      ctx.fillStyle = '#FFFFFF'
+      ctx.fillRect(0, 0, PW, PH)
+
+      // 사진 영역: top 6%, left 6%, right 6%, height 68%
+      const px = PW * 0.06, py = PH * 0.06
+      const pw = PW * 0.88, ph = PH * 0.68
+
       if (selectedPhoto) {
         const photo = await loadImage(selectedPhoto)
-        const iB = { x: 0.064 * W, y: 0.061 * H, w: 0.87 * W, h: 0.744 * H }
         ctx.save()
-        ctx.beginPath(); ctx.rect(iB.x, iB.y, iB.w, iB.h); ctx.clip()
+        ctx.beginPath()
+        ctx.rect(px, py, pw, ph)
+        ctx.clip()
         const sr = photo.naturalWidth / photo.naturalHeight
-        const tr = iB.w / iB.h
+        const tr = pw / ph
         let sw = photo.naturalWidth, sh = photo.naturalHeight
         if (sr > tr) sw = sh * tr; else sh = sw / tr
         const maxSx = photo.naturalWidth - sw, maxSy = photo.naturalHeight - sh
-        ctx.drawImage(photo, clamp(maxSx * photoCrop.x, 0, maxSx), clamp(maxSy * photoCrop.y, 0, maxSy), sw, sh, iB.x, iB.y, iB.w, iB.h)
+        ctx.drawImage(
+          photo,
+          clamp(maxSx * photoCrop.x, 0, maxSx),
+          clamp(maxSy * photoCrop.y, 0, maxSy),
+          sw, sh,
+          px, py, pw, ph
+        )
         ctx.restore()
+      } else {
+        ctx.fillStyle = '#E8E0D4'
+        ctx.fillRect(px, py, pw, ph)
       }
-      const frame = await loadImage(polaroidFrame)
-      ctx.drawImage(frame, 0, 0, W, H)
 
-      // 하단 여백 텍스트
+      // 하단 텍스트 (top 77%, center)
       if (polaroidText.trim()) {
         const font = FONTS[polaroidFontIndex]
         ctx.save()
-        ctx.font = `600 72px ${font.family}`
+        ctx.font = `600 52px ${font.family}`
         ctx.fillStyle = '#2A1A0E'
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
-        ctx.fillText(polaroidText.slice(0, 30), W / 2, H * 0.895)
+        ctx.fillText(polaroidText.slice(0, 30), PW / 2, PH * 0.885)
         ctx.restore()
       }
     }
@@ -872,24 +888,38 @@ export default function PostItEditor() {
 
   const complete = async () => {
     if (!canComplete || isCompleting) return
+    // 텍스트 입력 중이면 먼저 확정
+    if (editingText !== null) {
+      const ta = document.querySelector('textarea')
+      if (ta?.value.trim()) confirmText(ta.value)
+      else setEditingText(null)
+      await new Promise(r => setTimeout(r, 60))
+    }
     setIsCompleting(true); setError('')
     await new Promise(r => setTimeout(r, 60))
     try {
-      const capturedImage = await exportImage()
+      const capturedImage = cardType === 'postit' ? await exportImage() : null
       navigate(`/board/${boardId}`, {
         state: {
           placementDraft: {
             id: `${cardType}-${Date.now()}`,
             type: cardType,
             capturedImage,
-            content: textObjects.map(o => o.text).filter(Boolean).join('\n'),
+            content: cardType === 'polaroid'
+              ? polaroidText.trim()
+              : textObjects.map(o => o.text).filter(Boolean).join('\n'),
+            media: cardType === 'polaroid'
+              ? { image: selectedPhoto, crop: photoCrop }
+              : undefined,
             style: {
               cardType,
-              capturedAspectRatio: POSTIT_ASPECT,
+              capturedAspectRatio: cardType === 'polaroid' ? POLAROID_ASPECT : POSTIT_ASPECT,
+              imageKind: cardType === 'polaroid' ? 'source-photo' : 'rendered-postit',
               postitColor,
               textObjects,
               strokes,
               photoCrop,
+              polaroidFontIndex,
             },
           },
         },
@@ -931,10 +961,11 @@ export default function PostItEditor() {
           ref={cardRef}
           className="relative overflow-hidden"
           style={{
-            width: 'min(78vw, 320px)',
-            aspectRatio: '1 / 1',
-            borderRadius: 8,
+            width: cardType === 'polaroid' ? 'min(62vw, 260px)' : 'min(78vw, 320px)',
+            aspectRatio: cardType === 'polaroid' ? '3 / 4' : '1 / 1',
+            borderRadius: cardType === 'polaroid' ? 4 : 8,
             boxShadow: '4px 6px 0px rgba(0,0,0,0.10), 6px 14px 28px rgba(0,0,0,0.22)',
+            backgroundColor: '#fff',
           }}
         >
           {cardType === 'postit' ? (
@@ -990,19 +1021,23 @@ export default function PostItEditor() {
             </>
           ) : (
             <>
-              {/* 사진 영역 — 드래그/핀치로 조절 */}
+              {/* 흰 배경 */}
+              <div className="absolute inset-0 bg-white" />
+
+              {/* 사진 영역 — 상단 여백 6%, 좌우 여백 6%, 높이 68% */}
               <div
-                className="absolute left-[6.4%] top-[6.1%] h-[61%] w-[87%] overflow-hidden bg-[#EEE8DE]"
+                className="absolute overflow-hidden bg-[#E8E0D4]"
+                style={{ top: '5%', left: '5%', right: '5%', height: '72%', touchAction: 'none', cursor: selectedPhoto ? 'grab' : 'default' }}
                 onMouseDown={handlePhotoDragStart}
                 onTouchStart={handlePhotoTouchStart}
                 onTouchMove={handlePhotoTouchMove}
-                style={{ touchAction: 'none', cursor: selectedPhoto ? 'grab' : 'default' }}
               >
                 {selectedPhoto ? (
                   <img
                     src={selectedPhoto} alt="" draggable={false}
-                    className="h-full w-full object-cover select-none pointer-events-none"
+                    className="h-full w-full select-none pointer-events-none"
                     style={{
+                      objectFit: 'cover',
                       objectPosition: `${photoCrop.x * 100}% ${photoCrop.y * 100}%`,
                       transform: `scale(${photoCrop.scale})`,
                       transformOrigin: `${photoCrop.x * 100}% ${photoCrop.y * 100}%`,
@@ -1014,16 +1049,16 @@ export default function PostItEditor() {
                     onClick={e => { e.stopPropagation(); fileInputRef.current?.click() }}
                     className="flex h-full w-full flex-col items-center justify-center gap-2 text-[#9A8374]"
                   >
-                    <Camera size={28} />
-                    <span className="text-[13px] font-bold">사진 추가</span>
+                    <Camera size={24} />
+                    <span className="text-[12px] font-bold">사진 추가</span>
                   </button>
                 )}
               </div>
 
-              {/* 하단 여백 텍스트 */}
+              {/* 하단 텍스트 여백 */}
               <div
-                className="absolute bottom-[4%] left-0 right-0 flex items-center justify-center px-4"
-                style={{ top: '73%' }}
+                className="absolute left-0 right-0 flex items-center justify-center px-3"
+                style={{ top: '79%', bottom: '3%' }}
               >
                 {isEditingPolaroidText ? (
                   <input
@@ -1037,7 +1072,7 @@ export default function PostItEditor() {
                     className="w-full bg-transparent text-center outline-none"
                     style={{
                       fontFamily: FONTS[polaroidFontIndex].family,
-                      fontSize: 18,
+                      fontSize: 16,
                       color: '#2A1A0E',
                       caretColor: '#2A1A0E',
                     }}
@@ -1050,25 +1085,21 @@ export default function PostItEditor() {
                     className="w-full text-center"
                     style={{
                       fontFamily: FONTS[polaroidFontIndex].family,
-                      fontSize: 18,
+                      fontSize: 16,
                       color: polaroidText ? '#2A1A0E' : '#C4B8A8',
-                      minHeight: 28,
                     }}
                   >
                     {polaroidText || '한 줄 메모...'}
                   </button>
                 )}
               </div>
-
-              {/* 폴라로이드 프레임 */}
-              <img src={polaroidFrame} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full object-fill" />
             </>
           )}
         </div>
       </div>
 
       {/* ── 헤더 오버레이 ── */}
-      <header className="absolute inset-x-0 top-0 z-30 flex items-center justify-between px-5 pt-safe-top pb-2 pt-4">
+      <header className="absolute inset-x-0 top-0 z-[60] flex items-center justify-between px-5 pt-safe-top pb-2 pt-4">
         <button
           type="button"
           onClick={() => navigate(-1)}
