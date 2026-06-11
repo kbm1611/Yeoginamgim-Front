@@ -6,13 +6,12 @@ import {
   Image,
   Info,
   Map,
-  Menu,
   MessageCircle,
   Minus,
+  MoreHorizontal,
   PencilLine,
   Plus,
   Search,
-  Settings,
   UserRound,
   UsersRound,
 } from 'lucide-react'
@@ -20,10 +19,8 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { fetchBoardDetail } from '../api/boards'
 import { API_BASE_URL, clearAuthToken } from '../api/client'
 import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
-import { createTraceReport } from '../api/reports'
-import { addTraceLike, createTrace, fetchBoardTraces, removeTraceLike, uploadTraceImage } from '../api/traces'
-import boardBg from '../assets/image.png'
-import BoardCanvas from '../components/board/BoardCanvas'
+import { createTrace, fetchBoardTraces, uploadTraceImage } from '../api/traces'
+import BoardCanvas, { BOARD_HEIGHT, BOARD_WIDTH, findEmptySpotNear } from '../components/board/BoardCanvas'
 import BottomNavigation from '../components/BottomNavigation'
 import { traceToPost } from './tracePost.utils'
 
@@ -80,7 +77,7 @@ function getBoardName(boardDetail, locationState, fallback) {
     boardDetail?.place?.placeName ??
     boardDetail?.placeName ??
     locationState?.boardName ??
-    fallback.name
+    (boardDetail !== null ? fallback.name : '')
   )
 }
 
@@ -117,84 +114,163 @@ function getPostId(post) {
   return post.traceId ?? post.id
 }
 
-function getLikeCount(post) {
-  return post.likeCount ?? post.likes ?? 0
-}
 
-function findEmptyCell(posts) {
-  const occupied = new Set(posts.map((post) => `${post.cell?.row ?? 0}-${post.cell?.col ?? 0}`))
+function safeParseJson(value) {
+  if (!value) return null
 
-  for (let row = 0; row < 50; row += 1) {
-    for (let col = 0; col < 2; col += 1) {
-      if (!occupied.has(`${row}-${col}`)) return { row, col }
-    }
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
   }
-
-  return { row: 0, col: 0 }
 }
 
-function BoardTopBar({ title, onBack, children }) {
+function isUploadableLocalImage(value) {
+  return typeof value === 'string' && (value.startsWith('blob:') || value.startsWith('data:'))
+}
+
+function isRemoteImageUrl(value) {
+  return typeof value === 'string' && (/^https?:\/\//i.test(value) || value.startsWith('/'))
+}
+
+function getTraceDefaultSize(type) {
+  const isPolaroid = type === 'polaroid' || type === 'POLAROID'
+  return isPolaroid
+    ? { width: 300, height: 360 }
+    : { width: 260, height: 260 }
+}
+
+function getFallbackBoardCenter() {
+  return { x: BOARD_WIDTH / 2, y: BOARD_HEIGHT / 2 }
+}
+
+function getLastViewportCenter(boardId, locationState) {
+  const stateCenter = locationState?.lastViewportCenter
+  if (Number.isFinite(stateCenter?.x) && Number.isFinite(stateCenter?.y)) return stateCenter
+
+  const stored = safeParseJson(sessionStorage.getItem(`board:${boardId}:lastViewportCenter`))
+  if (Number.isFinite(stored?.x) && Number.isFinite(stored?.y)) return stored
+
+  return getFallbackBoardCenter()
+}
+
+function createBoardPageStub() {
+  return {
+    boardPageId: 'page-1',
+    width: BOARD_WIDTH,
+    height: BOARD_HEIGHT,
+    status: 'stub',
+  }
+}
+
+function createBoardPlacement({ boardId, draft, locationState, posts }) {
+  const center = getLastViewportCenter(boardId, locationState)
+  const size = getTraceDefaultSize(draft.type)
+  const position = findEmptySpotNear(center, size, posts)
+  const seed = Date.now() % 100000
+  const rotation = Math.round(((Math.sin(seed) + 1) / 2 * 6 - 3) * 10) / 10
+  const zIndex = 20 + posts.length
+
+  return {
+    boardPage: createBoardPageStub(),
+    boardPosition: {
+      x: position.x,
+      y: position.y,
+      width: size.width,
+      height: size.height,
+      rotation,
+      scale: 1,
+      zIndex,
+    },
+  }
+}
+
+function BoardTopBar({ title, onBack, onMore }) {
   return (
-    <header className="flex items-center justify-between bg-[#F5EFE6] px-4 pb-2 pt-3">
+    <header className="flex items-center justify-between bg-[#F5EFE6] px-3 pb-2 pt-3">
       <button
         type="button"
         onClick={onBack}
         aria-label="뒤로가기"
-        className="flex h-9 w-9 shrink-0 items-center justify-center text-[#3B2A1E]"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#3B2A1E] active:bg-[#E7DCCF]"
       >
-        <ChevronLeft size={24} strokeWidth={1.8} />
+        <ChevronLeft size={22} strokeWidth={2} />
       </button>
 
-      <h1 className="max-w-[180px] truncate text-center text-[16px] font-bold text-[#3B2A1E]">{title}</h1>
+      <h1 className="max-w-[200px] truncate text-center text-[16px] font-bold text-[#3B2A1E]">{title}</h1>
 
-      <div className="flex h-9 shrink-0 items-center gap-1">{children}</div>
+      <button
+        type="button"
+        onClick={onMore}
+        aria-label="더보기"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#3B2A1E] active:bg-[#E7DCCF]"
+      >
+        <MoreHorizontal size={20} strokeWidth={2} />
+      </button>
     </header>
-  )
-}
-
-function HeaderIconButton({ label, onClick, children }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-      className="flex h-9 w-9 items-center justify-center rounded-full text-[#3B2A1E] active:bg-[#E7DCCF]"
-    >
-      {children}
-    </button>
   )
 }
 
 function PlaceBoardHeader({ board, onBack, onOpenPlaceInfo }) {
   return (
-    <BoardTopBar title={board.name} onBack={onBack}>
-      <HeaderIconButton label="검색">
-        <Search size={18} strokeWidth={1.8} />
-      </HeaderIconButton>
-      <HeaderIconButton label="장소 정보" onClick={onOpenPlaceInfo}>
-        <Info size={18} strokeWidth={1.8} />
-      </HeaderIconButton>
-      <HeaderIconButton label="메뉴">
-        <Menu size={19} strokeWidth={1.8} />
-      </HeaderIconButton>
-    </BoardTopBar>
+    <BoardTopBar title={board.name} onBack={onBack} onMore={onOpenPlaceInfo} />
   )
 }
 
 function CustomBoardHeader({ board, onBack, onOpenInvite }) {
+  const members = board.participants ?? []
+
   return (
-    <BoardTopBar title={board.name} onBack={onBack}>
-      <HeaderIconButton label="참여자">
-        <UsersRound size={18} strokeWidth={1.8} />
-      </HeaderIconButton>
-      <HeaderIconButton label="초대" onClick={onOpenInvite}>
-        <MessageCircle size={18} strokeWidth={1.8} />
-      </HeaderIconButton>
-      <HeaderIconButton label="설정">
-        <Settings size={18} strokeWidth={1.8} />
-      </HeaderIconButton>
-    </BoardTopBar>
+    <header className="bg-[#F5EFE6] px-3 pb-2 pt-3">
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="뒤로가기"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#3B2A1E] active:bg-[#E7DCCF]"
+        >
+          <ChevronLeft size={22} strokeWidth={2} />
+        </button>
+
+        <h1 className="max-w-[180px] truncate text-center text-[16px] font-bold text-[#3B2A1E]">{board.name}</h1>
+
+        <button
+          type="button"
+          onClick={onOpenInvite}
+          aria-label="초대 및 멤버"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#3B2A1E] active:bg-[#E7DCCF]"
+        >
+          <UsersRound size={19} strokeWidth={2} />
+        </button>
+      </div>
+
+      {/* 멤버 아바타 행 */}
+      {members.length > 0 && (
+        <div className="mt-1.5 flex items-center justify-center gap-1">
+          <div className="flex items-center">
+            {members.slice(0, 5).map((m, i) => (
+              <div
+                key={m.id ?? i}
+                className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-[#F5EFE6] bg-[#D4C4B0] text-[10px] font-bold text-[#5C4030]"
+                style={{ marginLeft: i === 0 ? 0 : -6, zIndex: 5 - i }}
+                title={m.name}
+              >
+                {m.name?.[0] ?? '?'}
+              </div>
+            ))}
+            {members.length > 5 && (
+              <div
+                className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-[#F5EFE6] bg-[#C4B4A0] text-[9px] font-bold text-[#5C4030]"
+                style={{ marginLeft: -6 }}
+              >
+                +{members.length - 5}
+              </div>
+            )}
+          </div>
+          <span className="text-[12px] font-medium text-[#9B8B7B]">{members.length}명 함께</span>
+        </div>
+      )}
+    </header>
   )
 }
 
@@ -239,25 +315,23 @@ function BoardSortControl({ sort, onSort }) {
   )
 }
 
-function ZoomControls({ zoom, onZoomIn, onZoomOut }) {
+function ZoomControls({ onZoomIn, onZoomOut }) {
   return (
-    <div className="flex flex-col items-center overflow-hidden rounded-[16px] bg-white/92 shadow-[0_4px_16px_rgba(58,36,24,0.15)] backdrop-blur-sm">
+    <div className="flex flex-col items-center overflow-hidden rounded-2xl bg-white/90 shadow-[0_2px_12px_rgba(58,36,24,0.12)] backdrop-blur-sm">
       <button
         type="button"
         onClick={onZoomIn}
         aria-label="확대"
-        className="flex h-10 w-10 items-center justify-center border-b border-[#EDE5DA] text-[#3B2A1E]"
+        className="flex h-9 w-9 items-center justify-center text-[#3B2A1E] active:bg-[#F0E8DF]"
       >
         <Plus size={18} strokeWidth={2} />
       </button>
-      <div className="flex h-9 w-10 items-center justify-center">
-        <span className="text-[12px] font-semibold text-[#6B5A4C]">{zoom}%</span>
-      </div>
+      <div className="w-full h-px bg-[#EDE5DA]" />
       <button
         type="button"
         onClick={onZoomOut}
         aria-label="축소"
-        className="flex h-10 w-10 items-center justify-center border-t border-[#EDE5DA] text-[#3B2A1E]"
+        className="flex h-9 w-9 items-center justify-center text-[#3B2A1E] active:bg-[#F0E8DF]"
       >
         <Minus size={18} strokeWidth={2} />
       </button>
@@ -444,9 +518,10 @@ function BoardDetail() {
   const [newPostId, setNewPostId] = useState(null)
   const [isSaving, setIsSaving] = useState(false)
   const [placementDraft, setPlacementDraft] = useState(() => location.state?.placementDraft ?? null)
+  const [showTypeSheet, setShowTypeSheet] = useState(false)
   const transformRef = useRef(null)
 
-  const board = useMemo(() => buildBoard(boardId, location.state, boardDetail), [boardDetail, boardId, location.state])
+  const board = useMemo(() => buildBoard(boardId, location.state, boardDetail ?? (location.state?.boardName ? { boardName: location.state.boardName } : null)), [boardDetail, boardId, location.state])
   const sortedPosts = useMemo(() => sortPosts(posts, sort), [posts, sort])
   const inviteLink = useMemo(() => {
     if (typeof window === 'undefined') return `/board/${boardId}`
@@ -483,6 +558,7 @@ function BoardDetail() {
         setBoardDetail(null)
         setBoardDetailErrorMessage(getApiErrorMessage(error, {
           fallback: '보드 정보를 불러오지 못했습니다.',
+          preferServerMessage: false,
           statusMessages: {
             403: '이 보드에 접근할 권한이 없습니다.',
             404: '보드 정보를 찾을 수 없습니다.',
@@ -547,23 +623,51 @@ function BoardDetail() {
   }, [])
 
   const handleAdd = useCallback(() => {
+    setShowTypeSheet(true)
+  }, [])
+
+  const handleSelectType = useCallback((type) => {
+    setShowTypeSheet(false)
+    const viewportCenter = transformRef.current?.getViewportCenter?.() ?? null
+    if (viewportCenter) {
+      sessionStorage.setItem(`board:${boardId}:lastViewportCenter`, JSON.stringify(viewportCenter))
+    }
     navigate(`/board/${boardId}/postit`, {
       state: {
         boardName: board.name,
         boardType: board.boardType,
+        lastViewportCenter: viewportCenter,
+        initialTab: type,
       },
     })
   }, [board.boardType, board.name, boardId, navigate])
 
-  const handlePlace = useCallback(async (cell) => {
+  const handlePlace = useCallback(async () => {
     if (!placementDraft || isSaving) return
 
     setIsSaving(true)
     setActionMessage('')
 
     try {
+      const placement = createBoardPlacement({
+        boardId,
+        draft: placementDraft,
+        locationState: location.state,
+        posts,
+      })
       let imageUrl = null
-      if (placementDraft.capturedImage) {
+      const mediaImage = placementDraft.media?.image
+      const isPolaroidDraft = placementDraft.type === 'polaroid' || placementDraft.type === 'POLAROID'
+
+      if (isPolaroidDraft && isUploadableLocalImage(mediaImage)) {
+        const response = await fetch(mediaImage)
+        const blob = await response.blob()
+        const file = new File([blob], 'trace-photo.png', { type: blob.type || 'image/png' })
+        const uploaded = await uploadTraceImage(file)
+        imageUrl = uploaded.imageUrl ?? uploaded.url ?? null
+      }
+
+      if (!imageUrl && placementDraft.capturedImage) {
         const response = await fetch(placementDraft.capturedImage)
         const blob = await response.blob()
         const file = new File([blob], 'trace.png', { type: 'image/png' })
@@ -571,30 +675,68 @@ function BoardDetail() {
         imageUrl = uploaded.imageUrl ?? uploaded.url ?? null
       }
 
-      const contentType = placementDraft.type === 'polaroid' || placementDraft.type === 'POLAROID'
+      if (!imageUrl && isUploadableLocalImage(mediaImage)) {
+        const response = await fetch(mediaImage)
+        const blob = await response.blob()
+        const file = new File([blob], 'trace-photo.png', { type: blob.type || 'image/png' })
+        const uploaded = await uploadTraceImage(file)
+        imageUrl = uploaded.imageUrl ?? uploaded.url ?? null
+      }
+
+      const contentType = isPolaroidDraft
         ? 'POLAROID'
         : 'POST_IT'
+      const nextStyle = {
+        ...(placementDraft.style ?? {}),
+        boardPageId: placement.boardPage.boardPageId,
+        boardPosition: placement.boardPosition,
+      }
       const createdTrace = await createTrace(boardId, {
-        traceX: cell.col,
-        traceY: cell.row,
+        traceX: Math.round(placement.boardPosition.x),
+        traceY: Math.round(placement.boardPosition.y),
         elements: [{
           contentType,
-          imageUrl: imageUrl ?? placementDraft.media?.image ?? null,
-          styleJson: JSON.stringify(placementDraft.style ?? {}),
+          imageUrl: imageUrl ?? (isRemoteImageUrl(mediaImage) ? mediaImage : null),
+          styleJson: JSON.stringify(nextStyle),
           textContent: placementDraft.content ?? '',
         }],
       })
 
-      const fresh = await fetchBoardTraces(boardId, { sort, limit: 100 })
-      const newPosts = (fresh.traces ?? []).map(traceToPost)
       const createdId = createdTrace?.traceId ?? createdTrace?.id
-      const saved = newPosts.find((post) => {
-        return getPostId(post) === createdId || (post.cell?.col === cell.col && post.cell?.row === cell.row)
+      const fresh = await fetchBoardTraces(boardId, { sort, limit: 100 })
+      const newPosts = (fresh.traces ?? []).map(traceToPost).map((post) => {
+        if (getPostId(post) !== createdId) return post
+        return {
+          ...post,
+          boardId,
+          boardPageId: post.boardPageId ?? placement.boardPage.boardPageId,
+          x: post.x ?? placement.boardPosition.x,
+          y: post.y ?? placement.boardPosition.y,
+          width: post.width ?? placement.boardPosition.width,
+          height: post.height ?? placement.boardPosition.height,
+          rotation: post.rotation ?? placement.boardPosition.rotation,
+          scale: post.scale ?? placement.boardPosition.scale,
+          zIndex: post.zIndex ?? placement.boardPosition.zIndex,
+          style: {
+            ...(post.style ?? {}),
+            boardPageId: post.style?.boardPageId ?? placement.boardPage.boardPageId,
+            boardPosition: {
+              ...placement.boardPosition,
+              ...(post.style?.boardPosition ?? {}),
+            },
+          },
+        }
       })
+      const saved = newPosts.find((post) => {
+        return getPostId(post) === createdId ||
+          (Math.round(post.x ?? -1) === Math.round(placement.boardPosition.x) && Math.round(post.y ?? -1) === Math.round(placement.boardPosition.y))
+      })
+      const savedId = saved ? getPostId(saved) : createdId ?? placementDraft.id
 
       setPosts(newPosts)
       setPlacementDraft(null)
-      if (saved) setNewPostId(getPostId(saved))
+      sessionStorage.removeItem(`board:${boardId}:lastViewportCenter`)
+      if (savedId) setNewPostId(savedId)
     } catch (error) {
       if (handleUnauthorizedApiError(error, {
         clearToken: clearAuthToken,
@@ -615,103 +757,14 @@ function BoardDetail() {
     } finally {
       setIsSaving(false)
     }
-  }, [boardId, isSaving, location, navigate, placementDraft, sort])
+  }, [boardId, isSaving, location, navigate, placementDraft, posts, sort])
 
   useEffect(() => {
     if (!placementDraft || isLoading || isSaving) return undefined
 
-    const cell = findEmptyCell(posts)
-    const timerId = window.setTimeout(() => handlePlace(cell), 0)
+    const timerId = window.setTimeout(() => handlePlace(), 0)
     return () => window.clearTimeout(timerId)
-  }, [handlePlace, isLoading, isSaving, placementDraft, posts])
-
-  const handleToggleLike = useCallback(async (post) => {
-    const postId = getPostId(post)
-    const nextLiked = !post.liked
-    const previousLikes = getLikeCount(post)
-    const nextLikes = Math.max(0, previousLikes + (nextLiked ? 1 : -1))
-
-    setActionMessage('')
-    setPosts((prev) =>
-      prev.map((item) =>
-        getPostId(item) === postId
-          ? { ...item, liked: nextLiked, likeCount: nextLikes, likes: nextLikes }
-          : item,
-      ),
-    )
-
-    try {
-      const result = nextLiked ? await addTraceLike(postId) : await removeTraceLike(postId)
-      const resultLikes = result?.likeCount ?? nextLikes
-      const resultLiked = result?.liked ?? nextLiked
-
-      setPosts((prev) =>
-        prev.map((item) =>
-          getPostId(item) === postId
-            ? { ...item, liked: resultLiked, likeCount: resultLikes, likes: resultLikes }
-            : item,
-        ),
-      )
-
-      return result
-    } catch (error) {
-      setPosts((prev) =>
-        prev.map((item) =>
-          getPostId(item) === postId
-            ? { ...item, liked: post.liked, likeCount: previousLikes, likes: previousLikes }
-            : item,
-        ),
-      )
-
-      if (!handleUnauthorizedApiError(error, {
-        clearToken: clearAuthToken,
-        location,
-        navigate,
-        redirect: true,
-      })) {
-        setActionMessage(getApiErrorMessage(error, {
-          fallback: '좋아요를 처리하지 못했습니다.',
-          statusMessages: {
-            403: '좋아요를 누를 권한이 없습니다.',
-            404: '흔적을 찾을 수 없습니다.',
-            500: '좋아요를 처리하지 못했습니다. 잠시 후 다시 시도해주세요.',
-          },
-        }))
-      }
-
-      throw error
-    }
-  }, [location, navigate])
-
-  const handleCreateReport = useCallback(async (post, reportKind) => {
-    const postId = getPostId(post)
-    setActionMessage('')
-
-    try {
-      const result = await createTraceReport(postId, { reportKind })
-      setActionMessage('신고가 접수되었습니다.')
-      return result
-    } catch (error) {
-      if (!handleUnauthorizedApiError(error, {
-        clearToken: clearAuthToken,
-        location,
-        navigate,
-        redirect: true,
-      })) {
-        setActionMessage(getApiErrorMessage(error, {
-          fallback: '신고를 접수하지 못했습니다.',
-          statusMessages: {
-            403: '신고 권한이 없습니다.',
-            404: '신고할 흔적을 찾을 수 없습니다.',
-            409: '이미 신고한 흔적입니다.',
-            500: '신고를 접수하지 못했습니다. 잠시 후 다시 시도해주세요.',
-          },
-        }))
-      }
-
-      throw error
-    }
-  }, [location, navigate])
+  }, [handlePlace, isLoading, isSaving, placementDraft])
 
   const handleCopyInvite = async () => {
     try {
@@ -723,12 +776,10 @@ function BoardDetail() {
   }
 
   const handleZoomIn = () => {
-    setZoom((value) => Math.min(value + 25, 200))
     transformRef.current?.zoomIn(0.25)
   }
 
   const handleZoomOut = () => {
-    setZoom((value) => Math.max(value - 25, 50))
     transformRef.current?.zoomOut(0.25)
   }
 
@@ -759,12 +810,9 @@ function BoardDetail() {
         onRefresh={refreshTraces}
         transformRef={transformRef}
         onZoomChange={setZoom}
-        onToggleLike={handleToggleLike}
-        onReport={handleCreateReport}
         onPostDeleted={(postId) => setPosts((prev) => prev.filter((post) => getPostId(post) !== postId))}
         newPostId={newPostId}
         onNewPostFocused={() => setNewPostId(null)}
-        showTraceSheet={false}
       />
     )
   }
@@ -774,7 +822,6 @@ function BoardDetail() {
       <BoardSortControl sort={sort} onSort={setSort} />
 
       <div className="relative flex-1 overflow-hidden">
-        <img src={boardBg} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-cover" />
         <div className="absolute inset-0">{renderBoardContent()}</div>
 
         {boardDetailErrorMessage || actionMessage ? (
@@ -790,22 +837,21 @@ function BoardDetail() {
         ) : null}
 
         {!isLoading && !errorMessage ? (
-          <div className="absolute bottom-[92px] right-4 z-20">
-            <ZoomControls zoom={zoom} onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} />
+          <div className="absolute bottom-20 right-4 z-20 flex flex-col items-center gap-2">
+            {/* 줌 컨트롤 */}
+            <ZoomControls onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} />
+            {/* FAB — 흔적 남기기 */}
+            <button
+              type="button"
+              onClick={handleAdd}
+              disabled={isSaving}
+              aria-label="흔적 남기기"
+              className="flex h-14 w-14 items-center justify-center rounded-full bg-[#3B2A1E] shadow-[0_4px_16px_rgba(58,36,24,0.35)] active:scale-95 disabled:opacity-60 transition-transform"
+            >
+              <PencilLine size={22} strokeWidth={2} color="white" />
+            </button>
           </div>
         ) : null}
-
-        <div className="absolute bottom-5 left-5 right-5 z-20">
-          <button
-            type="button"
-            onClick={handleAdd}
-            disabled={isSaving}
-            className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-[#3B2A1E] text-[16px] font-bold text-white shadow-[0_8px_22px_rgba(58,36,24,0.32)] disabled:opacity-60"
-          >
-            <PencilLine size={18} strokeWidth={2} />
-            흔적 남기기
-          </button>
-        </div>
       </div>
     </>
   )
@@ -823,6 +869,46 @@ function BoardDetail() {
       )}
 
       <BottomNavigation />
+
+      {/* 흔적 타입 선택 시트 */}
+      {showTypeSheet && (
+        <div className="absolute inset-0 z-50" onClick={() => setShowTypeSheet(false)}>
+          <div className="absolute inset-0 bg-black/40" />
+          <div
+            className="absolute inset-x-0 bottom-0 rounded-t-3xl bg-[#F5EFE6] pb-8 pt-5"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="mb-4 flex justify-center">
+              <div className="h-1 w-9 rounded-full bg-[#D0C4B8]" />
+            </div>
+            <p className="mb-4 px-6 text-[15px] font-bold text-[#2A1A0E]">어떤 흔적을 남길까요?</p>
+            <div className="flex gap-3 px-6">
+              <button
+                type="button"
+                onClick={() => handleSelectType('postit')}
+                className="flex flex-1 flex-col items-center gap-3 rounded-2xl border-2 border-[#EDE5D8] bg-white py-5 active:bg-[#F5EFE6]"
+              >
+                <span className="text-[32px]">📝</span>
+                <div>
+                  <p className="text-[14px] font-bold text-[#2A1A0E]">포스트잇</p>
+                  <p className="mt-0.5 text-[11px] text-[#9B8B7B]">글·그림으로 꾸미기</p>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSelectType('polaroid')}
+                className="flex flex-1 flex-col items-center gap-3 rounded-2xl border-2 border-[#EDE5D8] bg-white py-5 active:bg-[#F5EFE6]"
+              >
+                <span className="text-[32px]">📷</span>
+                <div>
+                  <p className="text-[14px] font-bold text-[#2A1A0E]">폴라로이드</p>
+                  <p className="mt-0.5 text-[11px] text-[#9B8B7B]">사진으로 남기기</p>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {activeSheet === 'place' ? <PlaceInfoSheet board={board} onClose={() => setActiveSheet(null)} /> : null}
       {activeSheet === 'invite' ? (

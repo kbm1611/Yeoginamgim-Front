@@ -1,17 +1,62 @@
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Check, Send, StickyNote } from 'lucide-react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { createInviteLink } from '../api/customBoards'
+
+function buildShareLink(boardId, inviteResponse) {
+  const inviteUrl = inviteResponse?.inviteUrl ?? inviteResponse?.url ?? inviteResponse?.link
+  if (inviteUrl) return inviteUrl
+
+  const inviteCode = inviteResponse?.inviteCode ?? inviteResponse?.code
+  if (inviteCode && typeof window !== 'undefined') {
+    return `${window.location.origin}/board/join/${encodeURIComponent(inviteCode)}`
+  }
+
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin}/board/${boardId}/invite`
+  }
+
+  return `/board/${boardId}/invite`
+}
 
 function MemoryBoardSuccessPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const { boardId, boardName, boardType = 'CUSTOM' } = location.state ?? {}
+  const [inviteLink, setInviteLink] = useState('')
+  const [copyMessage, setCopyMessage] = useState('')
+  const [isCreatingInvite, setIsCreatingInvite] = useState(false)
 
   if (!boardId) {
     return <Navigate to="/record/new" replace />
   }
 
   const routeState = { boardId, boardName, boardType }
+
+  const handleCopyInviteLink = async () => {
+    if (isCreatingInvite) return
+
+    setIsCreatingInvite(true)
+    setCopyMessage('')
+
+    try {
+      let nextInviteLink = inviteLink
+
+      if (!nextInviteLink) {
+        const inviteResponse = await createInviteLink(boardId)
+        nextInviteLink = buildShareLink(boardId, inviteResponse)
+        setInviteLink(nextInviteLink)
+      }
+
+      await navigator.clipboard.writeText(nextInviteLink)
+      setCopyMessage('초대 링크를 복사했어요.')
+    } catch {
+      setCopyMessage('초대 링크를 복사하지 못했어요. 다시 시도해주세요.')
+    } finally {
+      setIsCreatingInvite(false)
+    }
+  }
 
   return (
     <motion.main
@@ -67,12 +112,16 @@ function MemoryBoardSuccessPage() {
       >
         <button
           type="button"
-          onClick={() => navigate(`/board/${boardId}/invite`, { state: routeState })}
-          className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-[#3D2415] text-[16px] font-bold text-white shadow-[0_8px_18px_rgba(61,36,21,0.22)]"
+          onClick={handleCopyInviteLink}
+          disabled={isCreatingInvite}
+          className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-[#3D2415] text-[16px] font-bold text-white shadow-[0_8px_18px_rgba(61,36,21,0.22)] disabled:opacity-60"
         >
           <Send size={17} strokeWidth={2} />
-          친구 초대하기
+          {isCreatingInvite ? '링크 만드는 중...' : '링크 복사'}
         </button>
+        {copyMessage ? (
+          <p className="text-center text-[12px] font-bold text-[#7F6754]">{copyMessage}</p>
+        ) : null}
         <button
           type="button"
           onClick={() => navigate(`/board/${boardId}`, { state: routeState })}

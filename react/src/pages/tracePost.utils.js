@@ -53,15 +53,28 @@ export function traceToPost(trace) {
   const element = trace.elements?.[0] ?? {}
   const style = parseStyleJson(element.styleJson)
   const isPolaroid = element.contentType === 'POLAROID'
+  const boardPosition = style.boardPosition ?? {}
+  const imageUrl = resolveImageUrl(element.imageUrl)
+  const isRenderedPolaroidImage = isPolaroid && style.imageKind === 'rendered-polaroid'
 
   return {
     id: trace.traceId ?? element.elementId,
+    traceId: trace.traceId ?? element.elementId,
+    boardId: trace.boardId,
+    boardPageId: style.boardPageId ?? trace.boardPageId ?? 'page-1',
     type: isPolaroid ? 'polaroid' : 'postit',
+    x: boardPosition.x,
+    y: boardPosition.y,
+    width: boardPosition.width,
+    height: boardPosition.height,
+    rotation: boardPosition.rotation,
+    scale: boardPosition.scale,
+    zIndex: boardPosition.zIndex,
     content: element.textContent ?? '',
-    capturedImage: resolveImageUrl(element.imageUrl),
+    capturedImage: isPolaroid && !isRenderedPolaroidImage ? '' : imageUrl,
     media: isPolaroid
       ? {
-          image: resolveImageUrl(element.imageUrl),
+          image: imageUrl,
           dateLabel: formatDateLabel(trace.createdAt),
         }
       : undefined,

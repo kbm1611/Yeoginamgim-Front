@@ -1,9 +1,37 @@
 import { useState, useEffect } from 'react'
-import { Heart, Flag, Pencil, Trash2, X } from 'lucide-react'
+import { Heart, Flag, Pencil, Trash2, MapPin, ChevronRight } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { addTraceLike, removeTraceLike, deleteTrace } from '../../api/traces'
 import { fetchMyInfo } from '../../api/users'
 import { useNavigate, useParams } from 'react-router-dom'
+
+function TapeStrip() {
+  return (
+    <div
+      className="absolute -top-4 left-1/2 z-10 -translate-x-1/2 -rotate-2"
+      style={{
+        width: 52,
+        height: 20,
+        backgroundColor: 'rgba(210, 198, 168, 0.8)',
+        borderRadius: 2,
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.5)',
+      }}
+    />
+  )
+}
+
+function formatTimeAgo(dateStr) {
+  if (!dateStr) return ''
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 1) return '방금 전'
+  if (m < 60) return `${m}분 전`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}시간 전`
+  const d = Math.floor(h / 24)
+  if (d < 7) return `${d}일 전`
+  return new Date(dateStr).toLocaleDateString('ko-KR')
+}
 
 export default function TraceBottomSheet({ post, onClose, onDeleted }) {
   const navigate = useNavigate()
@@ -37,7 +65,7 @@ export default function TraceBottomSheet({ post, onClose, onDeleted }) {
       onDeleted?.(post.id)
       onClose()
     } catch (e) {
-      console.warn('삭제 실패:', e)
+      void e
     }
   }
 
@@ -53,184 +81,173 @@ export default function TraceBottomSheet({ post, onClose, onDeleted }) {
   return (
     <AnimatePresence>
       <div
-        style={{ position: 'fixed', inset: 0, zIndex: 50 }}
+        className="absolute inset-0 z-50"
         onClick={onClose}
       >
         {/* 배경 딤 */}
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)' }}
+          className="absolute inset-0 bg-black/40"
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         />
 
-        {/* 바텀시트 */}
+        {/* 바텀시트 — app-device 컨테이너 기준 */}
         <motion.div
-          initial={{ y: '100%' }}
-          animate={{ y: 0 }}
-          exit={{ y: '100%' }}
-          transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+          className="absolute inset-x-0 bottom-0 overflow-hidden rounded-t-3xl bg-[#F5EFE6]"
+          style={{ maxHeight: '85%' }}
+          initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+          transition={{ type: 'spring', damping: 32, stiffness: 320 }}
           onClick={e => e.stopPropagation()}
-          style={{
-            position: 'absolute',
-            bottom: 0, left: 0, right: 0,
-            background: '#FDF8F3',
-            borderRadius: '20px 20px 0 0',
-            padding: '0 0 40px',
-            boxShadow: '0 -8px 40px rgba(0,0,0,0.15)',
-          }}
         >
           {/* 핸들 */}
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 4px' }}>
-            <div style={{ width: 36, height: 4, borderRadius: 2, background: '#D8CEC2' }} />
+          <div className="flex justify-center pt-3 pb-1">
+            <div className="h-1 w-9 rounded-full bg-[#D0C4B8]" />
           </div>
 
-          {/* 닫기 버튼 */}
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              position: 'absolute', top: 12, right: 16,
-              background: 'none', border: 'none', cursor: 'pointer', padding: 4,
-            }}
+          {/* 포스트잇 이미지 영역 — 베이지 배경 */}
+          <div
+            className="relative flex items-center justify-center py-10"
+            style={{ background: 'linear-gradient(160deg, #EEE4D0 0%, #E4D8C4 100%)' }}
           >
-            <X size={20} color="#8B7A6B" />
-          </button>
+            <div className="relative">
+              <TapeStrip />
+              {post.capturedImage ? (
+                <img
+                  src={post.capturedImage}
+                  alt=""
+                  style={{
+                    width: 200,
+                    height: 200,
+                    objectFit: 'fill',
+                    borderRadius: 4,
+                    boxShadow: '2px 4px 0 rgba(0,0,0,0.08), 4px 12px 28px rgba(0,0,0,0.15)',
+                    display: 'block',
+                  }}
+                />
+              ) : post.type === 'polaroid' ? (
+                <div style={{
+                  width: 190,
+                  background: '#fff',
+                  borderRadius: 4,
+                  padding: '10px 10px 36px',
+                  boxShadow: '2px 4px 0 rgba(0,0,0,0.08), 4px 12px 28px rgba(0,0,0,0.15)',
+                }}>
+                  {post.media?.image
+                    ? <img src={post.media.image} alt="" style={{ width: '100%', height: 160, objectFit: 'cover', borderRadius: 2 }} />
+                    : <div style={{ width: '100%', height: 160, background: '#EEE7DC', borderRadius: 2 }} />
+                  }
+                </div>
+              ) : (
+                <div style={{
+                  width: 200, height: 200,
+                  background: post.style?.backgroundColor ?? (() => {
+                    const COLORS = { yellow: '#F7E58A', cream: '#F0EAD6', pink: '#FFD6DC', green: '#D2ECC8', blue: '#C8E0F4', white: '#FFFFFF' }
+                    return COLORS[post.style?.paperColor] ?? '#F7E58A'
+                  })(),
+                  borderRadius: 4,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  padding: 20,
+                  boxShadow: '2px 4px 0 rgba(0,0,0,0.08), 4px 12px 28px rgba(0,0,0,0.15)',
+                }}>
+                  <p style={{ fontFamily: post.style?.fontFamily ?? "'Gaegu', cursive", fontSize: 22, color: '#2A1A0E', textAlign: 'center', lineHeight: 1.4 }}>
+                    {post.content}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
 
-          {/* 카드 미리보기 */}
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 24px 16px' }}>
-            {post.capturedImage ? (
-              <img
-                src={post.capturedImage}
-                alt=""
-                style={{
-                  maxWidth: 200,
-                  maxHeight: 200,
-                  objectFit: 'contain',
-                  borderRadius: 8,
-                  boxShadow: '0 8px 24px rgba(42,28,20,0.2)',
-                }}
+          {/* 작성자 */}
+          <div className="flex items-center gap-3 border-b border-[#EDE5D8] px-5 py-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#D4C4B0] text-[14px] font-bold text-[#6B5344]">
+              {post.nickname?.[0] ?? '?'}
+            </div>
+            <div className="flex-1">
+              <p className="text-[14px] font-bold text-[#2A1A0E]">{post.nickname ?? '알 수 없음'}</p>
+              <p className="text-[12px] text-[#9B8B7B]">{formatTimeAgo(post.createdAt)}</p>
+            </div>
+            {isMyPost && (
+              <button
+                type="button"
+                onClick={handleEdit}
+                className="flex items-center gap-1.5 rounded-full border border-[#D8CEC2] px-4 py-1.5 text-[12px] font-semibold text-[#5C4030]"
+              >
+                <Pencil size={12} strokeWidth={2} />
+                수정
+              </button>
+            )}
+          </div>
+
+          {/* 좋아요 */}
+          <div className="flex items-center border-b border-[#EDE5D8] px-5 py-4">
+            <button
+              type="button"
+              onClick={!isMyPost ? handleLike : undefined}
+              disabled={isMyPost}
+              className="flex items-center gap-2 disabled:opacity-50"
+            >
+              <Heart
+                size={20} strokeWidth={1.8}
+                fill={liked ? '#E84855' : 'none'}
+                color={liked ? '#E84855' : '#9B8B7B'}
               />
-            ) : (
-              <div style={{
-                width: 160, height: 160,
-                background: 'linear-gradient(135deg, #FFE89A, #FFD966)',
-                borderRadius: 4,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                padding: 16,
-                boxShadow: '0 8px 24px rgba(42,28,20,0.2)',
-              }}>
-                <p style={{ fontFamily: "'Nanum Pen Script', cursive", fontSize: 20, color: '#2A1E14', textAlign: 'center' }}>
-                  {post.content}
-                </p>
-              </div>
-            )}
+              <span className="text-[14px] font-semibold text-[#3B2A1E]">{likes}명이 좋아해요</span>
+            </button>
           </div>
 
-          {/* 작성자 정보 */}
-          <div style={{ textAlign: 'center', marginBottom: 20 }}>
-            {post.nickname && (
-              <p style={{ fontSize: 14, fontWeight: 600, color: '#3B2A1E', margin: 0 }}>{post.nickname}</p>
-            )}
-            {post.createdAt && (
-              <p style={{ fontSize: 12, color: '#8B7A6B', margin: '4px 0 0' }}>
-                {new Date(post.createdAt).toLocaleDateString('ko-KR')}
-              </p>
-            )}
-          </div>
-
-          {/* 액션 버튼 */}
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 12, padding: '0 24px' }}>
+          {/* 신고 / 삭제 */}
+          <div className="px-5 py-2 pb-8">
             {isMyPost ? (
-              <>
-                <button
-                  type="button"
-                  onClick={handleEdit}
-                  style={{
-                    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    gap: 8, background: '#3B2A1E', color: '#fff',
-                    border: 'none', borderRadius: 28, padding: '14px 0',
-                    fontSize: 14, fontWeight: 600, cursor: 'pointer',
-                  }}
-                >
-                  <Pencil size={16} />
-                  수정하기
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowDeleteConfirm(true)}
-                  style={{
-                    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    gap: 8, background: '#fff', color: '#C0392B',
-                    border: '1.5px solid #EDD5D2', borderRadius: 28, padding: '14px 0',
-                    fontSize: 14, fontWeight: 600, cursor: 'pointer',
-                  }}
-                >
-                  <Trash2 size={16} />
-                  삭제하기
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(true)}
+                className="flex w-full items-center gap-2 py-3 text-[14px] font-semibold text-[#C0392B]"
+              >
+                <Trash2 size={16} strokeWidth={1.8} />
+                삭제하기
+              </button>
             ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={handleLike}
-                  style={{
-                    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    gap: 8, background: '#fff',
-                    border: `1.5px solid ${liked ? '#E84855' : '#E8DDD1'}`,
-                    borderRadius: 28, padding: '14px 0',
-                    fontSize: 14, fontWeight: 600, cursor: 'pointer',
-                    color: liked ? '#E84855' : '#3B2A1E',
-                  }}
-                >
-                  <Heart size={16} fill={liked ? '#E84855' : 'none'} />
-                  {likes}
-                </button>
-                <button
-                  type="button"
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    gap: 8, background: '#fff', color: '#8B7A6B',
-                    border: '1.5px solid #E8DDD1', borderRadius: 28, padding: '14px 20px',
-                    fontSize: 14, fontWeight: 600, cursor: 'pointer',
-                  }}
-                >
-                  <Flag size={16} />
-                  신고
-                </button>
-              </>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 py-3 text-[14px] font-semibold text-[#C0392B]/70"
+              >
+                <Flag size={16} strokeWidth={1.8} />
+                신고하기
+              </button>
             )}
           </div>
         </motion.div>
 
         {/* 삭제 확인 */}
-        {showDeleteConfirm && (
-          <div
-            style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div style={{
-              background: '#fff', borderRadius: 16, padding: 24,
-              margin: '0 24px', boxShadow: '0 12px 40px rgba(0,0,0,0.2)', width: '100%', maxWidth: 320,
-            }}>
-              <p style={{ fontSize: 16, fontWeight: 700, color: '#2A1A0E', textAlign: 'center', margin: 0 }}>흔적을 삭제할까요?</p>
-              <p style={{ fontSize: 13, color: '#8B7A6B', textAlign: 'center', margin: '8px 0 20px' }}>삭제된 흔적은 복구할 수 없어요.</p>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <button
-                  type="button"
-                  onClick={() => setShowDeleteConfirm(false)}
-                  style={{ flex: 1, padding: '12px 0', borderRadius: 28, border: '1.5px solid #D8CEC2', background: '#fff', fontSize: 14, fontWeight: 600, color: '#6B5344', cursor: 'pointer' }}
-                >취소</button>
-                <button
-                  type="button"
-                  onClick={handleDelete}
-                  style={{ flex: 1, padding: '12px 0', borderRadius: 28, border: 'none', background: '#C0392B', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
-                >삭제</button>
-              </div>
-            </div>
-          </div>
-        )}
+        <AnimatePresence>
+          {showDeleteConfirm && (
+            <motion.div
+              className="absolute inset-0 z-10 flex items-center justify-center bg-black/20"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowDeleteConfirm(false)}
+            >
+              <motion.div
+                className="mx-6 w-full rounded-2xl bg-white p-6 shadow-xl"
+                initial={{ scale: 0.92 }} animate={{ scale: 1 }} exit={{ scale: 0.92 }}
+                onClick={e => e.stopPropagation()}
+              >
+                <p className="text-center text-[16px] font-bold text-[#2A1A0E]">흔적을 삭제할까요?</p>
+                <p className="mt-1 text-center text-[13px] text-[#8B7A6B]">삭제한 흔적은 복구할 수 없어요.</p>
+                <div className="mt-5 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteConfirm(false)}
+                    className="flex-1 rounded-full border border-[#D8CEC2] py-3 text-[14px] font-semibold text-[#6B5344]"
+                  >취소</button>
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    className="flex-1 rounded-full bg-[#C0392B] py-3 text-[14px] font-semibold text-white"
+                  >삭제</button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </AnimatePresence>
   )
