@@ -10,6 +10,7 @@ import {
 test('normalizeMyPageData builds profile and stats from API responses', () => {
   const result = normalizeMyPageData({
     user: {
+      userId: 7,
       email: 'user@example.com',
       nickname: '여김이',
       profileImageUrl: '/upload/profile/me.png',
@@ -40,6 +41,7 @@ test('normalizeMyPageData builds profile and stats from API responses', () => {
   })
 
   assert.deepEqual(result.profile, {
+    userId: 7,
     email: 'user@example.com',
     nickname: '여김이',
     profileImageUrl: '/upload/profile/me.png',
@@ -64,6 +66,7 @@ test('normalizeMyPageData handles empty API responses without invented values', 
   })
 
   assert.deepEqual(result.profile, {
+    userId: null,
     email: 'empty@example.com',
     nickname: 'empty',
     profileImageUrl: '',

@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { clearAuthToken } from '../api/client'
 import { handleUnauthorizedApiError as handleApiUnauthorizedError } from '../api/errors'
 import mainLogo from '../assets/logo/image_12-removebg-preview.png'
+import NotificationButton from '../components/NotificationButton'
 import CategoryFilter from '../features/map/components/CategoryFilter'
 import FloatingMapControls from '../features/map/components/FloatingMapControls'
 import MapOverlay from '../features/map/components/MapOverlay'
@@ -325,8 +326,10 @@ function MapPage() {
       </section>
 
       <section className="absolute left-0 top-0 z-40 w-full px-5 pb-2 pt-3">
-        <div className="mx-auto mb-3 flex w-[95px] items-center justify-center">
-          <img src={mainLogo} alt="여기남김" className="w-[95px] object-contain" />
+        <div className="mb-3 grid grid-cols-[40px_1fr_40px] items-center">
+          <span aria-hidden="true" />
+          <img src={mainLogo} alt="여기남김" className="w-[95px] justify-self-center object-contain" />
+          <NotificationButton className="justify-self-end" />
         </div>
 
         <SearchPanel

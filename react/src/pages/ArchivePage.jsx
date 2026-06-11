@@ -18,6 +18,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { fetchArchiveBoards, fetchFavoritePlaces, fetchMyTraces } from '../api/archive'
 import { fetchOrCreateBoardForPlace } from '../api/boards'
 import { API_BASE_URL, clearAuthToken, getAuthToken } from '../api/client'
+import NotificationButton from '../components/NotificationButton'
 import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
 import { getMyCustomBoards } from '../api/customBoards'
 
@@ -233,8 +234,13 @@ function ArchivePage() {
       {pageState.status === 'ready' && (
         <>
           <section>
-            <p className="text-[13px] font-semibold text-[#8A715D]">내가 남긴 기록</p>
-            <h1 className="mt-1 text-[26px] font-bold text-[#2B1810]">보관함</h1>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[13px] font-semibold text-[#8A715D]">내가 남긴 기록</p>
+                <h1 className="mt-1 text-[26px] font-bold text-[#2B1810]">보관함</h1>
+              </div>
+              <NotificationButton />
+            </div>
 
             <div className="mt-4 grid grid-cols-4 gap-2">
               <SummaryItem icon={StickyNote} label="내 흔적" value={pageState.traces.length} />
@@ -579,24 +585,6 @@ function CustomBoardList({ boards, onOpenBoard, onCreateBoard }) {
         </button>
       ))}
     </section>
-  )
-}
-
-function TraceThumbnail({ trace }) {
-  if (trace.imageUrl) {
-    return (
-      <img
-        src={resolveMediaUrl(trace.imageUrl)}
-        alt=""
-        className="h-14 w-14 shrink-0 rounded-lg object-cover"
-      />
-    )
-  }
-
-  return (
-    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-[#EFE3D4] text-[#6d503a]">
-      <CalendarDays size={20} />
-    </div>
   )
 }
 

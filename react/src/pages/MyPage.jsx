@@ -16,6 +16,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { fetchArchiveBoards, fetchMyTraces } from '../api/archive'
 import { logout } from '../api/auth'
 import { API_BASE_URL, clearAuthToken, getAuthToken } from '../api/client'
+import NotificationButton from '../components/NotificationButton'
 import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
 import { deleteMyAccount, fetchMyInfo, updateMyInfo } from '../api/users'
 import { getVisibleProfileImageUrl, loadMyPageData } from './MyPage.utils'
@@ -244,6 +245,9 @@ function MyPage() {
 
       {pageState.status === 'ready' && (
         <>
+          <div className="mb-3 flex justify-end">
+            <NotificationButton />
+          </div>
           <section className="rounded-lg border border-[#eadfce] bg-white/80 p-4 shadow-[0_8px_18px_rgba(78,52,32,0.07)]">
             <div className="flex items-start gap-4">
               <div className="relative">
@@ -373,6 +377,26 @@ function MyPage() {
               <p className="mt-3 text-center text-[12px] font-medium text-[#8a6a4f]" aria-live="polite">
                 {stats.message}
               </p>
+            )}
+            {profile.userId && (
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigate(`/users/${profile.userId}/followers`)}
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-[#dfd0bf] bg-[#fffaf4] px-4 py-3 text-[14px] font-bold text-[#5a3a26]"
+                >
+                  <User size={16} />
+                  팔로워
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/users/${profile.userId}/followings`)}
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-[#dfd0bf] bg-[#fffaf4] px-4 py-3 text-[14px] font-bold text-[#5a3a26]"
+                >
+                  <User size={16} />
+                  팔로잉
+                </button>
+              </div>
             )}
             <button
               type="button"

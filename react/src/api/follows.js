@@ -8,6 +8,10 @@ export function unfollowUser(userId) {
   return apiClient.delete(`/api/users/${pathSegment(userId)}/follow`)
 }
 
+export function fetchFollowStatus(userId) {
+  return apiClient.get(`/api/users/${pathSegment(userId)}/follow-status`)
+}
+
 export function fetchFollowers(userId) {
   return apiClient.get(`/api/users/${pathSegment(userId)}/followers`)
 }

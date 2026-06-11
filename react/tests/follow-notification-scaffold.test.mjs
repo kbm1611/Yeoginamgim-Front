@@ -12,6 +12,11 @@ test('notification API and page scaffold match backend notification endpoints', 
   const notificationPage = read('src/pages/NotificationPage.jsx')
   const app = read('src/App.jsx')
   const bottomNavigation = read('src/components/BottomNavigation.jsx')
+  const notificationButton = read('src/components/NotificationButton.jsx')
+  const homePage = read('src/pages/HomePage.jsx')
+  const mapPage = read('src/pages/Map.jsx')
+  const archivePage = read('src/pages/ArchivePage.jsx')
+  const myPage = read('src/pages/MyPage.jsx')
 
   assert.match(notificationsApi, /apiClient\.get\('\/api\/notifications'\)/)
   assert.match(notificationsApi, /apiClient\.get\('\/api\/notifications\/unread-count'\)/)
@@ -22,8 +27,17 @@ test('notification API and page scaffold match backend notification endpoints', 
   assert.match(notificationPage, /markNotificationAsRead/)
   assert.match(notificationPage, /markAllNotificationsAsRead/)
   assert.match(notificationPage, /traceId/)
+  assert.match(notificationPage, /boardId/)
+  assert.match(notificationPage, /navigate\(`\/board\/\$\{notification\.boardId\}\/trace\/\$\{notification\.traceId\}`\)/)
   assert.match(app, /path="\/notifications"/)
-  assert.match(bottomNavigation, /path: '\/notifications'/)
+  assert.match(notificationButton, /fetchUnreadNotificationCount/)
+  assert.match(notificationButton, /navigate\('\/notifications'\)/)
+  assert.doesNotMatch(bottomNavigation, /path: '\/notifications'|key: 'notifications'|fetchUnreadNotificationCount/)
+  assert.match(bottomNavigation, /grid-cols-5/)
+  assert.match(homePage, /<NotificationButton/)
+  assert.match(mapPage, /<NotificationButton/)
+  assert.match(archivePage, /<NotificationButton/)
+  assert.match(myPage, /<NotificationButton/)
 })
 
 test('follow API and list page scaffold match backend follow endpoints', () => {
@@ -33,6 +47,7 @@ test('follow API and list page scaffold match backend follow endpoints', () => {
 
   assert.match(followsApi, /apiClient\.post\(`\/api\/users\/\$\{pathSegment\(userId\)\}\/follow`\)/)
   assert.match(followsApi, /apiClient\.delete\(`\/api\/users\/\$\{pathSegment\(userId\)\}\/follow`\)/)
+  assert.match(followsApi, /apiClient\.get\(`\/api\/users\/\$\{pathSegment\(userId\)\}\/follow-status`\)/)
   assert.match(followsApi, /apiClient\.get\(`\/api\/users\/\$\{pathSegment\(userId\)\}\/followers`\)/)
   assert.match(followsApi, /apiClient\.get\(`\/api\/users\/\$\{pathSegment\(userId\)\}\/followings`\)/)
 

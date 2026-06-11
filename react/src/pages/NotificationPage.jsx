@@ -55,16 +55,22 @@ function NotificationPage() {
     }
   }, [loadNotifications])
 
-  const handleRead = async (notification) => {
-    if (!notification?.notificationId || notification.read || readingId) return
+  const handleNotificationClick = async (notification) => {
+    if (!notification?.notificationId || readingId) return
 
     setReadingId(notification.notificationId)
 
     try {
-      const updated = await markNotificationAsRead(notification.notificationId)
-      setNotifications((current) => current.map((item) => (
-        item.notificationId === updated.notificationId ? updated : item
-      )))
+      if (!notification.read) {
+        const updated = await markNotificationAsRead(notification.notificationId)
+        setNotifications((current) => current.map((item) => (
+          item.notificationId === updated.notificationId ? updated : item
+        )))
+      }
+
+      if (notification.boardId && notification.traceId) {
+        navigate(`/board/${notification.boardId}/trace/${notification.traceId}`)
+      }
     } catch (apiError) {
       if (handleUnauthorizedApiError(apiError, {
         clearToken: clearAuthToken,
@@ -165,7 +171,7 @@ function NotificationPage() {
             <li key={notification.notificationId}>
               <button
                 type="button"
-                onClick={() => handleRead(notification)}
+                onClick={() => handleNotificationClick(notification)}
                 className={`w-full rounded-lg border p-4 text-left shadow-[0_8px_18px_rgba(78,52,32,0.06)] ${
                   notification.read
                     ? 'border-[#eadfce] bg-white/75'
@@ -186,6 +192,7 @@ function NotificationPage() {
                     {notification.traceId && (
                       <p className="mt-2 text-[12px] font-semibold text-[#5f412b]">
                         관련 흔적 #{notification.traceId}
+                        {notification.boardId ? ` · 보드 #${notification.boardId}` : ''}
                       </p>
                     )}
                   </div>

@@ -1,13 +1,10 @@
-import { useEffect, useState } from 'react'
-import { Archive, Bell, Home, MapPinned, Plus, User } from 'lucide-react'
+import { Archive, Home, MapPinned, Plus, User } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { fetchUnreadNotificationCount } from '../api/notifications'
 
 const navItems = [
   { key: 'home', label: '홈', icon: Home, path: '/home' },
   { key: 'map', label: '지도', icon: MapPinned, path: '/map' },
   { key: 'add', label: '추가', icon: Plus },
-  { key: 'notifications', label: '알림', icon: Bell, path: '/notifications' },
   { key: 'archive', label: '보관함', icon: Archive, path: '/archive' },
   { key: 'my', label: '마이', icon: User, path: '/my' },
 ]
@@ -17,27 +14,6 @@ const APP_BG = '#F7F2EA'
 function BottomNavigation({ className = '' }) {
   const navigate = useNavigate()
   const location = useLocation()
-  const [unreadCount, setUnreadCount] = useState(0)
-
-  useEffect(() => {
-    let cancelled = false
-
-    fetchUnreadNotificationCount()
-      .then((data) => {
-        if (!cancelled) {
-          setUnreadCount(Number(data?.unreadCount ?? 0))
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setUnreadCount(0)
-        }
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [location.pathname])
 
   const isActive = (item) => {
     if (!item.path) return false
@@ -52,7 +28,7 @@ function BottomNavigation({ className = '' }) {
 
   return (
     <nav className={`rounded-t-[30px] border-t border-[#efe7dc] px-5 pb-6 pt-3 ${className}`} style={{ backgroundColor: APP_BG }}>
-      <ul className="grid grid-cols-6 items-end">
+      <ul className="grid grid-cols-5 items-end">
         {navItems.map((item) => {
           const Icon = item.icon
 
@@ -79,11 +55,6 @@ function BottomNavigation({ className = '' }) {
                 className={`relative flex flex-col items-center gap-1 ${isActive(item) ? 'text-[#3D2415]' : 'text-[#7A6857]'}`}
               >
                 <Icon size={19} strokeWidth={1.5} />
-                {item.key === 'notifications' && unreadCount > 0 && (
-                  <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-[#D94A38] px-1 text-center text-[10px] font-bold leading-4 text-white">
-                    {unreadCount > 99 ? '99+' : unreadCount}
-                  </span>
-                )}
                 <span className="font-body-sans text-[13px] font-medium">{item.label}</span>
               </button>
             </li>

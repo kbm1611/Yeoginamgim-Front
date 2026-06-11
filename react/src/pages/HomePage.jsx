@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import HomeFilters from '../components/HomeFilters'
+import NotificationButton from '../components/NotificationButton'
 import TopPlacesSection from '../components/TopPlacesSection'
 import RecentTracesSection from '../components/RecentTracesSection'
 import { resolveCurrentDistrict } from '../api/locationDistrict'
@@ -47,6 +48,9 @@ function HomePage() {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
     >
+      <div className="flex items-center justify-end px-5 pb-1 pt-2">
+        <NotificationButton />
+      </div>
       <HomeFilters
         period={period}
         selectedDistrict={selectedDistrict}

@@ -39,6 +39,7 @@ export function normalizeMyPageData({
 
   return {
     profile: {
+      userId: user?.userId ?? null,
       email: user?.email ?? '',
       nickname,
       profileImageUrl: user?.profileImageUrl ?? '',
