@@ -9,6 +9,13 @@ const POSTIT_COLOR_BY_HEX = {
   '#d2d4a2': 'green',
   '#f0ead6': 'cream',
   '#f8f6f0': 'white',
+  // 에디터 POSTIT_COLORS
+  '#f7e58a': 'yellow',
+  '#f6abbe': 'pink',
+  '#a8d8f0': 'sky',
+  '#b8e0a0': 'green',
+  '#fff0cc': 'cream',
+  '#d4b8f0': 'purple',
 }
 
 function parseStyleJson(styleJson) {

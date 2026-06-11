@@ -5,16 +5,17 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import postitTexture from '../assets/editor/33dab845-d565-4111-b90b-9d2382288463.png'
 import bgImage from '../assets/배경.png'
+import postitYellowAsset from '../assets/images/postits/postit-yellow.png'
 
 // ─── 상수 ────────────────────────────────────────────────────────────────────
 
 const POSTIT_COLORS = [
-  { id: 'yellow', color: '#F7E58A' },
-  { id: 'pink',   color: '#F6ABBE' },
-  { id: 'sky',    color: '#A8D8F0' },
-  { id: 'green',  color: '#B8E0A0' },
-  { id: 'cream',  color: '#FFF0CC' },
-  { id: 'purple', color: '#D4B8F0' },
+  { id: 'yellow', color: '#F7E58A', asset: postitYellowAsset },
+  { id: 'pink',   color: '#F6ABBE', asset: null },
+  { id: 'sky',    color: '#A8D8F0', asset: null },
+  { id: 'green',  color: '#B8E0A0', asset: null },
+  { id: 'cream',  color: '#FFF0CC', asset: null },
+  { id: 'purple', color: '#D4B8F0', asset: null },
 ]
 
 const FONTS = [
@@ -169,8 +170,8 @@ function TextWithHandles({ obj, cardRef, onUpdate, onEdit, onDelete }) {
       const rect = cardRef.current?.getBoundingClientRect()
       if (!rect) return
       onUpdate(obj.id, {
-        x: clamp(dragRef.current.origX + (cur.clientX - dragRef.current.startX) / rect.width, 0.05, 0.95),
-        y: clamp(dragRef.current.origY + (cur.clientY - dragRef.current.startY) / rect.height, 0.05, 0.95),
+        x: clamp(dragRef.current.origX + (cur.clientX - dragRef.current.startX) / rect.width, 0.08, 0.88),
+        y: clamp(dragRef.current.origY + (cur.clientY - dragRef.current.startY) / rect.height, 0.08, 0.88),
       })
     }
     const onEnd = () => {
@@ -310,11 +311,10 @@ function CardTextEditor({ initialText, fontIndex, onFontChange, textColor, onCol
   }, [text])
 
   return (
-    // 배경 탭 → 확정 / 내부 요소는 각자 pointer-events-auto
-    <div className="absolute inset-0 z-50 flex flex-col pointer-events-auto" onClick={e => { if (e.target === e.currentTarget) onConfirm(text) }}>
+    <div className="absolute inset-0 z-50 flex flex-col pointer-events-auto">
 
-      {/* ── 상단: 폰트바 ── */}
-      <div className="pointer-events-auto flex items-center justify-center gap-1.5 overflow-x-auto no-scrollbar bg-black/45 px-4 py-3 backdrop-blur-sm" onClick={e => e.stopPropagation()}>
+      {/* ── 상단: 폰트바 (헤더 높이만큼 padding) ── */}
+      <div className="pointer-events-auto flex items-center justify-center gap-1.5 overflow-x-auto no-scrollbar bg-black/45 px-4 pb-3 backdrop-blur-sm" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 56px)' }}>
         {FONTS.map((f, i) => (
           <button
             key={f.id}
@@ -334,11 +334,12 @@ function CardTextEditor({ initialText, fontIndex, onFontChange, textColor, onCol
         ))}
       </div>
 
-      {/* ── 중앙: textarea ── */}
-      <div className="flex flex-1 items-center justify-center" onClick={e => e.stopPropagation()}>
+      {/* ── 중앙: 카드 위 textarea (카드를 덮지 않도록 투명) ── */}
+      <div className="flex flex-1 items-center justify-center" onClick={() => onConfirm(text)}>
         <div
           className="relative flex items-center justify-center"
           style={{ width: 'min(78vw, 320px)', aspectRatio: '1 / 1' }}
+          onClick={e => e.stopPropagation()}
         >
           <textarea
             ref={taRef}
@@ -358,14 +359,13 @@ function CardTextEditor({ initialText, fontIndex, onFontChange, textColor, onCol
               lineHeight: 1.5,
               caretColor: textColor,
               overflowY: 'hidden',
-              // placeholder 색상은 CSS로
             }}
           />
         </div>
       </div>
 
       {/* ── 하단: 색상 팔레트 ── */}
-      <div className="pointer-events-auto flex items-center justify-center gap-2.5 bg-black/45 px-4 py-4 backdrop-blur-sm" onClick={e => e.stopPropagation()}>
+      <div className="pointer-events-auto flex items-center justify-center gap-2.5 bg-black/45 px-4 py-4 backdrop-blur-sm">
         {TEXT_COLORS.map(c => (
           <button
             key={c}
@@ -791,14 +791,20 @@ export default function PostItEditor() {
       ctx.closePath()
       ctx.clip()
 
-      ctx.fillStyle = postitColor
-      ctx.fillRect(0, 0, W, H)
-      const tex = await loadImage(postitTexture)
-      ctx.save()
-      ctx.globalCompositeOperation = 'multiply'
-      ctx.globalAlpha = 0.15
-      ctx.drawImage(tex, 0, 0, W, H)
-      ctx.restore()
+      const colorEntry = POSTIT_COLORS.find(c => c.color === postitColor)
+      if (colorEntry?.asset) {
+        const assetImg = await loadImage(colorEntry.asset)
+        ctx.drawImage(assetImg, 0, 0, W, H)
+      } else {
+        ctx.fillStyle = postitColor
+        ctx.fillRect(0, 0, W, H)
+        const tex = await loadImage(postitTexture)
+        ctx.save()
+        ctx.globalCompositeOperation = 'multiply'
+        ctx.globalAlpha = 0.15
+        ctx.drawImage(tex, 0, 0, W, H)
+        ctx.restore()
+      }
 
       // 획 — SVG는 viewBox 100단위에서 size*0.5, canvas는 1200단위니까 size*0.5*12 = size*6
       strokes.forEach(s => {
@@ -916,6 +922,8 @@ export default function PostItEditor() {
               capturedAspectRatio: cardType === 'polaroid' ? POLAROID_ASPECT : POSTIT_ASPECT,
               imageKind: cardType === 'polaroid' ? 'source-photo' : 'rendered-postit',
               postitColor,
+              paperColor: cardType === 'postit' ? postitColor : undefined,
+              backgroundColor: cardType === 'postit' ? postitColor : undefined,
               textObjects,
               strokes,
               photoCrop,
@@ -961,21 +969,36 @@ export default function PostItEditor() {
           ref={cardRef}
           className="relative overflow-hidden"
           style={{
-            width: cardType === 'polaroid' ? 'min(62vw, 260px)' : 'min(78vw, 320px)',
-            aspectRatio: cardType === 'polaroid' ? '3 / 4' : '1 / 1',
+            width: cardType === 'polaroid' ? 'min(62vw, 260px)' : 'min(88vw, 380px)',
+            aspectRatio: cardType === 'polaroid' ? '3 / 4' : (POSTIT_COLORS.find(c => c.color === postitColor)?.asset ? '695 / 651' : '1 / 1'),
             borderRadius: cardType === 'polaroid' ? 4 : 8,
-            boxShadow: '4px 6px 0px rgba(0,0,0,0.10), 6px 14px 28px rgba(0,0,0,0.22)',
-            backgroundColor: '#fff',
+            boxShadow: (cardType === 'postit' && POSTIT_COLORS.find(c => c.color === postitColor)?.asset)
+              ? 'none'
+              : '4px 6px 0px rgba(0,0,0,0.10), 6px 14px 28px rgba(0,0,0,0.22)',
+            backgroundColor: (cardType === 'postit' && POSTIT_COLORS.find(c => c.color === postitColor)?.asset)
+              ? 'transparent'
+              : '#fff',
           }}
         >
           {cardType === 'postit' ? (
             <>
-              <div className="absolute inset-0" style={{ backgroundColor: postitColor }} />
-              <img
-                src={postitTexture} alt="" draggable={false}
-                className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-                style={{ mixBlendMode: 'multiply', opacity: 0.15 }}
-              />
+              {POSTIT_COLORS.find(c => c.color === postitColor)?.asset ? (
+                <img
+                  src={POSTIT_COLORS.find(c => c.color === postitColor).asset}
+                  alt="" draggable={false}
+                  className="pointer-events-none absolute inset-0 h-full w-full"
+                  style={{ objectFit: 'fill' }}
+                />
+              ) : (
+                <>
+                  <div className="absolute inset-0" style={{ backgroundColor: postitColor }} />
+                  <img
+                    src={postitTexture} alt="" draggable={false}
+                    className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+                    style={{ mixBlendMode: 'multiply', opacity: 0.15 }}
+                  />
+                </>
+              )}
               <StrokeLayer strokes={strokes} activeStroke={activeStroke} />
               {textObjects.map(obj => (
                 selectedTextId === obj.id ? (
@@ -1107,15 +1130,30 @@ export default function PostItEditor() {
         >
           <X size={18} color="white" />
         </button>
-        <button
-          type="button"
-          onClick={complete}
-          disabled={!canComplete || isCompleting}
-          className="rounded-full px-5 py-2 text-[14px] font-extrabold text-white shadow-lg disabled:opacity-40"
-          style={{ backgroundColor: canComplete ? '#9B4F3F' : 'rgba(0,0,0,0.3)' }}
-        >
-          {isCompleting ? '저장 중...' : '완료'}
-        </button>
+        {editingText !== null ? (
+          <button
+            type="button"
+            onClick={() => {
+              const ta = document.querySelector('.card-text-input')
+              const val = ta?.value ?? ''
+              confirmText(val)
+            }}
+            className="rounded-full px-5 py-2 text-[14px] font-extrabold text-white shadow-lg"
+            style={{ backgroundColor: '#9B4F3F' }}
+          >
+            확인
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={complete}
+            disabled={!canComplete || isCompleting}
+            className="rounded-full px-5 py-2 text-[14px] font-extrabold text-white shadow-lg disabled:opacity-40"
+            style={{ backgroundColor: canComplete ? '#9B4F3F' : 'rgba(0,0,0,0.3)' }}
+          >
+            {isCompleting ? '저장 중...' : '완료'}
+          </button>
+        )}
       </header>
 
       {error && (
