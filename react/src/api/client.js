@@ -1,4 +1,6 @@
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'https://dh7p4gzv38x71.cloudfront.net'
+export const DEFAULT_API_TIMEOUT_MS = 15000
+export const API_TIMEOUT_ERROR_MESSAGE = '요청 시간이 초과되었습니다. 서버 상태를 확인한 뒤 다시 시도해주세요.'
 export const AUTH_TOKEN_STORAGE_KEY = 'yeoginamgim.authToken'
 export const AUTH_TOKEN_STORAGE_ERROR_MESSAGE =
   '\ube0c\ub77c\uc6b0\uc800 \uc800\uc7a5\uc18c\ub97c \uc0ac\uc6a9\ud560 \uc218 \uc5c6\uc5b4 \ub85c\uadf8\uc778\uc744 \uc644\ub8cc\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. \uc2dc\ud06c\ub9bf \ubaa8\ub4dc\ub098 \uc800\uc7a5\uc18c \ucc28\ub2e8 \uc124\uc815\uc744 \ud574\uc81c\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574\uc8fc\uc138\uc694.'
@@ -99,11 +101,20 @@ export function pathSegment(value) {
 }
 
 // 실제 fetch 실행 핵심 함수, 토큰 자동 첨부, Json/FormData 분기, 에러 처리
-async function request(path, { method = 'GET', params, body, headers = {} } = {}) {
+async function request(
+  path,
+  { method = 'GET', params, body, headers = {}, timeoutMs = DEFAULT_API_TIMEOUT_MS } = {}
+) {
   const url = buildApiUrl(path, params)
   const requestHeaders = new Headers(headers)
   const token = getAuthToken()
   let requestBody = body
+  const abortController = new AbortController()
+  const timeoutId = timeoutMs > 0
+    ? setTimeout(() => {
+      abortController.abort()
+    }, timeoutMs)
+    : null
 
   if (token && !requestHeaders.has('Authorization')) {
     requestHeaders.set('Authorization', `Bearer ${token}`)
@@ -116,29 +127,48 @@ async function request(path, { method = 'GET', params, body, headers = {} } = {}
     requestBody = JSON.stringify(body)
   }
 
-  const response = await fetch(url, {
-    method,
-    headers: requestHeaders,
-    body: requestBody,
-  })
-
-  if (response.status === 204) {
-    return null
-  }
-
-  const parsedBody = await parseResponseBody(response)
-
-  if (!response.ok) {
-    throw new ApiError({
-      status: response.status,
-      message: extractErrorMessage(parsedBody, response),
-      body: parsedBody,
-      url: url.toString(),
-      path,
+  try {
+    const response = await fetch(url, {
+      method,
+      headers: requestHeaders,
+      body: requestBody,
+      signal: abortController.signal,
     })
-  }
 
-  return parsedBody
+    if (response.status === 204) {
+      return null
+    }
+
+    const parsedBody = await parseResponseBody(response)
+
+    if (!response.ok) {
+      throw new ApiError({
+        status: response.status,
+        message: extractErrorMessage(parsedBody, response),
+        body: parsedBody,
+        url: url.toString(),
+        path,
+      })
+    }
+
+    return parsedBody
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new ApiError({
+        status: 0,
+        message: API_TIMEOUT_ERROR_MESSAGE,
+        body: null,
+        url: url.toString(),
+        path,
+      })
+    }
+
+    throw error
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId)
+    }
+  }
 }
 
 // 응답이 Json이면 json() 아니면 text()로 파싱

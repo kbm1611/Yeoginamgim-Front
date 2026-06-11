@@ -4,10 +4,12 @@ import { getAuthToken } from './api/client'
 import MainLayout from './layouts/MainLayout'
 import ArchivePage from './pages/ArchivePage'
 import BoardDetail from './pages/BoardDetail'
+import FollowListPage from './pages/FollowListPage'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import Map from './pages/Map'
 import MyPage from './pages/MyPage'
+import NotificationPage from './pages/NotificationPage'
 import OAuthCallbackPage from './pages/OAuthCallbackPage'
 import OnboardingPage from './pages/OnboardingPage'
 import PlaceDetail from './pages/PlaceDetail'
@@ -52,7 +54,10 @@ function AnimatedRoutes() {
           <Route path="/home" element={<HomePage />} />
           <Route path="/map" element={<Map />} />
           <Route path="/archive" element={<ArchivePage />} />
+          <Route path="/notifications" element={<NotificationPage />} />
           <Route path="/my" element={<MyPage />} />
+          <Route path="/users/:userId/followers" element={<FollowListPage type="followers" />} />
+          <Route path="/users/:userId/followings" element={<FollowListPage type="followings" />} />
         </Route>
 
         <Route path="/record/new" element={<RequireAuth><MemoryBoardCreatePage /></RequireAuth>} />

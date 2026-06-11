@@ -129,11 +129,11 @@ npm run lint
 로컬 개발 환경에서는 `Yeoginamgim-Front/react/.env` 파일을 사용합니다.
 
 ```env
-VITE_API_BASE_URL=http://localhost:8080
+VITE_API_BASE_URL=https://dh7p4gzv38x71.cloudfront.net
 VITE_KAKAO_JAVASCRIPT_KEY=<Kakao JavaScript key>
 ```
 
-- `VITE_API_BASE_URL`이 없으면 `src/api/client.js`에서 `http://localhost:8080`을 기본값으로 사용합니다.
+- `VITE_API_BASE_URL`이 없으면 `src/api/client.js`에서 `https://dh7p4gzv38x71.cloudfront.net`을 기본값으로 사용합니다.
 - `VITE_KAKAO_JAVASCRIPT_KEY`는 Kakao Maps JavaScript SDK 로딩에 사용합니다.
 - 프론트 `.env`에는 브라우저에 노출되어도 되는 값만 둡니다.
 - OAuth client secret, JWT secret, DB password, Kakao REST API key는 프론트에 두지 않습니다.
