@@ -13,6 +13,20 @@ test('BoardDetail header does not render a trace count', () => {
   assert.doesNotMatch(boardDetailSource, /traceCount=\{allPosts\.length\}/)
 })
 
+test('BoardDetail uploads rendered captured images before raw local media', () => {
+  const capturedUploadIndex = boardDetailSource.indexOf('if (placementDraft.capturedImage)')
+  const rawPolaroidUploadIndex = boardDetailSource.indexOf('if (!imageUrl && isPolaroidDraft && isUploadableLocalImage(mediaImage))')
+
+  assert.notEqual(capturedUploadIndex, -1)
+  assert.notEqual(rawPolaroidUploadIndex, -1)
+  assert.ok(capturedUploadIndex < rawPolaroidUploadIndex)
+})
+
+test('BoardDetail does not endlessly retry the same failed placement draft', () => {
+  assert.match(boardDetailSource, /autoPlaceAttemptedDraftIdRef/)
+  assert.match(boardDetailSource, /autoPlaceAttemptedDraftIdRef\.current === placementDraft\.id/)
+})
+
 test('BoardDetail has no unresolved merge markers or visible mojibake strings', () => {
   const mergeMarkerPattern = new RegExp(`${'<'.repeat(7)}|${'='.repeat(7)}|${'>'.repeat(7)}`)
   assert.doesNotMatch(boardDetailSource, mergeMarkerPattern)

@@ -3,13 +3,11 @@ import {
   ChevronLeft,
   Copy,
   Image,
-  Info,
   Map,
   MessageCircle,
   MoreHorizontal,
   PencilLine,
   RefreshCw,
-  Search,
   UserRound,
   UsersRound,
 } from 'lucide-react'
@@ -468,6 +466,7 @@ function BoardDetail() {
   const [placementDraft, setPlacementDraft] = useState(() => location.state?.placementDraft ?? null)
   const [showTypeSheet, setShowTypeSheet] = useState(false)
   const transformRef = useRef(null)
+  const autoPlaceAttemptedDraftIdRef = useRef(null)
 
   const board = useMemo(() => buildBoard(boardId, location.state, boardDetail ?? (location.state?.boardName ? { boardName: location.state.boardName } : null)), [boardDetail, boardId, location.state])
   const inviteLink = useMemo(() => {
@@ -610,18 +609,18 @@ function BoardDetail() {
       const mediaImage = placementDraft.media?.image
       const isPolaroidDraft = placementDraft.type === 'polaroid' || placementDraft.type === 'POLAROID'
 
-      if (isPolaroidDraft && isUploadableLocalImage(mediaImage)) {
-        const response = await fetch(mediaImage)
+      if (placementDraft.capturedImage) {
+        const response = await fetch(placementDraft.capturedImage)
         const blob = await response.blob()
-        const file = new File([blob], 'trace-photo.png', { type: blob.type || 'image/png' })
+        const file = new File([blob], 'trace.jpg', { type: blob.type || 'image/jpeg' })
         const uploaded = await uploadTraceImage(file)
         imageUrl = uploaded.imageUrl ?? uploaded.url ?? null
       }
 
-      if (!imageUrl && placementDraft.capturedImage) {
-        const response = await fetch(placementDraft.capturedImage)
+      if (!imageUrl && isPolaroidDraft && isUploadableLocalImage(mediaImage)) {
+        const response = await fetch(mediaImage)
         const blob = await response.blob()
-        const file = new File([blob], 'trace.png', { type: 'image/png' })
+        const file = new File([blob], 'trace-photo.png', { type: blob.type || 'image/png' })
         const uploaded = await uploadTraceImage(file)
         imageUrl = uploaded.imageUrl ?? uploaded.url ?? null
       }
@@ -715,11 +714,13 @@ function BoardDetail() {
     } finally {
       setIsSaving(false)
     }
-  }, [boardId, isSaving, location, navigate, placementDraft, posts])
+  }, [board.boardType, boardId, isSaving, location, navigate, placementDraft, posts])
 
   useEffect(() => {
     if (!placementDraft || isLoading || isSaving) return undefined
+    if (autoPlaceAttemptedDraftIdRef.current === placementDraft.id) return undefined
 
+    autoPlaceAttemptedDraftIdRef.current = placementDraft.id
     const timerId = window.setTimeout(() => handlePlace(), 0)
     return () => window.clearTimeout(timerId)
   }, [handlePlace, isLoading, isSaving, placementDraft])
