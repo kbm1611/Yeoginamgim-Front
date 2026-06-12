@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { RefreshCw } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
-import boardCanvasBg from '../../assets/board-bg-3000x2200.png'
+import boardCanvasBg from '../../assets/board-bg.png'
 import postitTexture from '../../assets/editor/image.png'
+import postitYellowAsset from '../../assets/images/postits/postit-yellow.png'
 
 export const BOARD_WIDTH = 3000
 export const BOARD_HEIGHT = 2200
-const INITIAL_SCALE = 0.65
+const INITIAL_SCALE = 0.85
 const MIN_SCALE = 0.45
 const MAX_SCALE = 1.6
 const TRACE_CARD_W = 260
@@ -18,6 +18,96 @@ const POSTIT_CAPTURED_ASPECT_RATIO = POSTIT_TRIMMED_SIZE.width / POSTIT_TRIMMED_
 const POLAROID_TRIMMED_SIZE = {
   width: 900,
   height: 1200,
+}
+
+const POSTIT_THEMES = {
+  yellow: { bg: '#F7E58A', textColor: '#2A1A0A', asset: postitYellowAsset },
+  pink:   { bg: '#F6ABBE', textColor: '#2A1A0A', asset: null },
+  sky:    { bg: '#A8D8F0', textColor: '#1A2A2A', asset: null },
+  green:  { bg: '#B8E0A0', textColor: '#1A2A1A', asset: null },
+  cream:  { bg: '#FFF0CC', textColor: '#2A1A0A', asset: null },
+  purple: { bg: '#D4B8F0', textColor: '#1A1A2A', asset: null },
+}
+
+function resolvePostitTheme(post) {
+  const paperColor = post.style?.paperColor ?? post.style?.postitColor
+  if (!paperColor) return POSTIT_THEMES.yellow
+  const byId = POSTIT_THEMES[paperColor]
+  if (byId) return byId
+  const byHex = Object.values(POSTIT_THEMES).find(
+    (t) => t.bg.toLowerCase() === paperColor.toLowerCase()
+  )
+  return byHex ?? POSTIT_THEMES.yellow
+}
+
+// 보드 뷰 폰트 — PostItEditor의 FONTS 배열과 순서 동일하게 유지
+const BOARD_FONTS = [
+  "'Gaegu', cursive",
+  "'Jua', sans-serif",
+  "'Poor Story', cursive",
+  "'Dokdo', cursive",
+]
+
+// 테이프 에셋 교체 포인트 — PNG 준비되면 이 한 줄만 변경
+const TAPE_ASSET = null
+
+// 카드 크기 단계 — seed 기반으로 다양화
+const CARD_SIZES = [220, 240, 260, 280]
+
+// ─── 컬럼 기반 배치 ───────────────────────────────────────────────────────────
+// 보드 3000px 기준 4컬럼. 모바일(390px) viewport 중심이 컬럼2~3 사이에 오도록 설계.
+// 컬럼 center x: 500 / 1000 / 1600 / 2200  (좌우 여백 400px 확보)
+const COLUMNS = [
+  { cx: 500 },
+  { cx: 1000 },
+  { cx: 1600 },
+  { cx: 2200 },
+]
+const COLUMN_X_OFFSET_RANGE = 40   // 컬럼 중심 기준 ±40px x offset
+const CARD_GAP_MIN = 24            // 카드 사이 최소 세로 간격
+const CARD_GAP_MAX = 40            // 카드 사이 최대 세로 간격
+const COLUMN_START_Y = 200         // 첫 카드 시작 y
+
+// 주어진 흔적 목록으로 각 컬럼의 현재 최하단 y를 계산
+function getColumnBottoms(traces) {
+  const bottoms = COLUMNS.map(() => COLUMN_START_Y)
+  for (const trace of traces) {
+    const x = trace._x ?? trace.x ?? trace.style?.boardPosition?.x
+    const y = trace._y ?? trace.y ?? trace.style?.boardPosition?.y
+    const h = trace._cardH ?? trace.style?.boardPosition?.height ?? TRACE_CARD_W
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue
+    // 가장 가까운 컬럼 찾기
+    let closest = 0
+    let minDist = Infinity
+    COLUMNS.forEach((col, i) => {
+      const dist = Math.abs(x - col.cx)
+      if (dist < minDist) { minDist = dist; closest = i }
+    })
+    const bottom = y + h
+    if (bottom > bottoms[closest]) bottoms[closest] = bottom
+  }
+  return bottoms
+}
+
+// 컬럼 기반 다음 배치 위치 계산
+// seed: 결정적 랜덤 (같은 흔적이면 항상 같은 위치)
+function getColumnBasedPosition(seed, cardH, existingTraces) {
+  const bottoms = getColumnBottoms(existingTraces)
+  // 가장 낮은 컬럼 선택
+  const colIndex = bottoms.indexOf(Math.min(...bottoms))
+  const col = COLUMNS[colIndex]
+  const bottom = bottoms[colIndex]
+
+  // x: 컬럼 중심 ± offset (seed 기반 결정적)
+  const xOffset = (seeded(seed * 2.31) - 0.5) * 2 * COLUMN_X_OFFSET_RANGE
+  // y: 이전 카드 bottom + gap (seed 기반 결정적)
+  const gap = CARD_GAP_MIN + seeded(seed * 5.17) * (CARD_GAP_MAX - CARD_GAP_MIN)
+
+  return {
+    x: Math.round(col.cx + xOffset - cardH / 2),   // cardH/2 → 카드 좌상단 기준
+    y: Math.round(bottom + gap),
+    colIndex,
+  }
 }
 
 function seeded(value) {
@@ -34,6 +124,39 @@ function hashSeed(value) {
   }
 
   return hash || 1
+}
+
+// ─── 테이프 ──────────────────────────────────────────────────────────────────
+// TAPE_ASSET이 null인 동안은 아무것도 렌더하지 않음
+// PNG 에셋 준비되면: const TAPE_ASSET = tapeBeigePng (상단 상수 교체만으로 활성화)
+function BoardTape({ seed }) {
+  if (!TAPE_ASSET) return null
+
+  const positions = ['center', 'left', 'right']
+  const pos = positions[seed % 3]
+  const rotate = (seed % 11) - 5  // -5 ~ +5도
+
+  const leftByPos = { center: '50%', left: '25%', right: '75%' }
+
+  return (
+    <img
+      src={TAPE_ASSET}
+      aria-hidden="true"
+      draggable={false}
+      style={{
+        height: 36,
+        left: leftByPos[pos],
+        objectFit: 'fill',
+        opacity: 0.9,
+        pointerEvents: 'none',
+        position: 'absolute',
+        top: -16,
+        transform: `translateX(-50%) rotate(${rotate}deg)`,
+        width: 110,
+        zIndex: 2,
+      }}
+    />
+  )
 }
 
 function isPolaroidTrace(post) {
@@ -121,44 +244,22 @@ function getExplicitTracePosition(post) {
   return null
 }
 
-function getTraceLayoutPosition(post, index) {
+function getTraceLayoutPosition(post, index, precedingPosts = []) {
   const explicit = getExplicitTracePosition(post)
   if (explicit) return explicit
 
   const traceSeed = hashSeed(getTraceId(post) ?? index)
-  const anchors = [
-    { x: 420, y: 360 },
-    { x: 760, y: 430 },
-    { x: 1110, y: 330 },
-    { x: 1510, y: 520 },
-    { x: 1900, y: 380 },
-    { x: 520, y: 760 },
-    { x: 930, y: 860 },
-    { x: 1370, y: 780 },
-    { x: 1780, y: 930 },
-    { x: 2200, y: 780 },
-    { x: 680, y: 1190 },
-    { x: 1080, y: 1320 },
-    { x: 1540, y: 1210 },
-    { x: 1990, y: 1390 },
-    { x: 2380, y: 1180 },
-  ]
-  const anchor = anchors[index % anchors.length]
-  const layer = Math.floor(index / anchors.length)
-  const offsetX = (seeded(traceSeed * 2.17) - 0.5) * 96 + layer * 34
-  const offsetY = (seeded(traceSeed * 3.41) - 0.5) * 86 + layer * 42
+  const cardW = CARD_SIZES[traceSeed % CARD_SIZES.length]
+  const { x, y } = getColumnBasedPosition(traceSeed, cardW, precedingPosts)
 
-  return {
-    x: anchor.x + offsetX,
-    y: anchor.y + offsetY,
-  }
+  return { x, y }
 }
 
-export function migrateLegacyTracePosition(post, index = 0) {
+export function migrateLegacyTracePosition(post, index = 0, precedingPosts = []) {
   const explicit = getExplicitTracePosition(post)
   if (explicit) return post
 
-  const fallback = getTraceLayoutPosition(post, index)
+  const fallback = getTraceLayoutPosition(post, index, precedingPosts)
   return {
     ...post,
     x: fallback.x,
@@ -175,82 +276,66 @@ export function migrateLegacyTracePosition(post, index = 0) {
 }
 
 function layoutPosts(posts) {
-  const placedRects = []
+  const laidSoFar = []
 
   return posts.map((post, index) => {
-    const migratedPost = migrateLegacyTracePosition(post, index)
-    const base = getTraceLayoutPosition(migratedPost, index)
-    const size = getTraceSize(post)
-    const cardW = size.width
-    const cardH = size.height
-    const clamped = clampBoardPosition(base.x, base.y, cardW, cardH)
-    let x = clamped.x
-    let y = clamped.y
-    let attempts = 0
+    const s = hashSeed(getTraceId(post) ?? index)
+    const hasExplicitPos = Boolean(getExplicitTracePosition(post))
+    const hasExplicitSize = (() => {
+      const w = Number(post.width ?? post.style?.boardPosition?.width)
+      const h = Number(post.height ?? post.style?.boardPosition?.height)
+      return Number.isFinite(w) && w > 0 && Number.isFinite(h) && h > 0
+    })()
 
-    while (hasOverlap({ x, y, width: cardW, height: cardH }, placedRects) && attempts < 28) {
-      const ring = Math.floor(attempts / 8) + 1
-      const angle = attempts * 0.78
-      const next = clampBoardPosition(
-        base.x + Math.cos(angle) * ring * 86,
-        base.y + Math.sin(angle) * ring * 68,
-        cardW,
-        cardH,
-      )
-      x = next.x
-      y = next.y
-      attempts += 1
+    const size = getTraceSize(post)
+    const cardW = hasExplicitSize ? size.width : CARD_SIZES[s % CARD_SIZES.length]
+    const cardH = hasExplicitSize ? size.height : Math.round(cardW / (isPolaroidTrace(post) ? 3 / 4 : 1))
+
+    let x, y
+    if (hasExplicitPos) {
+      const pos = getExplicitTracePosition(post)
+      x = pos.x
+      y = pos.y
+    } else {
+      const pos = getColumnBasedPosition(s, cardW, laidSoFar)
+      x = pos.x
+      y = pos.y
     }
 
-    placedRects.push({ x, y, width: cardW, height: cardH })
+    const clamped = clampBoardPosition(x, y, cardW, cardH)
+    x = clamped.x
+    y = clamped.y
+
     const rotation = Number(post.rotation ?? post.style?.boardPosition?.rotation)
     const scale = Number(post.scale ?? post.style?.boardPosition?.scale)
     const zIndex = Number(post.zIndex ?? post.style?.boardPosition?.zIndex)
 
-    return {
+    const laid = {
       ...post,
       _x: x,
       _y: y,
-      _rotate: Number.isFinite(rotation) ? Math.min(3, Math.max(-3, rotation)) : (seeded(hashSeed(getTraceId(post) ?? index) * 4.73) - 0.5) * 6,
+      _rotate: (() => {
+        if (Number.isFinite(rotation)) return Math.min(6, Math.max(-6, rotation))
+        const dir = s % 2 === 0 ? 1 : -1
+        return dir * (1 + seeded(s * 4.73) * 5)  // 1~6도
+      })(),
       _cardW: cardW,
       _cardH: cardH,
       _scale: Number.isFinite(scale) && scale > 0 ? scale : 1,
       _zIndex: Number.isFinite(zIndex) ? zIndex : 10 + index,
     }
+
+    laidSoFar.push(laid)
+    return laid
   })
 }
 
-export function findEmptySpotNear(center, newTraceSize, existingTraces = []) {
-  const size = {
-    width: newTraceSize?.width ?? TRACE_CARD_W,
-    height: newTraceSize?.height ?? TRACE_CARD_W,
-  }
-  const existingRects = existingTraces.map((trace, index) => {
-    const migratedTrace = migrateLegacyTracePosition(trace, index)
-    const traceSize = getTraceSize(migratedTrace)
-    return {
-      x: migratedTrace._x ?? migratedTrace.x ?? migratedTrace.style?.boardPosition?.x ?? 0,
-      y: migratedTrace._y ?? migratedTrace.y ?? migratedTrace.style?.boardPosition?.y ?? 0,
-      width: migratedTrace._cardW ?? traceSize.width,
-      height: migratedTrace._cardH ?? traceSize.height,
-    }
-  })
-
-  const start = clampBoardPosition(center.x - size.width / 2, center.y - size.height / 2, size.width, size.height)
-  for (let step = 0; step < 80; step += 1) {
-    const ring = Math.floor(step / 8)
-    const angle = step * 0.785
-    const candidate = clampBoardPosition(
-      start.x + Math.cos(angle) * ring * 92,
-      start.y + Math.sin(angle) * ring * 72,
-      size.width,
-      size.height,
-    )
-    const rect = { ...candidate, ...size }
-    if (!existingRects.some((existing) => rectsOverlap(rect, existing))) return candidate
-  }
-
-  return start
+export function findEmptySpotNear(_center, newTraceSize, existingTraces = []) {
+  const cardW = newTraceSize?.width ?? TRACE_CARD_W
+  const cardH = newTraceSize?.height ?? TRACE_CARD_W
+  const seed = Date.now() % 100000
+  const { x, y } = getColumnBasedPosition(seed, cardW, existingTraces)
+  return clampBoardPosition(x, y, cardW, cardH)
 }
 
 function PostItTraceCard({ post, isHighlighted }) {
@@ -263,20 +348,18 @@ function PostItTraceCard({ post, isHighlighted }) {
   const cardH = post._cardH ?? Math.round(cardW / aspectRatio)
   const postitImage = post.capturedImage ?? post.imageUrl ?? null
   const shouldRenderText = !hasSavedImage
+  const tapeSeed = hashSeed(getTraceId(post) ?? 0)
+  const showTape = tapeSeed % 10 < 7  // 70% 확률로 테이프 표시
 
   return (
-    <article
-      className={`absolute flex flex-col text-[#35241A] ${isHighlighted ? 'trace-card-highlight' : ''}`}
+    // wrapper: left/top/transform/zIndex 담당 — overflow: visible로 테이프가 카드 밖으로 나올 수 있게
+    <div
       style={{
-        borderRadius: hasSavedImage ? 0 : 4,
-        boxShadow: isHighlighted
-          ? '0 0 0 0 transparent'
-          : '2px 4px 0px rgba(0,0,0,0.08), 3px 8px 16px rgba(0,0,0,0.14)',
-        filter: isHighlighted ? 'drop-shadow(0 0 12px rgba(255,200,50,0.8))' : 'none',
         height: cardH,
         left: post._x,
-        overflow: 'hidden',
-        pointerEvents: 'auto',
+        overflow: 'visible',
+        pointerEvents: 'none',
+        position: 'absolute',
         top: post._y,
         transform: `rotate(${post._rotate}deg) scale(${(post._scale ?? 1) * (isHighlighted ? 1.08 : 1)})`,
         transformOrigin: 'top left',
@@ -285,37 +368,65 @@ function PostItTraceCard({ post, isHighlighted }) {
         zIndex: post._zIndex,
       }}
     >
-      {postitImage ? (
-        // capturedImage가 있으면 그 자체가 완성된 이미지 — 그대로 표시
-        <img
-          src={postitImage}
-          alt=""
-          draggable={false}
-          className="pointer-events-none block h-full w-full"
-          style={{ objectFit: 'fill', borderRadius: 0 }}
-        />
-      ) : (
-        // 서버에서 온 레거시 포스트잇 (capturedImage 없음)
-        <div className="relative h-full w-full overflow-hidden" style={{ backgroundColor: post.style?.postitColor ?? '#F7E58A' }}>
-          <div className="relative z-10 flex h-full flex-col px-[15px] pb-[12px] pt-[21px]">
-            {shouldRenderText && (
-              <p
-                className="min-h-0 flex-1 overflow-hidden text-[23px] leading-[1.12]"
-                style={{
-                  display: '-webkit-box',
-                  fontFamily: "'Nanum Pen Script', 'Gaegu', cursive",
-                  WebkitBoxOrient: 'vertical',
-                  WebkitLineClamp: 4,
-                  whiteSpace: 'pre-wrap',
-                }}
-              >
-                {post.content}
-              </p>
+      {showTape && <BoardTape seed={tapeSeed} />}
+      <article
+        className={`flex flex-col text-[#35241A] ${isHighlighted ? 'trace-card-highlight' : ''}`}
+        style={{
+          borderRadius: hasSavedImage ? 0 : 4,
+          boxShadow: isHighlighted
+            ? '0 0 0 0 transparent'
+            : (resolvePostitTheme(post).asset ? 'none' : '0 1px 2px rgba(0,0,0,0.14), 5px 14px 26px rgba(58,36,20,0.26)'),
+          filter: isHighlighted ? 'drop-shadow(0 0 12px rgba(255,200,50,0.8))' : 'none',
+          height: '100%',
+          overflow: 'hidden',
+          pointerEvents: 'auto',
+          position: 'relative',
+          width: '100%',
+        }}
+      >
+        {postitImage ? (
+          // capturedImage가 있으면 그 자체가 완성된 이미지 — 그대로 표시
+          <img
+            src={postitImage}
+            alt=""
+            draggable={false}
+            className="pointer-events-none block h-full w-full"
+            style={{ objectFit: 'fill', borderRadius: 0 }}
+          />
+        ) : (
+          // 서버에서 온 레거시 포스트잇 (capturedImage 없음)
+          <div className="relative h-full w-full" style={{ backgroundColor: resolvePostitTheme(post).asset ? 'transparent' : resolvePostitTheme(post).bg }}>
+            {resolvePostitTheme(post).asset && (
+              <img
+                src={resolvePostitTheme(post).asset}
+                alt=""
+                draggable={false}
+                className="pointer-events-none absolute inset-0 h-full w-full"
+                style={{ objectFit: 'fill' }}
+              />
             )}
+            <div className="relative z-10 flex h-full flex-col" style={{ padding: '14% 12% 18% 12%' }}>
+              {shouldRenderText && (
+                <p
+                  className="min-h-0 flex-1 overflow-hidden text-[23px] leading-[1.12]"
+                  style={{
+                    color: resolvePostitTheme(post).textColor,
+                    display: '-webkit-box',
+                    fontFamily: post.style?.textObjects?.[0]?.fontFamily ?? "'Gaegu', cursive",
+                    WebkitBoxOrient: 'vertical',
+                    WebkitLineClamp: 4,
+                    overflow: 'hidden',
+                    whiteSpace: 'pre-wrap',
+                  }}
+                >
+                  {post.content}
+                </p>
+              )}
+            </div>
           </div>
-        </div>
-      )}
-    </article>
+        )}
+      </article>
+    </div>
   )
 }
 
@@ -327,15 +438,17 @@ function PolaroidTraceCard({ post, isHighlighted }) {
   const shouldRenderFrameLayers = !savedPolaroidImage
   const crop = post.style?.photoCrop ?? {}
   const photoScale = Number(crop.scale)
+  const tapeSeed = hashSeed(getTraceId(post) ?? 0)
+  const showTape = tapeSeed % 10 < 7  // 70% 확률로 테이프 표시
 
   return (
-    <article
-      className={`absolute text-[#35241A] ${isHighlighted ? 'trace-card-highlight' : ''}`}
+    // wrapper: left/top/transform/zIndex 담당 — overflow: visible로 테이프가 카드 밖으로 나올 수 있게
+    <div
       style={{
-        filter: isHighlighted ? 'drop-shadow(0 0 12px rgba(255,200,50,0.8))' : 'none',
         height: cardH,
         left: post._x,
-        pointerEvents: 'auto',
+        pointerEvents: 'none',
+        position: 'absolute',
         top: post._y,
         transform: `rotate(${post._rotate}deg) scale(${(post._scale ?? 1) * (isHighlighted ? 1.08 : 1)})`,
         transformOrigin: 'top left',
@@ -344,68 +457,71 @@ function PolaroidTraceCard({ post, isHighlighted }) {
         zIndex: post._zIndex,
       }}
     >
-      {savedPolaroidImage ? (
-        <img
-          src={savedPolaroidImage}
-          alt=""
-          className="pointer-events-none absolute inset-0 h-full w-full object-fill"
-          draggable="false"
-        />
-      ) : null}
+      {showTape && <BoardTape seed={tapeSeed} />}
+      <article
+        className={`text-[#35241A] ${isHighlighted ? 'trace-card-highlight' : ''}`}
+        style={{
+          filter: isHighlighted ? 'drop-shadow(0 0 12px rgba(255,200,50,0.8))' : 'none',
+          height: '100%',
+          pointerEvents: 'auto',
+          position: 'relative',
+          width: '100%',
+        }}
+      >
+        {savedPolaroidImage ? (
+          <img
+            src={savedPolaroidImage}
+            alt=""
+            className="pointer-events-none absolute inset-0 h-full w-full object-fill"
+            draggable="false"
+          />
+        ) : null}
 
-      {shouldRenderFrameLayers ? (
-        <div
-          className="absolute inset-0 bg-white"
-          style={{
-            borderRadius: 4,
-            boxShadow: '2px 4px 0 rgba(0,0,0,0.08), 5px 14px 24px rgba(0,0,0,0.16)',
-            padding: Math.max(9, cardW * 0.055),
-          }}
-        >
+        {shouldRenderFrameLayers ? (
           <div
-            className="relative w-full overflow-hidden bg-[#E8E0D4]"
-            style={{ height: '73%' }}
+            className="absolute inset-0 bg-white"
+            style={{
+              borderRadius: 4,
+              boxShadow: '0 1px 2px rgba(0,0,0,0.14), 6px 18px 30px rgba(58,36,20,0.28)',
+              padding: Math.max(9, cardW * 0.055),
+            }}
           >
-            {fallbackPhotoImage ? (
-              <img
-                src={fallbackPhotoImage}
-                alt=""
-                className="h-full w-full object-cover"
-                draggable="false"
+            <div
+              className="relative w-full overflow-hidden bg-[#E8E0D4]"
+              style={{ height: '73%' }}
+            >
+              {fallbackPhotoImage ? (
+                <img
+                  src={fallbackPhotoImage}
+                  alt=""
+                  className="h-full w-full object-cover"
+                  draggable="false"
+                  style={{
+                    objectPosition: `${(Number(crop.x) || 0.5) * 100}% ${(Number(crop.y) || 0.5) * 100}%`,
+                    transform: `scale(${Number.isFinite(photoScale) && photoScale > 1 ? photoScale : 1})`,
+                    transformOrigin: `${(Number(crop.x) || 0.5) * 100}% ${(Number(crop.y) || 0.5) * 100}%`,
+                  }}
+                />
+              ) : null}
+            </div>
+
+            {post.content ? (
+              <p
+                className="mt-[7%] overflow-hidden text-center text-[20px] leading-[1.05] text-[#3A2A20]"
                 style={{
-                  objectPosition: `${(Number(crop.x) || 0.5) * 100}% ${(Number(crop.y) || 0.5) * 100}%`,
-                  transform: `scale(${Number.isFinite(photoScale) && photoScale > 1 ? photoScale : 1})`,
-                  transformOrigin: `${(Number(crop.x) || 0.5) * 100}% ${(Number(crop.y) || 0.5) * 100}%`,
+                  display: '-webkit-box',
+                  fontFamily: BOARD_FONTS[Math.min(post.style?.polaroidFontIndex ?? 0, BOARD_FONTS.length - 1)],
+                  WebkitBoxOrient: 'vertical',
+                  WebkitLineClamp: 2,
                 }}
-              />
+              >
+                {post.content}
+              </p>
             ) : null}
           </div>
-
-          {post.content ? (
-            <p
-              className="mt-[7%] overflow-hidden text-center text-[20px] leading-[1.05] text-[#3A2A20]"
-              style={{
-                display: '-webkit-box',
-                fontFamily: "'Nanum Pen Script', 'Gaegu', cursive",
-                WebkitBoxOrient: 'vertical',
-                WebkitLineClamp: 2,
-              }}
-            >
-              {post.content}
-            </p>
-          ) : null}
-
-          <span
-            aria-hidden="true"
-            className="absolute left-1/2 top-[-10px] h-[20px] w-[58px] -translate-x-1/2 rotate-[-3deg]"
-            style={{
-              backgroundColor: 'rgba(200, 171, 126, 0.62)',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.35), 0 2px 4px rgba(70,45,20,0.12)',
-            }}
-          />
-        </div>
-      ) : null}
-    </article>
+        ) : null}
+      </article>
+    </div>
   )
 }
 
@@ -458,9 +574,19 @@ function getViewportCenter(transform, viewport) {
 }
 
 function getInitialTransform(viewport, posts) {
-  const latest = posts?.[0]
-  const target = latest
-    ? { x: latest._x + (latest._cardW ?? TRACE_CARD_W) / 2, y: latest._y + (latest._cardH ?? TRACE_CARD_W) / 2 }
+  const all = posts ?? []
+
+  // 컬럼 배치 구조에 맞게: col0(cx:500)과 col1(cx:1000)에 속한 카드들만 샘플
+  // x < 1300 인 카드들 = 모바일 390px viewport에서 scale 0.85로 한 화면에 담기는 범위
+  const sample = all.filter(p => p._x < 1300).slice(0, 6)
+  const fallback = all.slice(0, 2)
+  const cards = sample.length > 0 ? sample : fallback
+
+  const target = cards.length > 0
+    ? {
+        x: (Math.min(...cards.map(p => p._x)) + Math.max(...cards.map(p => p._x + (p._cardW ?? TRACE_CARD_W)))) / 2,
+        y: (Math.min(...cards.map(p => p._y)) + Math.max(...cards.map(p => p._y + (p._cardH ?? TRACE_CARD_W)))) / 2,
+      }
     : { x: BOARD_WIDTH / 2, y: BOARD_HEIGHT / 2 }
 
   return getClampedTransform({
@@ -679,7 +805,6 @@ function useBoardTransform(transformRef, onZoomChange, laidPosts) {
 function BoardCanvas({
   posts,
   onAdd,
-  onRefresh,
   transformRef,
   onZoomChange,
   onToggleLike,
@@ -843,16 +968,6 @@ function BoardCanvas({
         })}
       </div>
 
-      {onRefresh ? (
-        <button
-          type="button"
-          onClick={onRefresh}
-          aria-label="흔적 새로고침"
-          className="absolute right-4 top-4 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-white/76 text-[#5E4938] shadow-[0_4px_14px_rgba(58,36,24,0.14)] backdrop-blur-sm active:bg-white/90"
-        >
-          <RefreshCw size={15} strokeWidth={1.9} />
-        </button>
-      ) : null}
 
     </div>
   )

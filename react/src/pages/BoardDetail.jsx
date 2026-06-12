@@ -1,16 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ChevronDown,
   ChevronLeft,
   Copy,
   Image,
   Info,
   Map,
   MessageCircle,
-  Minus,
   MoreHorizontal,
   PencilLine,
-  Plus,
+  RefreshCw,
   Search,
   UserRound,
   UsersRound,
@@ -20,6 +18,7 @@ import { fetchBoardDetail } from '../api/boards'
 import { API_BASE_URL, clearAuthToken } from '../api/client'
 import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
 import { createTrace, fetchBoardTraces, uploadTraceImage } from '../api/traces'
+import { createCustomBoardTrace, getCustomBoardTraces } from '../api/customBoards'
 import BoardCanvas, { BOARD_HEIGHT, BOARD_WIDTH, findEmptySpotNear } from '../components/board/BoardCanvas'
 import BottomNavigation from '../components/BottomNavigation'
 import { traceToPost } from './tracePost.utils'
@@ -99,16 +98,6 @@ function buildBoard(id, locationState, boardDetail) {
   }
 }
 
-function sortPosts(posts, sort) {
-  return [...posts].sort((left, right) => {
-    const leftTime = new Date(left.createdAt).getTime()
-    const rightTime = new Date(right.createdAt).getTime()
-    const safeLeftTime = Number.isFinite(leftTime) ? leftTime : 0
-    const safeRightTime = Number.isFinite(rightTime) ? rightTime : 0
-
-    return sort === 'oldest' ? safeLeftTime - safeRightTime : safeRightTime - safeLeftTime
-  })
-}
 
 function getPostId(post) {
   return post.traceId ?? post.id
@@ -185,7 +174,7 @@ function createBoardPlacement({ boardId, draft, locationState, posts }) {
   }
 }
 
-function BoardTopBar({ title, onBack, onMore }) {
+function BoardTopBar({ title, onBack, onRefresh, onMore }) {
   return (
     <header className="flex items-center justify-between bg-[#F5EFE6] px-3 pb-2 pt-3">
       <button
@@ -199,25 +188,37 @@ function BoardTopBar({ title, onBack, onMore }) {
 
       <h1 className="max-w-[200px] truncate text-center text-[16px] font-bold text-[#3B2A1E]">{title}</h1>
 
-      <button
-        type="button"
-        onClick={onMore}
-        aria-label="더보기"
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#3B2A1E] active:bg-[#E7DCCF]"
-      >
-        <MoreHorizontal size={20} strokeWidth={2} />
-      </button>
+      <div className="flex items-center gap-1">
+        {onRefresh ? (
+          <button
+            type="button"
+            onClick={onRefresh}
+            aria-label="새로고침"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#3B2A1E] active:bg-[#E7DCCF]"
+          >
+            <RefreshCw size={16} strokeWidth={2} />
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={onMore}
+          aria-label="더보기"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#3B2A1E] active:bg-[#E7DCCF]"
+        >
+          <MoreHorizontal size={20} strokeWidth={2} />
+        </button>
+      </div>
     </header>
   )
 }
 
-function PlaceBoardHeader({ board, onBack, onOpenPlaceInfo }) {
+function PlaceBoardHeader({ board, onBack, onRefresh, onOpenPlaceInfo }) {
   return (
-    <BoardTopBar title={board.name} onBack={onBack} onMore={onOpenPlaceInfo} />
+    <BoardTopBar title={board.name} onBack={onBack} onRefresh={onRefresh} onMore={onOpenPlaceInfo} />
   )
 }
 
-function CustomBoardHeader({ board, onBack, onOpenInvite }) {
+function CustomBoardHeader({ board, onBack, onRefresh, onOpenInvite }) {
   const members = board.participants ?? []
 
   return (
@@ -234,14 +235,26 @@ function CustomBoardHeader({ board, onBack, onOpenInvite }) {
 
         <h1 className="max-w-[180px] truncate text-center text-[16px] font-bold text-[#3B2A1E]">{board.name}</h1>
 
-        <button
-          type="button"
-          onClick={onOpenInvite}
-          aria-label="초대 및 멤버"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#3B2A1E] active:bg-[#E7DCCF]"
-        >
-          <UsersRound size={19} strokeWidth={2} />
-        </button>
+        <div className="flex items-center gap-1">
+          {onRefresh ? (
+            <button
+              type="button"
+              onClick={onRefresh}
+              aria-label="새로고침"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#3B2A1E] active:bg-[#E7DCCF]"
+            >
+              <RefreshCw size={16} strokeWidth={2} />
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={onOpenInvite}
+            aria-label="초대 및 멤버"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#3B2A1E] active:bg-[#E7DCCF]"
+          >
+            <UsersRound size={19} strokeWidth={2} />
+          </button>
+        </div>
       </div>
 
       {/* 멤버 아바타 행 */}
@@ -274,70 +287,7 @@ function CustomBoardHeader({ board, onBack, onOpenInvite }) {
   )
 }
 
-function BoardSortControl({ sort, onSort }) {
-  const [isOpen, setIsOpen] = useState(false)
-  const currentLabel = sort === 'oldest' ? '오래된순' : '최신순'
 
-  return (
-    <div className="relative bg-[#F5EFE6] px-4 pb-3">
-      <button
-        type="button"
-        onClick={() => setIsOpen((open) => !open)}
-        className="flex h-9 items-center gap-1 rounded-full bg-white/78 px-3.5 text-[13px] font-bold text-[#4A3527] shadow-sm"
-      >
-        {currentLabel}
-        <ChevronDown size={14} strokeWidth={2} />
-      </button>
-
-      {isOpen ? (
-        <div className="absolute left-4 top-10 z-40 w-[112px] overflow-hidden rounded-[12px] border border-[#E1D4C5] bg-white shadow-[0_12px_24px_rgba(58,36,24,0.14)]">
-          {[
-            ['latest', '최신순'],
-            ['oldest', '오래된순'],
-          ].map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => {
-                onSort(key)
-                setIsOpen(false)
-              }}
-              className={`block h-10 w-full px-3 text-left text-[13px] font-bold ${
-                sort === key ? 'bg-[#F5EFE6] text-[#3B2A1E]' : 'text-[#7B6250]'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
-function ZoomControls({ onZoomIn, onZoomOut }) {
-  return (
-    <div className="flex flex-col items-center overflow-hidden rounded-2xl bg-white/90 shadow-[0_2px_12px_rgba(58,36,24,0.12)] backdrop-blur-sm">
-      <button
-        type="button"
-        onClick={onZoomIn}
-        aria-label="확대"
-        className="flex h-9 w-9 items-center justify-center text-[#3B2A1E] active:bg-[#F0E8DF]"
-      >
-        <Plus size={18} strokeWidth={2} />
-      </button>
-      <div className="w-full h-px bg-[#EDE5DA]" />
-      <button
-        type="button"
-        onClick={onZoomOut}
-        aria-label="축소"
-        className="flex h-9 w-9 items-center justify-center text-[#3B2A1E] active:bg-[#F0E8DF]"
-      >
-        <Minus size={18} strokeWidth={2} />
-      </button>
-    </div>
-  )
-}
 
 function BottomSheet({ title, onClose, children }) {
   return (
@@ -446,19 +396,19 @@ function InviteSheet({ board, inviteLink, onCopy, copyMessage, onClose }) {
   )
 }
 
-function PlaceBoardChrome({ board, onBack, onOpenPlaceInfo, children }) {
+function PlaceBoardChrome({ board, onBack, onRefresh, onOpenPlaceInfo, children }) {
   return (
     <>
-      <PlaceBoardHeader board={board} onBack={onBack} onOpenPlaceInfo={onOpenPlaceInfo} />
+      <PlaceBoardHeader board={board} onBack={onBack} onRefresh={onRefresh} onOpenPlaceInfo={onOpenPlaceInfo} />
       {children}
     </>
   )
 }
 
-function CustomBoardChrome({ board, onBack, onOpenInvite, children }) {
+function CustomBoardChrome({ board, onBack, onRefresh, onOpenInvite, children }) {
   return (
     <>
-      <CustomBoardHeader board={board} onBack={onBack} onOpenInvite={onOpenInvite} />
+      <CustomBoardHeader board={board} onBack={onBack} onRefresh={onRefresh} onOpenInvite={onOpenInvite} />
       {children}
     </>
   )
@@ -504,7 +454,6 @@ function BoardDetail() {
   const { id } = useParams()
   const boardId = id ?? 'place-daelim'
 
-  const [sort, setSort] = useState('latest')
   const [boardDetail, setBoardDetail] = useState(null)
   const [posts, setPosts] = useState([])
   const [isLoading, setIsLoading] = useState(true)
@@ -512,7 +461,6 @@ function BoardDetail() {
   const [boardDetailErrorMessage, setBoardDetailErrorMessage] = useState('')
   const [actionMessage, setActionMessage] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
-  const [zoom, setZoom] = useState(100)
   const [activeSheet, setActiveSheet] = useState(null)
   const [copyMessage, setCopyMessage] = useState('')
   const [newPostId, setNewPostId] = useState(null)
@@ -522,7 +470,6 @@ function BoardDetail() {
   const transformRef = useRef(null)
 
   const board = useMemo(() => buildBoard(boardId, location.state, boardDetail ?? (location.state?.boardName ? { boardName: location.state.boardName } : null)), [boardDetail, boardId, location.state])
-  const sortedPosts = useMemo(() => sortPosts(posts, sort), [posts, sort])
   const inviteLink = useMemo(() => {
     if (typeof window === 'undefined') return `/board/${boardId}`
     return `${window.location.origin}/board/${boardId}`
@@ -584,9 +531,13 @@ function BoardDetail() {
       setPosts([])
 
       try {
-        const data = await fetchBoardTraces(boardId, { sort, limit: 100 })
+        const isCustom = board.boardType === BOARD_TYPE.CUSTOM
+        const data = isCustom
+          ? await getCustomBoardTraces(boardId)
+          : await fetchBoardTraces(boardId, { limit: 100 })
         if (!ignore) {
-          setPosts((data.traces ?? []).map(traceToPost))
+          const traces = data.traces ?? data.content ?? (Array.isArray(data) ? data : [])
+          setPosts(traces.map(traceToPost))
         }
       } catch (error) {
         if (ignore) return
@@ -616,7 +567,7 @@ function BoardDetail() {
     return () => {
       ignore = true
     }
-  }, [boardId, location, navigate, reloadKey, sort])
+  }, [board.boardType, boardId, location, navigate, reloadKey])
 
   const refreshTraces = useCallback(() => {
     setReloadKey((value) => value + 1)
@@ -691,7 +642,7 @@ function BoardDetail() {
         boardPageId: placement.boardPage.boardPageId,
         boardPosition: placement.boardPosition,
       }
-      const createdTrace = await createTrace(boardId, {
+      const tracePayload = {
         traceX: Math.round(placement.boardPosition.x),
         traceY: Math.round(placement.boardPosition.y),
         elements: [{
@@ -700,10 +651,17 @@ function BoardDetail() {
           styleJson: JSON.stringify(nextStyle),
           textContent: placementDraft.content ?? '',
         }],
-      })
+      }
+      const isCustomBoard = board.boardType === BOARD_TYPE.CUSTOM
+      const createdTrace = isCustomBoard
+        ? await createCustomBoardTrace(boardId, tracePayload)
+        : await createTrace(boardId, tracePayload)
 
       const createdId = createdTrace?.traceId ?? createdTrace?.id
-      const fresh = await fetchBoardTraces(boardId, { sort, limit: 100 })
+      const freshData = isCustomBoard
+        ? await getCustomBoardTraces(boardId)
+        : await fetchBoardTraces(boardId, { limit: 100 })
+      const fresh = { traces: freshData.traces ?? freshData.content ?? (Array.isArray(freshData) ? freshData : []) }
       const newPosts = (fresh.traces ?? []).map(traceToPost).map((post) => {
         if (getPostId(post) !== createdId) return post
         return {
@@ -757,7 +715,7 @@ function BoardDetail() {
     } finally {
       setIsSaving(false)
     }
-  }, [boardId, isSaving, location, navigate, placementDraft, posts, sort])
+  }, [boardId, isSaving, location, navigate, placementDraft, posts])
 
   useEffect(() => {
     if (!placementDraft || isLoading || isSaving) return undefined
@@ -775,13 +733,6 @@ function BoardDetail() {
     }
   }
 
-  const handleZoomIn = () => {
-    transformRef.current?.zoomIn(0.25)
-  }
-
-  const handleZoomOut = () => {
-    transformRef.current?.zoomOut(0.25)
-  }
 
   const renderBoardContent = () => {
     if (isLoading) {
@@ -805,11 +756,10 @@ function BoardDetail() {
 
     return (
       <BoardCanvas
-        posts={sortedPosts}
+        posts={posts}
         onAdd={handleAdd}
         onRefresh={refreshTraces}
         transformRef={transformRef}
-        onZoomChange={setZoom}
         onPostDeleted={(postId) => setPosts((prev) => prev.filter((post) => getPostId(post) !== postId))}
         newPostId={newPostId}
         onNewPostFocused={() => setNewPostId(null)}
@@ -819,7 +769,6 @@ function BoardDetail() {
 
   const chrome = (
     <>
-      <BoardSortControl sort={sort} onSort={setSort} />
 
       <div className="relative flex-1 overflow-hidden">
         <div className="absolute inset-0">{renderBoardContent()}</div>
@@ -837,10 +786,7 @@ function BoardDetail() {
         ) : null}
 
         {!isLoading && !errorMessage ? (
-          <div className="absolute bottom-20 right-4 z-20 flex flex-col items-center gap-2">
-            {/* 줌 컨트롤 */}
-            <ZoomControls onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} />
-            {/* FAB — 흔적 남기기 */}
+          <div className="absolute bottom-20 right-4 z-20">
             <button
               type="button"
               onClick={handleAdd}
@@ -859,11 +805,11 @@ function BoardDetail() {
   return (
     <main className="app-device relative flex flex-col overflow-hidden bg-[#F5EFE6]">
       {board.boardType === BOARD_TYPE.PLACE ? (
-        <PlaceBoardChrome board={board} onBack={() => navigate(-1)} onOpenPlaceInfo={() => setActiveSheet('place')}>
+        <PlaceBoardChrome board={board} onBack={() => navigate(-1)} onRefresh={refreshTraces} onOpenPlaceInfo={() => setActiveSheet('place')}>
           {chrome}
         </PlaceBoardChrome>
       ) : (
-        <CustomBoardChrome board={board} onBack={() => navigate(-1)} onOpenInvite={() => setActiveSheet('invite')}>
+        <CustomBoardChrome board={board} onBack={() => navigate(-1)} onRefresh={refreshTraces} onOpenInvite={() => setActiveSheet('invite')}>
           {chrome}
         </CustomBoardChrome>
       )}

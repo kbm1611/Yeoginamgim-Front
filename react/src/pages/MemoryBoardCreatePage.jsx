@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { createCustomBoard } from '../api/customBoards'
 import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
 import { clearAuthToken } from '../api/client'
+import { uploadTraceImage } from '../api/traces'
 
 function MemoryBoardCreatePage() {
   const navigate = useNavigate()
@@ -13,6 +14,7 @@ function MemoryBoardCreatePage() {
   const [boardName, setBoardName] = useState('')
   const [description, setDescription] = useState('')
   const [coverImage, setCoverImage] = useState('')
+  const [coverImageFile, setCoverImageFile] = useState(null)
   const [errorMessage, setErrorMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -25,6 +27,7 @@ function MemoryBoardCreatePage() {
 
     if (coverImage) URL.revokeObjectURL(coverImage)
     setCoverImage(URL.createObjectURL(file))
+    setCoverImageFile(file)
   }
 
   const handleSubmit = async () => {
@@ -34,10 +37,16 @@ function MemoryBoardCreatePage() {
     setErrorMessage('')
 
     try {
+      let boardImageUrl = null
+      if (coverImageFile) {
+        const uploaded = await uploadTraceImage(coverImageFile)
+        boardImageUrl = uploaded.imageUrl ?? uploaded.url ?? null
+      }
+
       const createdBoard = await createCustomBoard({
         boardTitle: trimmedName,
         boardDescription: description.trim(),
-        boardImageUrl: coverImage || null,
+        boardImageUrl,
       })
       const boardId = createdBoard?.boardId ?? createdBoard?.customBoardId ?? createdBoard?.id
 

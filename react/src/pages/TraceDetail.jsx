@@ -1,38 +1,27 @@
 import { useState, useEffect } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { AlertTriangle, Bookmark, ChevronLeft, ChevronRight, Heart, MapPin, MoreHorizontal, Pencil, StickyNote, Camera, Trash2, Flag } from 'lucide-react'
+import { AlertTriangle, Bookmark, ChevronRight, Heart, MoreHorizontal, Pencil, X, Trash2, Flag } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { clearAuthToken } from '../api/client'
 import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
 import { addTraceLike, deleteTrace, fetchTrace, removeTraceLike } from '../api/traces'
 import { fetchMyInfo } from '../api/users'
+import { createTraceReport } from '../api/reports'
 import { traceToPost } from './tracePost.utils'
 
-function TapeStrip() {
-  return (
-    <div
-      className="absolute -top-5 left-1/2 z-10 -translate-x-1/2 -rotate-2"
-      style={{
-        width: 56, height: 22,
-        backgroundColor: 'rgba(220, 210, 180, 0.75)',
-        borderRadius: 2,
-        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4)',
-      }}
-    />
-  )
-}
+const REPORT_REASONS = [
+  { id: 'SPAM', label: '스팸/광고' },
+  { id: 'INAPPROPRIATE', label: '부적절한 콘텐츠' },
+  { id: 'HATE', label: '혐오/차별 발언' },
+  { id: 'PRIVACY', label: '개인정보 침해' },
+  { id: 'ETC', label: '기타' },
+]
 
-function formatTimeAgo(dateStr) {
+function formatDate(dateStr) {
   if (!dateStr) return ''
-  const diff = Date.now() - new Date(dateStr).getTime()
-  const m = Math.floor(diff / 60000)
-  if (m < 1) return '방금 전'
-  if (m < 60) return `${m}분 전`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h}시간 전`
-  const d = Math.floor(h / 24)
-  if (d < 7) return `${d}일 전`
-  return new Date(dateStr).toLocaleDateString('ko-KR')
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return ''
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
 }
 
 function TraceDetail() {
@@ -52,6 +41,10 @@ function TraceDetail() {
   const [traceError, setTraceError] = useState('')
   const [isLikePending, setIsLikePending] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [showReportModal, setShowReportModal] = useState(false)
+  const [selectedReason, setSelectedReason] = useState(null)
+  const [isReporting, setIsReporting] = useState(false)
+  const [reportDone, setReportDone] = useState(false)
 
   useEffect(() => {
     if (location.state?.post || !traceId) return
@@ -104,7 +97,7 @@ function TraceDetail() {
   const isMyPost = myNickname && post?.nickname && myNickname === post.nickname
 
   const handleLike = async () => {
-    if (isLikePending || isMyPost) return
+    if (isLikePending) return
     const next = !liked
     setIsLikePending(true)
     setActionError('')
@@ -143,6 +136,19 @@ function TraceDetail() {
     }
   }
 
+  const handleReport = async () => {
+    if (!selectedReason || isReporting) return
+    setIsReporting(true)
+    try {
+      await createTraceReport(post.id, { reason: selectedReason })
+      setReportDone(true)
+    } catch (error) {
+      handleUnauthorizedApiError(error, { clearToken: clearAuthToken, navigate, location })
+    } finally {
+      setIsReporting(false)
+    }
+  }
+
   if (isLoadingTrace) {
     return (
       <div className="app-device flex flex-col items-center justify-center bg-[#F5EFE6]">
@@ -161,238 +167,143 @@ function TraceDetail() {
   }
 
   const isPolaroid = post.type === 'polaroid'
-  const POSTIT_COLORS = { yellow: '#F7E58A', cream: '#F0EAD6', pink: '#FFD6DC', green: '#D2ECC8', blue: '#C8E0F4', white: '#FFFFFF' }
-  const postitBg = post.style?.backgroundColor ?? POSTIT_COLORS[post.style?.paperColor] ?? '#F7E58A'
-  const postitFont = post.style?.fontFamily ?? "'Gaegu', cursive"
-
-  // 작성자 통계 — 내 포스트면 내 통계, 남의 포스트면 post에서 가져옴
-  const authorStats = isMyPost ? myStats : (post.authorStats ?? null)
+  const POSTIT_COLOR_MAP = { yellow: '#F7E58A', cream: '#FFF0CC', pink: '#F6ABBE', green: '#B8E0A0', sky: '#A8D8F0', purple: '#D4B8F0', white: '#FFFFFF' }
+  const postitBg = post.style?.paperColor
+    ? (POSTIT_COLOR_MAP[post.style.paperColor] ?? '#F7E58A')
+    : (post.style?.backgroundColor ?? '#F7E58A')
+  const postitFont = post.style?.textObjects?.[0]?.fontFamily ?? post.style?.fontFamily ?? "'Gaegu', cursive"
 
   return (
     <motion.div
-      className="app-device flex flex-col overflow-hidden bg-white"
+      className="app-device flex flex-col bg-white"
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 24 }}
       transition={{ duration: 0.22 }}
     >
-      {/* ── 헤더 (투명 오버레이) ── */}
+      {/* ── 헤더 ── */}
       <header className="absolute inset-x-0 top-0 z-20 flex items-center justify-between px-4 pt-3 pb-2">
         <button
           type="button"
           onClick={() => navigate(-1)}
           className="flex h-9 w-9 items-center justify-center rounded-full bg-white/80 backdrop-blur-sm shadow-sm"
         >
-          <ChevronLeft size={20} strokeWidth={2.2} color="#3B2A1E" />
+          <X size={18} strokeWidth={2.2} color="#3B2A1E" />
         </button>
-        <p className="text-[15px] font-bold text-[#2A1A0E] drop-shadow-sm">흔적 상세</p>
-        <button
-          type="button"
-          onClick={() => setShowMenu(v => !v)}
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-white/80 backdrop-blur-sm shadow-sm"
-        >
-          <MoreHorizontal size={20} strokeWidth={2} color="#3B2A1E" />
-        </button>
+        <div />
       </header>
 
-      {/* ── 상단: 포스트잇/폴라로이드 + 배경 ── */}
-      <div
-        className="relative flex shrink-0 items-center justify-center"
-        style={{
-          minHeight: 340,
-          background: 'linear-gradient(160deg, #EEE4D0 0%, #E0D4C0 100%)',
-          paddingTop: 72,
-          paddingBottom: 52,
-        }}
-      >
-        <div className="relative">
-          <TapeStrip />
+      {/* ── 포스트잇 카드 영역 ── */}
+      <div className="flex flex-col overflow-y-auto">
+        {/* 카드 */}
+        <div className="pt-14 pb-3">
           {post.capturedImage ? (
-            <img
-              src={post.capturedImage}
-              alt=""
-              style={{
-                width: 240, height: 240,
-                objectFit: 'fill',
-                borderRadius: 6,
-                boxShadow: '3px 6px 0 rgba(0,0,0,0.08), 4px 18px 36px rgba(0,0,0,0.18)',
-                display: 'block',
-              }}
-            />
+            <div className="relative w-full" style={{ background: postitBg, borderRadius: 6 }}>
+              <img
+                src={post.capturedImage}
+                alt=""
+                style={{
+                  width: '100%',
+                  display: 'block',
+                  borderRadius: 6,
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+                }}
+              />
+              <p className="absolute left-4 top-4 text-[11px] text-[#8B7A6B]/70">
+                {formatDate(post.createdAt)}
+              </p>
+            </div>
           ) : isPolaroid ? (
             <div style={{
-              width: 220, background: '#fff', borderRadius: 4,
-              padding: '10px 10px 42px',
-              boxShadow: '3px 6px 0 rgba(0,0,0,0.08), 4px 18px 36px rgba(0,0,0,0.18)',
+              width: '100%',
+              background: '#fff',
+              borderRadius: 6,
+              padding: '14px 14px 52px',
+              boxShadow: '0 4px 24px rgba(0,0,0,0.13)',
             }}>
               {post.media?.image
-                ? <img src={post.media.image} alt="" style={{ width: '100%', height: 180, objectFit: 'cover', borderRadius: 2 }} />
-                : <div style={{ width: '100%', height: 180, background: '#EEE7DC', borderRadius: 2 }} />
+                ? <img src={post.media.image} alt="" style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', borderRadius: 3 }} />
+                : <div style={{ width: '100%', aspectRatio: '4/3', background: '#EEE7DC', borderRadius: 3 }} />
               }
               {post.content && (
-                <p style={{ textAlign: 'center', marginTop: 10, fontFamily: "'Gaegu', cursive", fontSize: 18, color: '#2A1A0E', lineHeight: 1.4 }}>
+                <p style={{ textAlign: 'center', marginTop: 14, fontFamily: "'Gaegu', cursive", fontSize: 20, color: '#2A1A0E', lineHeight: 1.4 }}>
                   {post.content}
                 </p>
               )}
             </div>
           ) : (
-            <div style={{
-              width: 230, height: 230,
-              background: postitBg,
-              borderRadius: 6,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              padding: 24,
-              boxShadow: '3px 6px 0 rgba(0,0,0,0.08), 4px 18px 36px rgba(0,0,0,0.18)',
-            }}>
-              <p style={{ fontFamily: postitFont, fontSize: 22, color: '#2A1A0E', textAlign: 'center', lineHeight: 1.5 }}>
+            // 포스트잇
+            <div
+              style={{
+                width: '100%',
+                aspectRatio: '1 / 1',
+                background: postitBg,
+                borderRadius: 0,
+                position: 'relative',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+                padding: '12% 10% 10%',
+              }}
+            >
+              <p style={{ fontSize: 11, color: 'rgba(60,40,20,0.4)', marginBottom: 20, fontFamily: 'sans-serif', letterSpacing: 0.5 }}>
+                {formatDate(post.createdAt)}
+              </p>
+              <p style={{
+                fontFamily: postitFont,
+                fontSize: 30,
+                color: '#2A1A0E',
+                lineHeight: 1.6,
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+                textAlign: 'left',
+              }}>
                 {post.content}
               </p>
             </div>
           )}
         </div>
-      </div>
 
-      {/* ── 하단 정보 영역 (흰 카드 느낌) ── */}
-      <div className="flex flex-1 flex-col overflow-y-auto rounded-t-3xl bg-white" style={{ marginTop: -20, zIndex: 10 }}>
-        <div className="mx-auto mt-2 mb-4 h-1 w-10 rounded-full bg-[#E0D4C8]" />
-
-        {/* 작성자 행 */}
-        <div className="flex items-center gap-3 px-5 pb-4">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#D4C4B0] text-[16px] font-bold text-[#5C4030]">
-            {post.nickname?.[0] ?? '?'}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[15px] font-bold text-[#2A1A0E] truncate">{post.nickname ?? '알 수 없음'}</p>
-            <p className="text-[12px] text-[#9B8B7B]">{formatTimeAgo(post.createdAt)}</p>
-          </div>
-          {isMyPost ? (
-            <button
-              type="button"
-              onClick={handleEdit}
-              className="flex shrink-0 items-center gap-1.5 rounded-full border border-[#D8CEC2] px-4 py-1.5 text-[12px] font-semibold text-[#5C4030]"
-            >
-              <Pencil size={12} strokeWidth={2} />
-              수정
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="flex shrink-0 items-center gap-1 rounded-full border border-[#D8CEC2] px-3 py-1.5 text-[12px] font-semibold text-[#5C4030]"
-            >
-              <span>작성자 흔적 더 보기</span>
-              <ChevronRight size={13} strokeWidth={2} />
-            </button>
-          )}
-        </div>
-
-        <div className="h-px bg-[#F0E8DF] mx-5" />
-
-        {/* 장소 행 */}
-        {(post.placeName || post.boardName) && (
-          <>
-            <button
-              type="button"
-              onClick={() => boardId && navigate(`/board/${boardId}`)}
-              className="flex items-center gap-3 px-5 py-4 active:bg-[#FAF5EF]"
-            >
-              <MapPin size={17} strokeWidth={1.8} color="#9B8B7B" />
-              <span className="flex-1 text-left text-[14px] font-semibold text-[#3B2A1E]">
-                {post.placeName || post.boardName}
-              </span>
-              <ChevronRight size={16} strokeWidth={2} color="#C4B8A8" />
-            </button>
-            <div className="h-px bg-[#F0E8DF] mx-5" />
-          </>
-        )}
-
-        {/* 좋아요 + 북마크 행 */}
-        <div className="flex items-center justify-between px-5 py-4">
+        {/* 좋아요 */}
+        <div className="flex items-center gap-2 px-5 pb-4 pt-3">
           <button
             type="button"
             onClick={handleLike}
-            disabled={isLikePending || !!isMyPost}
-            className="flex items-center gap-2 disabled:opacity-60"
+            disabled={isLikePending}
+            className="flex items-center gap-1.5 disabled:opacity-50"
           >
             <Heart
-              size={22}
+              size={20}
               strokeWidth={1.8}
               fill={liked ? '#E84855' : 'none'}
               color={liked ? '#E84855' : '#9B8B7B'}
             />
-            <span className="text-[14px] font-semibold text-[#3B2A1E]">{likes}명이 좋아해요</span>
-          </button>
-          <button
-            type="button"
-            className="flex h-9 w-9 items-center justify-center rounded-full active:bg-[#FAF5EF]"
-          >
-            <Bookmark size={20} strokeWidth={1.8} color="#9B8B7B" />
+            <span className="text-[14px] text-[#6B5B4E]">{likes}</span>
           </button>
         </div>
 
-        {/* 에러 */}
-        {actionError && (
-          <div className="mx-5 mb-2 rounded-xl bg-[#FFF0EE] px-4 py-3 text-center text-[13px] font-semibold text-[#C0392B]">
-            {actionError}
+        {/* 구분선 */}
+        <div className="h-px bg-[#E8E0D8] mx-5" />
+
+        {/* 작성자 */}
+        <div className="flex items-center gap-3 px-5 py-4">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#D4C4B0] text-[15px] font-bold text-[#5C4030]">
+            {post.nickname?.[0] ?? '?'}
           </div>
-        )}
-
-        <div className="h-px bg-[#F0E8DF] mx-5" />
-
-        {/* 신고하기 */}
-        {!isMyPost && (
+          <div className="flex-1 min-w-0">
+            <p className="text-[15px] font-bold text-[#2A1A0E] truncate">{post.nickname ?? '익명의 여행자'}</p>
+            <p className="text-[12px] text-[#9B8B7B]">남긴 흔적 {myStats?.traceCount ?? post.cell?.traceCount ?? '-'}개</p>
+          </div>
           <button
             type="button"
-            className="flex items-center justify-center gap-2 py-4 text-[13px] font-semibold text-[#C0392B]/80"
+            onClick={() => setShowMenu(v => !v)}
+            className="flex h-9 w-9 items-center justify-center rounded-full active:bg-[#F0E8DF]"
           >
-            <AlertTriangle size={14} strokeWidth={2} />
-            신고하기
+            <MoreHorizontal size={20} strokeWidth={2} color="#9B8B7B" />
           </button>
-        )}
+        </div>
 
-        {/* 작성자 흔적 통계 카드 */}
-        {post.nickname && (
-          <div className="mx-4 mt-3 mb-6 overflow-hidden rounded-2xl border border-[#EDE5D8] bg-[#FAF6F0]">
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#EDE5D8]">
-              <p className="text-[14px] font-bold text-[#2A1A0E]">
-                {isMyPost ? '내가 남긴 다른 흔적' : `${post.nickname}이 남긴 다른 흔적`}
-              </p>
-              <ChevronRight size={15} strokeWidth={2} color="#C4B8A8" />
-            </div>
-            <div className="grid grid-cols-3 divide-x divide-[#EDE5D8] py-4">
-              <div className="flex flex-col items-center gap-2">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F5EFE6]">
-                  <StickyNote size={18} color="#8B6E5A" strokeWidth={1.8} />
-                </div>
-                <div className="text-center">
-                  <p className="text-[17px] font-bold text-[#2A1A0E]">
-                    {isMyPost ? (myStats?.traceCount ?? 0) : (authorStats?.postitCount ?? '-')}
-                  </p>
-                  <p className="text-[11px] text-[#9B8B7B]">포스트잇</p>
-                </div>
-              </div>
-              <div className="flex flex-col items-center gap-2">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F5EFE6]">
-                  <Camera size={18} color="#8B6E5A" strokeWidth={1.8} />
-                </div>
-                <div className="text-center">
-                  <p className="text-[17px] font-bold text-[#2A1A0E]">
-                    {isMyPost ? (myStats?.polaroidCount ?? 0) : (authorStats?.polaroidCount ?? '-')}
-                  </p>
-                  <p className="text-[11px] text-[#9B8B7B]">폴라로이드</p>
-                </div>
-              </div>
-              <div className="flex flex-col items-center gap-2">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F5EFE6]">
-                  <MapPin size={18} color="#8B6E5A" strokeWidth={1.8} />
-                </div>
-                <div className="text-center">
-                  <p className="text-[17px] font-bold text-[#2A1A0E]">
-                    {isMyPost ? (myStats?.archiveBoardCount ?? 0) : (authorStats?.boardCount ?? '-')}
-                  </p>
-                  <p className="text-[11px] text-[#9B8B7B]">방문 장소</p>
-                </div>
-              </div>
-            </div>
+        {actionError && (
+          <div className="mx-5 mb-3 rounded-xl bg-[#FFF0EE] px-4 py-3 text-center text-[13px] font-semibold text-[#C0392B]">
+            {actionError}
           </div>
         )}
       </div>
@@ -434,6 +345,7 @@ function TraceDetail() {
               ) : (
                 <button
                   type="button"
+                  onClick={() => { setShowMenu(false); setShowReportModal(true) }}
                   className="flex w-full items-center gap-3 px-5 py-4 text-[15px] font-semibold text-[#C0392B] active:bg-[#FFF0EE]"
                 >
                   <Flag size={18} strokeWidth={1.8} />
@@ -486,6 +398,72 @@ function TraceDetail() {
                   {isDeleting ? '삭제 중...' : '삭제'}
                 </button>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {/* ── 신고 모달 ── */}
+      <AnimatePresence>
+        {showReportModal && (
+          <motion.div
+            className="absolute inset-0 z-50 flex items-end justify-center bg-black/40"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => { if (!isReporting) { setShowReportModal(false); setSelectedReason(null); setReportDone(false) } }}
+          >
+            <motion.div
+              className="w-full rounded-t-2xl bg-white pb-8 shadow-xl"
+              initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 60, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
+            >
+              {reportDone ? (
+                <div className="flex flex-col items-center gap-3 px-6 py-10">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#FFF0EE]">
+                    <Flag size={24} color="#C0392B" strokeWidth={1.8} />
+                  </div>
+                  <p className="text-[16px] font-bold text-[#2A1A0E]">신고가 접수됐어요</p>
+                  <p className="text-center text-[13px] text-[#9B8B7B]">검토 후 조치할게요. 불편을 드려서 죄송합니다.</p>
+                  <button
+                    type="button"
+                    onClick={() => { setShowReportModal(false); setSelectedReason(null); setReportDone(false) }}
+                    className="mt-2 w-full rounded-full bg-[#3B2A1E] py-3 text-[14px] font-bold text-white"
+                  >
+                    확인
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between px-5 py-4">
+                    <p className="text-[16px] font-bold text-[#2A1A0E]">신고 사유 선택</p>
+                    <button type="button" onClick={() => { setShowReportModal(false); setSelectedReason(null) }}>
+                      <X size={20} color="#9B8B7B" />
+                    </button>
+                  </div>
+                  <div className="h-px bg-[#F0E8DF]" />
+                  {REPORT_REASONS.map(r => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => setSelectedReason(r.id)}
+                      className="flex w-full items-center justify-between px-5 py-4 active:bg-[#FAF5EF]"
+                    >
+                      <span className="text-[15px] text-[#2A1A0E]">{r.label}</span>
+                      <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center ${selectedReason === r.id ? 'border-[#C0392B] bg-[#C0392B]' : 'border-[#D8CEC2]'}`}>
+                        {selectedReason === r.id && <div className="h-2 w-2 rounded-full bg-white" />}
+                      </div>
+                    </button>
+                  ))}
+                  <div className="px-5 pt-3">
+                    <button
+                      type="button"
+                      onClick={handleReport}
+                      disabled={!selectedReason || isReporting}
+                      className="w-full rounded-full bg-[#C0392B] py-3 text-[14px] font-bold text-white disabled:opacity-40"
+                    >
+                      {isReporting ? '신고 중...' : '신고하기'}
+                    </button>
+                  </div>
+                </>
+              )}
             </motion.div>
           </motion.div>
         )}
