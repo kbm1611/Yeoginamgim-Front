@@ -894,7 +894,7 @@ export default function PostItEditor() {
       canvas.toBlob(blob => {
         if (!blob) { reject(new Error('canvas export failed')); return }
         resolve(URL.createObjectURL(blob))
-      }, 'image/png')
+      }, 'image/jpeg', 0.92)
     })
   }
 
