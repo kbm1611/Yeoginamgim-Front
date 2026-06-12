@@ -16,7 +16,7 @@ import { fetchBoardDetail } from '../api/boards'
 import { API_BASE_URL, clearAuthToken } from '../api/client'
 import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
 import { createTrace, fetchBoardTraces, uploadTraceImage } from '../api/traces'
-import { createCustomBoardTrace, getCustomBoardTraces } from '../api/customBoards'
+import { createCustomBoardTrace, createInviteLink, getCustomBoardTraces } from '../api/customBoards'
 import BoardCanvas, { BOARD_HEIGHT, BOARD_WIDTH, findEmptySpotNear } from '../components/board/BoardCanvas'
 import BottomNavigation from '../components/BottomNavigation'
 import { traceToPost } from './tracePost.utils'
@@ -344,13 +344,16 @@ function PlaceInfoSheet({ board, onClose }) {
   )
 }
 
-function InviteSheet({ board, inviteLink, onCopy, copyMessage, onClose }) {
+function InviteSheet({ board, inviteLink, isInviteLinkLoading, onCopy, copyMessage, onClose }) {
   return (
     <BottomSheet title="초대" onClose={onClose}>
       <div className="space-y-5">
         <div className="rounded-[16px] bg-[#EFE1D1] px-4 py-3">
           <p className="text-[12px] font-bold text-[#7A5D46]">초대 링크</p>
-          <p className="mt-2 break-all text-[13px] font-semibold leading-relaxed text-[#3D2415]">{inviteLink}</p>
+          {isInviteLinkLoading
+            ? <p className="mt-2 text-[13px] font-semibold text-[#9A8068]">링크 생성 중...</p>
+            : <p className="mt-2 break-all text-[13px] font-semibold leading-relaxed text-[#3D2415]">{inviteLink}</p>
+          }
           {copyMessage ? <p className="mt-2 text-[12px] font-bold text-[#7A5D46]">{copyMessage}</p> : null}
         </div>
 
@@ -469,10 +472,8 @@ function BoardDetail() {
   const autoPlaceAttemptedDraftIdRef = useRef(null)
 
   const board = useMemo(() => buildBoard(boardId, location.state, boardDetail ?? (location.state?.boardName ? { boardName: location.state.boardName } : null)), [boardDetail, boardId, location.state])
-  const inviteLink = useMemo(() => {
-    if (typeof window === 'undefined') return `/board/${boardId}`
-    return `${window.location.origin}/board/${boardId}`
-  }, [boardId])
+  const [inviteLink, setInviteLink] = useState('')
+  const [isInviteLinkLoading, setIsInviteLinkLoading] = useState(false)
 
   useEffect(() => {
     if (location.state?.placementDraft) {
@@ -726,6 +727,25 @@ function BoardDetail() {
     return () => window.clearTimeout(timerId)
   }, [handlePlace, isLoading, isSaving, placementDraft])
 
+  const handleOpenInvite = async () => {
+    setActiveSheet('invite')
+    setCopyMessage('')
+    setIsInviteLinkLoading(true)
+    try {
+      const res = await createInviteLink(boardId)
+      const code = res?.inviteCode ?? res?.code ?? res?.invite_code
+      if (code) {
+        setInviteLink(`${window.location.origin}/board/join/${code}`)
+      } else {
+        setInviteLink(`${window.location.origin}/board/${boardId}`)
+      }
+    } catch {
+      setInviteLink(`${window.location.origin}/board/${boardId}`)
+    } finally {
+      setIsInviteLinkLoading(false)
+    }
+  }
+
   const handleCopyInvite = async () => {
     try {
       await navigator.clipboard.writeText(inviteLink)
@@ -811,7 +831,7 @@ function BoardDetail() {
           {chrome}
         </PlaceBoardChrome>
       ) : (
-        <CustomBoardChrome board={board} onBack={() => navigate(-1)} onRefresh={refreshTraces} onOpenInvite={() => setActiveSheet('invite')}>
+        <CustomBoardChrome board={board} onBack={() => navigate(-1)} onRefresh={refreshTraces} onOpenInvite={handleOpenInvite}>
           {chrome}
         </CustomBoardChrome>
       )}
@@ -863,6 +883,7 @@ function BoardDetail() {
         <InviteSheet
           board={board}
           inviteLink={inviteLink}
+          isInviteLinkLoading={isInviteLinkLoading}
           onCopy={handleCopyInvite}
           copyMessage={copyMessage}
           onClose={() => setActiveSheet(null)}
