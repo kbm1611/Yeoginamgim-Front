@@ -98,7 +98,7 @@ function TraceDetail() {
   }, [location, navigate])
 
   const isMyPost = myUserId && post?.userId
-    ? myUserId === post.userId
+    ? String(myUserId) === String(post.userId)
     : myNickname && post?.nickname && myNickname === post.nickname
 
   const handleLike = async () => {

@@ -5,6 +5,7 @@ import MainLayout from './layouts/MainLayout'
 import ArchivePage from './pages/ArchivePage'
 import BoardDetail from './pages/BoardDetail'
 import FollowListPage from './pages/FollowListPage'
+import FriendSearchPage from './pages/FriendSearchPage'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import Map from './pages/Map'
@@ -56,6 +57,7 @@ function AnimatedRoutes() {
           <Route path="/archive" element={<ArchivePage />} />
           <Route path="/notifications" element={<NotificationPage />} />
           <Route path="/my" element={<MyPage />} />
+          <Route path="/friends" element={<FriendSearchPage />} />
           <Route path="/users/:userId/followers" element={<FollowListPage type="followers" />} />
           <Route path="/users/:userId/followings" element={<FollowListPage type="followings" />} />
         </Route>

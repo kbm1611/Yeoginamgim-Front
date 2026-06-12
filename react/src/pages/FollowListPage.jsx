@@ -5,12 +5,15 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { fetchFollowers, fetchFollowings } from '../api/follows'
 import { API_BASE_URL, clearAuthToken, getAuthToken } from '../api/client'
 import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
+import { fetchMyInfo } from '../api/users'
+import FollowButton from '../components/FollowButton'
 
 function FollowListPage({ type }) {
   const { userId } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
   const [users, setUsers] = useState([])
+  const [currentUserId, setCurrentUserId] = useState(null)
   const [status, setStatus] = useState('loading')
   const [error, setError] = useState('')
   const isFollowers = type === 'followers'
@@ -33,7 +36,11 @@ function FollowListPage({ type }) {
     setError('')
 
     try {
-      const data = isFollowers ? await fetchFollowers(userId) : await fetchFollowings(userId)
+      const [myInfo, data] = await Promise.all([
+        fetchMyInfo(),
+        isFollowers ? fetchFollowers(userId) : fetchFollowings(userId),
+      ])
+      setCurrentUserId(myInfo?.userId ?? null)
       setUsers(Array.isArray(data) ? data : [])
       setStatus('ready')
     } catch (apiError) {
@@ -134,6 +141,9 @@ function FollowListPage({ type }) {
                     {formatFollowedAt(user.followedAt)}
                   </p>
                 </div>
+                {currentUserId && user.userId && String(currentUserId) !== String(user.userId) && (
+                  <FollowButton targetUserId={user.userId} currentUserId={currentUserId} />
+                )}
               </li>
             )
           })}
