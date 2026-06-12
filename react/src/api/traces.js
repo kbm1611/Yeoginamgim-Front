@@ -1,5 +1,8 @@
 import { apiClient, pathSegment } from './client'
 
+export const MAX_TRACE_IMAGE_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024
+export const TRACE_IMAGE_UPLOAD_SIZE_MESSAGE = '10MB 이하의 이미지만 업로드할 수 있습니다.'
+
 export function fetchRecentTraces({ period, district, limit = 5 } = {}) {
   return apiClient.get('/api/traces/recent', { period, district, limit })
 }
@@ -37,6 +40,10 @@ export function fetchTrace(traceId) {
 
 // 이미지파일 업로더
 export function uploadTraceImage(file) {
+  if (file?.size > MAX_TRACE_IMAGE_UPLOAD_SIZE_BYTES) {
+    throw new Error(TRACE_IMAGE_UPLOAD_SIZE_MESSAGE)
+  }
+
   const formData = new FormData()
   formData.append('file', file)
 
