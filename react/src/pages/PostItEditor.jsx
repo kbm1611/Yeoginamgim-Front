@@ -20,10 +20,8 @@ const POSTIT_COLORS = [
 ]
 
 const FONTS = [
-  { id: 'gaegu',   label: '귀여운',  family: "'Gaegu', cursive" },
-  { id: 'jua',     label: '통통',    family: "'Jua', sans-serif" },
-  { id: 'poor',    label: '낙서',    family: "'Poor Story', cursive" },
-  { id: 'dokdo',   label: '개성',    family: "'Dokdo', cursive" },
+  { id: 'pretendard', label: '기본',   family: "'Pretendard', sans-serif" },
+  { id: 'yiseoyun',   label: '손글씨', family: "'YiSeoYun', cursive" },
 ]
 
 const TEXT_COLORS = ['#1A1A1A', '#FFFFFF', '#C0392B', '#2D9CDB', '#27AE60', '#F39C12', '#9B59B6', '#F6ABBE']
@@ -772,6 +770,11 @@ export default function PostItEditor() {
   // ── export ──
   const exportImage = async () => {
     const W = 2048, H = 2048
+    await document.fonts.ready
+    await Promise.allSettled([
+      document.fonts.load('600 48px "Pretendard"'),
+      document.fonts.load('400 48px "YiSeoYun"'),
+    ])
     const canvas = document.createElement('canvas')
     canvas.width = W; canvas.height = H
     const ctx = canvas.getContext('2d')
