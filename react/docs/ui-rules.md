@@ -18,7 +18,7 @@
 
 ---
 
-# 2. Layout Rules
+## 2. Layout Rules
 
 ## Mobile First
 
@@ -75,7 +75,7 @@ padding-right: 16px;
 
 ---
 
-# 3. Background Rules
+## 3. Background Rules
 
 ## Main Background
 
@@ -99,7 +99,7 @@ padding-right: 16px;
 
 ---
 
-# 4. Card Rules
+## 4. Card Rules
 
 ## Card Style
 
@@ -140,7 +140,7 @@ box-shadow:
 
 ---
 
-# 5. Typography Rules
+## 5. Typography Rules
 
 ## Font
 
@@ -181,7 +181,7 @@ sans-serif
 
 ---
 
-# 6. Image Rules
+## 6. Image Rules
 
 ## Image Style
 
@@ -215,7 +215,7 @@ object-fit: cover;
 
 ---
 
-# 7. Navigation Rules
+## 7. Navigation Rules
 
 ## Bottom Navigation
 
@@ -270,7 +270,7 @@ active 상태는:
 
 ---
 
-# 8. + Button Rules
+## 8. + Button Rules
 
 ## + Button Role
 
@@ -301,7 +301,7 @@ background: #7A4218;
 
 ---
 
-# 9. Chip Rules
+## 9. Chip Rules
 
 ## Category Chip
 
@@ -332,7 +332,7 @@ color: white;
 
 ---
 
-# 10. Home Screen Rules
+## 10. Home Screen Rules
 
 홈은:
 
@@ -367,7 +367,7 @@ color: white;
 
 ---
 
-# 11. Popular Section Rules
+## 11. Popular Section Rules
 
 TOP5는 사용 가능.
 
@@ -386,7 +386,7 @@ TOP5는 사용 가능.
 
 ---
 
-# 12. Recent Trace Rules
+## 12. Recent Trace Rules
 
 최근 흔적은:
 
@@ -407,7 +407,7 @@ TOP5는 사용 가능.
 
 ---
 
-# 13. Map Rules
+## 13. Map Rules
 
 지도는:
 
@@ -432,7 +432,7 @@ TOP5는 사용 가능.
 
 ---
 
-# 14. Button Rules
+## 14. Button Rules
 
 ## Primary Button
 
@@ -460,7 +460,7 @@ border: 1px solid #E7D9CC;
 
 ---
 
-# 15. Animation Rules
+## 15. Animation Rules
 
 모든 애니메이션은:
 
@@ -490,7 +490,7 @@ transition: all 0.2s ease;
 
 ---
 
-# 16. Forbidden UI
+## 16. Forbidden UI
 
 다음 스타일 금지:
 
@@ -504,7 +504,7 @@ transition: all 0.2s ease;
 
 ---
 
-# 17. Service Mood
+## 17. Service Mood
 
 여기남김은:
 
@@ -514,7 +514,7 @@ transition: all 0.2s ease;
 * 정보보다 분위기를 우선한다.
 
 
-# 18. Ranking UI Rules
+## 18. Ranking UI Rules
 
 TOP5는 사용 가능하지만
 과한 경쟁형 UI처럼 보이면 안 된다.
