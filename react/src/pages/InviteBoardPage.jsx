@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { ChevronLeft, Copy, MessageCircle, UserRound } from 'lucide-react'
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { joinCustomBoard } from '../api/customBoards'
+import { getCustomBoardMembers, joinCustomBoard } from '../api/customBoards'
 
 function getJoinedBoardId(joinedBoard) {
   return (
@@ -43,7 +43,18 @@ function InviteBoardPage() {
   const [copyMessage, setCopyMessage] = useState('')
   const [joinMessage, setJoinMessage] = useState('')
   const [isJoining, setIsJoining] = useState(false)
+  const [members, setMembers] = useState([])
   const isJoinMode = Boolean(inviteCode)
+
+  useEffect(() => {
+    if (!id || isJoinMode) return
+    getCustomBoardMembers(id)
+      .then((data) => {
+        const list = data.members ?? data.content ?? (Array.isArray(data) ? data : [])
+        setMembers(list)
+      })
+      .catch(() => {})
+  }, [id, isJoinMode])
 
   const inviteLink = useMemo(() => {
     if (isJoinMode) {
@@ -188,22 +199,44 @@ function InviteBoardPage() {
         <section className="mt-8">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-[15px] font-bold text-[#2B1810]">현재 참여자</h2>
-            <span className="text-[12px] font-semibold text-[#9A8068]">1명</span>
+            {members.length > 0 && (
+              <span className="text-[12px] font-semibold text-[#9A8068]">{members.length}명</span>
+            )}
           </div>
 
-          <div className="flex items-center justify-between rounded-[16px] bg-white/82 px-4 py-3.5 shadow-[0_8px_24px_rgba(90,60,34,0.07)]">
-            <div className="flex items-center gap-3">
-              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#EFE1D1] text-[#6A4D37]">
-                <UserRound size={20} strokeWidth={1.8} />
-              </span>
-              <div>
-                <p className="text-[14px] font-bold text-[#2B1810]">나</p>
-                <p className="text-[12px] font-medium text-[#9A8068]">보드를 만든 사람</p>
+          <div className="space-y-2">
+            {members.length === 0 ? (
+              <div className="flex items-center justify-between rounded-[16px] bg-white/82 px-4 py-3.5 shadow-[0_8px_24px_rgba(90,60,34,0.07)]">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#EFE1D1] text-[#6A4D37]">
+                    <UserRound size={20} strokeWidth={1.8} />
+                  </span>
+                  <div>
+                    <p className="text-[14px] font-bold text-[#2B1810]">나</p>
+                    <p className="text-[12px] font-medium text-[#9A8068]">보드를 만든 사람</p>
+                  </div>
+                </div>
+                <span className="rounded-full bg-[#6A4D37] px-3 py-1 text-[12px] font-bold text-white">보드장</span>
               </div>
-            </div>
-            <span className="rounded-full bg-[#6A4D37] px-3 py-1 text-[12px] font-bold text-white">
-              보드장
-            </span>
+            ) : (
+              members.map((member, i) => {
+                const name = member.nickname ?? member.name ?? member.username ?? '멤버'
+                const isOwner = member.role === 'OWNER' || member.role === '보드장' || i === 0
+                return (
+                  <div key={member.memberId ?? member.userId ?? member.id ?? i} className="flex items-center justify-between rounded-[16px] bg-white/82 px-4 py-3.5 shadow-[0_8px_24px_rgba(90,60,34,0.07)]">
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#EFE1D1] text-[#6A4D37]">
+                        <UserRound size={20} strokeWidth={1.8} />
+                      </span>
+                      <p className="text-[14px] font-bold text-[#2B1810]">{name}</p>
+                    </div>
+                    {isOwner && (
+                      <span className="rounded-full bg-[#6A4D37] px-3 py-1 text-[12px] font-bold text-white">보드장</span>
+                    )}
+                  </div>
+                )
+              })
+            )}
           </div>
         </section>
       </section>

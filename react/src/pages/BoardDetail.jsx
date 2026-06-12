@@ -18,6 +18,7 @@ import { fetchBoardDetail } from '../api/boards'
 import { API_BASE_URL, clearAuthToken } from '../api/client'
 import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
 import { createTrace, fetchBoardTraces, uploadTraceImage } from '../api/traces'
+import { createCustomBoardTrace, getCustomBoardTraces } from '../api/customBoards'
 import BoardCanvas, { BOARD_HEIGHT, BOARD_WIDTH, findEmptySpotNear } from '../components/board/BoardCanvas'
 import BottomNavigation from '../components/BottomNavigation'
 import { traceToPost } from './tracePost.utils'
@@ -530,9 +531,13 @@ function BoardDetail() {
       setPosts([])
 
       try {
-        const data = await fetchBoardTraces(boardId, { limit: 100 })
+        const isCustom = board.boardType === BOARD_TYPE.CUSTOM
+        const data = isCustom
+          ? await getCustomBoardTraces(boardId)
+          : await fetchBoardTraces(boardId, { limit: 100 })
         if (!ignore) {
-          setPosts((data.traces ?? []).map(traceToPost))
+          const traces = data.traces ?? data.content ?? (Array.isArray(data) ? data : [])
+          setPosts(traces.map(traceToPost))
         }
       } catch (error) {
         if (ignore) return
@@ -562,7 +567,7 @@ function BoardDetail() {
     return () => {
       ignore = true
     }
-  }, [boardId, location, navigate, reloadKey])
+  }, [board.boardType, boardId, location, navigate, reloadKey])
 
   const refreshTraces = useCallback(() => {
     setReloadKey((value) => value + 1)
@@ -637,7 +642,7 @@ function BoardDetail() {
         boardPageId: placement.boardPage.boardPageId,
         boardPosition: placement.boardPosition,
       }
-      const createdTrace = await createTrace(boardId, {
+      const tracePayload = {
         traceX: Math.round(placement.boardPosition.x),
         traceY: Math.round(placement.boardPosition.y),
         elements: [{
@@ -646,10 +651,17 @@ function BoardDetail() {
           styleJson: JSON.stringify(nextStyle),
           textContent: placementDraft.content ?? '',
         }],
-      })
+      }
+      const isCustomBoard = board.boardType === BOARD_TYPE.CUSTOM
+      const createdTrace = isCustomBoard
+        ? await createCustomBoardTrace(boardId, tracePayload)
+        : await createTrace(boardId, tracePayload)
 
       const createdId = createdTrace?.traceId ?? createdTrace?.id
-      const fresh = await fetchBoardTraces(boardId, { limit: 100 })
+      const freshData = isCustomBoard
+        ? await getCustomBoardTraces(boardId)
+        : await fetchBoardTraces(boardId, { limit: 100 })
+      const fresh = { traces: freshData.traces ?? freshData.content ?? (Array.isArray(freshData) ? freshData : []) }
       const newPosts = (fresh.traces ?? []).map(traceToPost).map((post) => {
         if (getPostId(post) !== createdId) return post
         return {
