@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { AlertTriangle, Bookmark, ChevronRight, Heart, MoreHorizontal, Pencil, X, Trash2, Flag } from 'lucide-react'
+import { Heart, MoreHorizontal, Pencil, X, Trash2, Flag } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { clearAuthToken } from '../api/client'
 import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
 import { addTraceLike, deleteTrace, fetchTrace, removeTraceLike } from '../api/traces'
 import { fetchMyInfo } from '../api/users'
 import { createTraceReport } from '../api/reports'
+import FollowButton from '../components/FollowButton'
 import { traceToPost } from './tracePost.utils'
 
 const REPORT_REASONS = [
@@ -35,6 +36,7 @@ function TraceDetail() {
   const [showMenu, setShowMenu] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [myNickname, setMyNickname] = useState(null)
+  const [myUserId, setMyUserId] = useState(null)
   const [myStats, setMyStats] = useState(null)
   const [actionError, setActionError] = useState('')
   const [isLoadingTrace, setIsLoadingTrace] = useState(!location.state?.post)
@@ -83,6 +85,7 @@ function TraceDetail() {
         const info = await fetchMyInfo()
         if (!ignore) {
           setMyNickname(info.nickname)
+          setMyUserId(info.userId ?? null)
           setMyStats(info.stats ?? null)
         }
       } catch (error) {
@@ -94,7 +97,9 @@ function TraceDetail() {
     return () => { ignore = true }
   }, [location, navigate])
 
-  const isMyPost = myNickname && post?.nickname && myNickname === post.nickname
+  const isMyPost = myUserId && post?.userId
+    ? myUserId === post.userId
+    : myNickname && post?.nickname && myNickname === post.nickname
 
   const handleLike = async () => {
     if (isLikePending) return
@@ -292,6 +297,9 @@ function TraceDetail() {
             <p className="text-[15px] font-bold text-[#2A1A0E] truncate">{post.nickname ?? '익명의 여행자'}</p>
             <p className="text-[12px] text-[#9B8B7B]">남긴 흔적 {myStats?.traceCount ?? post.cell?.traceCount ?? '-'}개</p>
           </div>
+          {!isMyPost && post.userId && (
+            <FollowButton targetUserId={post.userId} currentUserId={myUserId} />
+          )}
           <button
             type="button"
             onClick={() => setShowMenu(v => !v)}

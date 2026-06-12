@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { Loader2, UserRound } from 'lucide-react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { fetchFollowers, fetchFollowings } from '../api/follows'
-import { clearAuthToken, getAuthToken } from '../api/client'
+import { API_BASE_URL, clearAuthToken, getAuthToken } from '../api/client'
 import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
 
 function FollowListPage({ type }) {
@@ -101,34 +101,45 @@ function FollowListPage({ type }) {
 
       {status === 'ready' && users.length > 0 && (
         <ul className="mt-5 space-y-3">
-          {users.map((user) => (
-            <li
-              key={user.userId}
-              className="flex items-center gap-3 rounded-lg border border-[#eadfce] bg-white/80 p-4 shadow-[0_8px_18px_rgba(78,52,32,0.06)]"
-            >
-              {user.profileImageUrl ? (
-                <img
-                  src={user.profileImageUrl}
-                  alt={user.nickname}
-                  className="h-11 w-11 rounded-full border border-[#eadfce] object-cover"
-                />
-              ) : (
-                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#E7D7C5] text-[#3D2415]">
-                  <UserRound size={18} />
+          {users.map((user) => {
+            const profileImageUrl = getProfileImageUrl(user.profileImageUrl)
+
+            return (
+              <li
+                key={user.userId}
+                className="flex items-center gap-3 rounded-lg border border-[#eadfce] bg-white/80 p-4 shadow-[0_8px_18px_rgba(78,52,32,0.06)]"
+              >
+                {profileImageUrl ? (
+                  <img
+                    src={profileImageUrl}
+                    alt={user.nickname}
+                    className="h-11 w-11 rounded-full border border-[#eadfce] object-cover"
+                  />
+                ) : (
+                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#E7D7C5] text-[#3D2415]">
+                    <UserRound size={18} />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[15px] font-bold text-[#2B1810]">{user.nickname}</p>
+                  <p className="mt-1 text-[12px] font-medium text-[#8a7767]">
+                    {formatFollowedAt(user.followedAt)}
+                  </p>
                 </div>
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[15px] font-bold text-[#2B1810]">{user.nickname}</p>
-                <p className="mt-1 text-[12px] font-medium text-[#8a7767]">
-                  {formatFollowedAt(user.followedAt)}
-                </p>
-              </div>
-            </li>
-          ))}
+              </li>
+            )
+          })}
         </ul>
       )}
     </motion.div>
   )
+}
+
+function getProfileImageUrl(profileImageUrl) {
+  if (!profileImageUrl) return ''
+  if (/^https?:\/\//i.test(profileImageUrl)) return profileImageUrl
+
+  return new URL(profileImageUrl, API_BASE_URL).toString()
 }
 
 function formatFollowedAt(followedAt) {

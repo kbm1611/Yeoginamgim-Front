@@ -43,6 +43,9 @@ test('notification API and page scaffold match backend notification endpoints', 
 test('follow API and list page scaffold match backend follow endpoints', () => {
   const followsApi = read('src/api/follows.js')
   const followListPage = read('src/pages/FollowListPage.jsx')
+  const followButton = read('src/components/FollowButton.jsx')
+  const traceDetail = read('src/pages/TraceDetail.jsx')
+  const tracePostUtils = read('src/pages/tracePost.utils.js')
   const app = read('src/App.jsx')
 
   assert.match(followsApi, /apiClient\.post\(`\/api\/users\/\$\{pathSegment\(userId\)\}\/follow`\)/)
@@ -53,7 +56,22 @@ test('follow API and list page scaffold match backend follow endpoints', () => {
 
   assert.match(followListPage, /fetchFollowers/)
   assert.match(followListPage, /fetchFollowings/)
+  assert.match(followListPage, /getProfileImageUrl/)
+  assert.match(followListPage, /new URL\(profileImageUrl, API_BASE_URL\)/)
   assert.match(followListPage, /useParams/)
   assert.match(app, /path="\/users\/:userId\/followers"/)
   assert.match(app, /path="\/users\/:userId\/followings"/)
+
+  assert.match(followButton, /fetchFollowStatus/)
+  assert.match(followButton, /followUser/)
+  assert.match(followButton, /unfollowUser/)
+  assert.match(followButton, /targetUserId === currentUserId/)
+  assert.match(followButton, /팔로우/)
+  assert.match(followButton, /팔로잉/)
+
+  assert.match(tracePostUtils, /userId:\s*trace\.userId/)
+  assert.match(traceDetail, /import FollowButton from '..\/components\/FollowButton'/)
+  assert.match(traceDetail, /setMyUserId\(info\.userId/)
+  assert.match(traceDetail, /myUserId === post\.userId/)
+  assert.match(traceDetail, /<FollowButton\s+targetUserId=\{post\.userId\}\s+currentUserId=\{myUserId\}/)
 })

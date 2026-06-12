@@ -100,5 +100,6 @@ export function traceToPost(trace) {
     likes: trace.likeCount ?? 0,
     liked: trace.liked === true,
     nickname: trace.nickname,
+    userId: trace.userId,
   }
 }
