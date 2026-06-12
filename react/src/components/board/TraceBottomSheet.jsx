@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { addTraceLike, removeTraceLike, deleteTrace } from '../../api/traces'
 import { fetchMyInfo } from '../../api/users'
 import { useNavigate, useParams } from 'react-router-dom'
+import FollowButton from '../FollowButton'
 
 function TapeStrip() {
   return (
@@ -39,13 +40,22 @@ export default function TraceBottomSheet({ post, onClose, onDeleted }) {
   const [liked, setLiked] = useState(post?.liked ?? false)
   const [likes, setLikes] = useState(post?.likes ?? 0)
   const [isMyPost, setIsMyPost] = useState(false)
+  const [myUserId, setMyUserId] = useState(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   useEffect(() => {
     fetchMyInfo()
-      .then(info => setIsMyPost(info.nickname === post?.nickname))
+      .then(info => {
+        const currentUserId = info.userId ?? null
+        setMyUserId(currentUserId)
+        setIsMyPost(
+          currentUserId && post?.userId
+            ? String(currentUserId) === String(post.userId)
+            : info.nickname === post?.nickname
+        )
+      })
       .catch(() => {})
-  }, [post?.nickname])
+  }, [post?.nickname, post?.userId])
 
   const handleLike = async () => {
     const next = !liked
@@ -174,6 +184,9 @@ export default function TraceBottomSheet({ post, onClose, onDeleted }) {
                 <Pencil size={12} strokeWidth={2} />
                 수정
               </button>
+            )}
+            {myUserId && !isMyPost && post.userId && (
+              <FollowButton targetUserId={post.userId} currentUserId={myUserId} />
             )}
           </div>
 

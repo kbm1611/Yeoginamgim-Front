@@ -297,7 +297,7 @@ function TraceDetail() {
             <p className="text-[15px] font-bold text-[#2A1A0E] truncate">{post.nickname ?? '익명의 여행자'}</p>
             <p className="text-[12px] text-[#9B8B7B]">남긴 흔적 {myStats?.traceCount ?? post.cell?.traceCount ?? '-'}개</p>
           </div>
-          {!isMyPost && post.userId && (
+          {myUserId && !isMyPost && post.userId && (
             <FollowButton targetUserId={post.userId} currentUserId={myUserId} />
           )}
           <button
