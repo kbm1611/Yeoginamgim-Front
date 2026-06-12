@@ -6,7 +6,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import postitTexture from '../assets/editor/33dab845-d565-4111-b90b-9d2382288463.png'
 import bgImage from '../assets/배경.png'
 import postitYellowAsset from '../assets/images/postits/postit-yellow.png'
-import { uploadTraceImage } from '../api/traces'
+
 
 // ─── 상수 ────────────────────────────────────────────────────────────────────
 
@@ -771,7 +771,7 @@ export default function PostItEditor() {
 
   // ── export ──
   const exportImage = async () => {
-    const W = 2048, H = 2048
+    const W = 600, H = 600
     const canvas = document.createElement('canvas')
     canvas.width = W; canvas.height = H
     const ctx = canvas.getContext('2d')
@@ -891,14 +891,9 @@ export default function PostItEditor() {
       }
     }
     return new Promise((resolve, reject) => {
-      canvas.toBlob(async blob => {
-        try {
-          const file = new File([blob], `postit-${Date.now()}.png`, { type: 'image/png' })
-          const result = await uploadTraceImage(file)
-          resolve(result.imageUrl)
-        } catch (e) {
-          reject(e)
-        }
+      canvas.toBlob(blob => {
+        if (!blob) { reject(new Error('canvas export failed')); return }
+        resolve(URL.createObjectURL(blob))
       }, 'image/png')
     })
   }
