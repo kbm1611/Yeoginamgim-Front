@@ -910,7 +910,7 @@ export default function PostItEditor() {
     setIsCompleting(true); setError('')
     await new Promise(r => setTimeout(r, 60))
     try {
-      const capturedImage = cardType === 'postit' ? await exportImage() : null
+      const capturedImage = await exportImage()
       navigate(`/board/${boardId}`, {
         state: {
           placementDraft: {
