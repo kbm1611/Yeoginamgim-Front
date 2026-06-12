@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Loader2, UserRound } from 'lucide-react'
+import { ArrowLeft, Loader2, UserRound } from 'lucide-react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { fetchFollowers, fetchFollowings } from '../api/follows'
 import { API_BASE_URL, clearAuthToken, getAuthToken } from '../api/client'
@@ -61,13 +61,21 @@ function FollowListPage({ type }) {
 
   return (
     <motion.div
-      className="h-full overflow-y-auto px-5 pb-5 pt-2 scrollbar-hide"
+      className="h-full overflow-y-auto px-5 pb-5 pt-3 scrollbar-hide"
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
       transition={{ duration: 0.2 }}
     >
       <header>
+        <button
+          type="button"
+          aria-label="뒤로가기"
+          onClick={() => navigate(-1)}
+          className="mb-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-[#3D2415] shadow-[0_4px_12px_rgba(78,52,32,0.08)] active:bg-[#F0E8DF]"
+        >
+          <ArrowLeft size={18} strokeWidth={2.2} />
+        </button>
         <h1 className="text-[24px] font-bold text-[#2B1810]">{pageTitle}</h1>
         <p className="mt-1 text-[13px] font-medium text-[#7A6857]">총 {users.length}명</p>
       </header>
