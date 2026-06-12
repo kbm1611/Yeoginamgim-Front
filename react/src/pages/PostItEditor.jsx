@@ -771,7 +771,7 @@ export default function PostItEditor() {
 
   // ── export ──
   const exportImage = async () => {
-    const W = 600, H = 600
+    const W = 2048, H = 2048
     const canvas = document.createElement('canvas')
     canvas.width = W; canvas.height = H
     const ctx = canvas.getContext('2d')
