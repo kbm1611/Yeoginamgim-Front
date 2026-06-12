@@ -33,7 +33,7 @@
 
 ---
 
-# 2. Color System
+## 2. Color System
 
 ## Primary Colors
 
@@ -73,7 +73,7 @@
 
 ---
 
-# 3. Typography
+## 3. Typography
 
 ## Font Family
 
@@ -143,7 +143,7 @@ line-height: 140%;
 
 ---
 
-# 4. Radius System
+## 4. Radius System
 
 ## Card Radius
 
@@ -171,7 +171,7 @@ border-radius: 28px 28px 0 0;
 
 ---
 
-# 5. Shadow System
+## 5. Shadow System
 
 모든 그림자는 매우 부드럽게 사용한다.
 
@@ -184,7 +184,7 @@ box-shadow:
 
 ---
 
-# 6. Layout Rules
+## 6. Layout Rules
 
 ## Screen Width
 
@@ -221,7 +221,7 @@ gap: 16px;
 
 ---
 
-# 7. Navigation Rules
+## 7. Navigation Rules
 
 ## Bottom Navigation
 
@@ -252,7 +252,7 @@ background: #7A4218;
 
 ---
 
-# 8. Card Rules
+## 8. Card Rules
 
 ## Place Card
 
@@ -287,7 +287,7 @@ background: #7A4218;
 
 ---
 
-# 9. Home Screen Rules
+## 9. Home Screen Rules
 
 홈은 정보 플랫폼처럼 보이면 안 된다.
 
@@ -307,7 +307,7 @@ background: #7A4218;
 
 ---
 
-# 10. Map Screen Rules
+## 10. Map Screen Rules
 
 지도는 탐색 중심이다.
 
@@ -325,7 +325,7 @@ background: #7A4218;
 
 ---
 
-# 11. Interaction Rules
+## 11. Interaction Rules
 
 ## Animation
 
@@ -346,7 +346,7 @@ transition: all 0.2s ease;
 
 ---
 
-# 12. UI Rules
+## 12. UI Rules
 
 * Glassmorphism 금지
 * 네온 컬러 금지
@@ -358,7 +358,7 @@ transition: all 0.2s ease;
 
 ---
 
-# 13. Service Tone
+## 13. Service Tone
 
 여기남김은:
 
