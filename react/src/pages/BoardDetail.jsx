@@ -621,7 +621,8 @@ function BoardDetail() {
       if (!imageUrl && placementDraft.capturedImage) {
         const response = await fetch(placementDraft.capturedImage)
         const blob = await response.blob()
-        const file = new File([blob], 'trace.png', { type: 'image/png' })
+        const isJpeg = blob.type === 'image/jpeg'
+        const file = new File([blob], isJpeg ? 'trace.jpg' : 'trace.png', { type: blob.type || 'image/png' })
         const uploaded = await uploadTraceImage(file)
         imageUrl = uploaded.imageUrl ?? uploaded.url ?? null
       }
