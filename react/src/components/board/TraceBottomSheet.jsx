@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Heart, Flag, Pencil, Trash2, MapPin, ChevronRight } from 'lucide-react'
+import { Heart, Flag, Pencil, Trash2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { addTraceLike, removeTraceLike, deleteTrace } from '../../api/traces'
 import { fetchMyInfo } from '../../api/users'
