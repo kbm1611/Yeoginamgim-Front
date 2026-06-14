@@ -145,7 +145,7 @@ function TraceDetail() {
     if (!selectedReason || isReporting) return
     setIsReporting(true)
     try {
-      await createTraceReport(post.id, { reason: selectedReason })
+      await createTraceReport(post.id, { reportKind: selectedReason })
       setReportDone(true)
     } catch (error) {
       handleUnauthorizedApiError(error, { clearToken: clearAuthToken, navigate, location })
