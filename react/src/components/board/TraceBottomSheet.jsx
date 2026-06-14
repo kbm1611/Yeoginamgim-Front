@@ -158,7 +158,7 @@ export default function TraceBottomSheet({ post, onClose, onDeleted }) {
                   padding: 20,
                   boxShadow: '2px 4px 0 rgba(0,0,0,0.08), 4px 12px 28px rgba(0,0,0,0.15)',
                 }}>
-                  <p style={{ fontFamily: post.style?.fontFamily ?? "'Gaegu', cursive", fontSize: 22, color: '#2A1A0E', textAlign: 'center', lineHeight: 1.4 }}>
+                  <p style={{ fontFamily: (post.style?.fontFamily ?? "'Gaegu', cursive").replace('YiSeoYun', 'Gaegu'), fontSize: 22, color: '#2A1A0E', textAlign: 'center', lineHeight: 1.4 }}>
                     {post.content}
                   </p>
                 </div>

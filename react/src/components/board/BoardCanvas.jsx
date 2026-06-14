@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import boardCanvasBg from '../../assets/board-bg.png'
-import postitTexture from '../../assets/editor/image.png'
-import postitYellowAsset from '../../assets/images/postits/postit-yellow.png'
 
 export const BOARD_WIDTH = 3000
 export const BOARD_HEIGHT = 2200
@@ -21,7 +19,7 @@ const POLAROID_TRIMMED_SIZE = {
 }
 
 const POSTIT_THEMES = {
-  yellow: { bg: '#F7E58A', textColor: '#2A1A0A', asset: postitYellowAsset },
+  yellow: { bg: '#F7E58A', textColor: '#2A1A0A', asset: null },
   pink:   { bg: '#F6ABBE', textColor: '#2A1A0A', asset: null },
   sky:    { bg: '#A8D8F0', textColor: '#1A2A2A', asset: null },
   green:  { bg: '#B8E0A0', textColor: '#1A2A1A', asset: null },
@@ -330,12 +328,52 @@ function layoutPosts(posts) {
   })
 }
 
-export function findEmptySpotNear(_center, newTraceSize, existingTraces = []) {
+export function findEmptySpotNear(center, newTraceSize, existingTraces = []) {
   const cardW = newTraceSize?.width ?? TRACE_CARD_W
   const cardH = newTraceSize?.height ?? TRACE_CARD_W
+  const targetCenter = {
+    x: Number.isFinite(center?.x) ? center.x : BOARD_WIDTH / 2,
+    y: Number.isFinite(center?.y) ? center.y : BOARD_HEIGHT / 2,
+  }
+  const placedRects = []
+
+  for (let index = 0; index < existingTraces.length; index += 1) {
+    const trace = existingTraces[index]
+    const size = getTraceSize(trace)
+    const position = getExplicitTracePosition(trace) ?? getTraceLayoutPosition(trace, index, placedRects)
+    if (!position) continue
+    placedRects.push({
+      x: position.x,
+      y: position.y,
+      width: size.width,
+      height: size.height,
+    })
+  }
+
+  const makeRect = (x, y) => ({ x, y, width: cardW, height: cardH })
+  const tryPosition = (x, y) => {
+    const clamped = clampBoardPosition(Math.round(x), Math.round(y), cardW, cardH)
+    const rect = makeRect(clamped.x, clamped.y)
+    return hasOverlap(rect, placedRects) ? null : clamped
+  }
+  const initial = tryPosition(targetCenter.x - cardW / 2, targetCenter.y - cardH / 2)
+  if (initial) return initial
+
+  for (let radius = 90; radius <= 900; radius += 90) {
+    const steps = Math.max(8, Math.round((Math.PI * 2 * radius) / 120))
+    for (let step = 0; step < steps; step += 1) {
+      const angle = (Math.PI * 2 * step) / steps
+      const position = tryPosition(
+        targetCenter.x + Math.cos(angle) * radius - cardW / 2,
+        targetCenter.y + Math.sin(angle) * radius - cardH / 2,
+      )
+      if (position) return position
+    }
+  }
+
   const seed = Date.now() % 100000
-  const { x, y } = getColumnBasedPosition(seed, cardW, existingTraces)
-  return clampBoardPosition(x, y, cardW, cardH)
+  const fallback = getColumnBasedPosition(seed, cardW, existingTraces)
+  return clampBoardPosition(fallback.x, fallback.y, cardW, cardH)
 }
 
 function PostItTraceCard({ post, isHighlighted }) {
@@ -376,7 +414,7 @@ function PostItTraceCard({ post, isHighlighted }) {
           boxShadow: isHighlighted
             ? '0 0 0 0 transparent'
             : (resolvePostitTheme(post).asset ? 'none' : '0 1px 2px rgba(0,0,0,0.14), 5px 14px 26px rgba(58,36,20,0.26)'),
-          filter: isHighlighted ? 'drop-shadow(0 0 12px rgba(255,200,50,0.8))' : 'none',
+          filter: isHighlighted ? 'drop-shadow(0 0 12px rgba(255,200,50,0.8))' : 'drop-shadow(0 0 0 rgba(0,0,0,0))',
           height: '100%',
           overflow: 'hidden',
           pointerEvents: 'auto',
@@ -412,7 +450,7 @@ function PostItTraceCard({ post, isHighlighted }) {
                   style={{
                     color: resolvePostitTheme(post).textColor,
                     display: '-webkit-box',
-                    fontFamily: post.style?.textObjects?.[0]?.fontFamily ?? "'Gaegu', cursive",
+                    fontFamily: (post.style?.textObjects?.[0]?.fontFamily ?? "'Gaegu', cursive").replace('YiSeoYun', 'Gaegu'),
                     WebkitBoxOrient: 'vertical',
                     WebkitLineClamp: 4,
                     overflow: 'hidden',
@@ -461,7 +499,7 @@ function PolaroidTraceCard({ post, isHighlighted }) {
       <article
         className={`text-[#35241A] ${isHighlighted ? 'trace-card-highlight' : ''}`}
         style={{
-          filter: isHighlighted ? 'drop-shadow(0 0 12px rgba(255,200,50,0.8))' : 'none',
+          filter: isHighlighted ? 'drop-shadow(0 0 12px rgba(255,200,50,0.8))' : 'drop-shadow(0 0 0 rgba(0,0,0,0))',
           height: '100%',
           pointerEvents: 'auto',
           position: 'relative',
