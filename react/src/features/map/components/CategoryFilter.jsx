@@ -1,9 +1,11 @@
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import { MapPinned } from 'lucide-react'
 import {
   CATEGORY_FILTERS,
   MAP_CATEGORY_FILTER_BUTTON_CLASSES,
   MAP_CATEGORY_FILTER_SCROLL_CLASSES,
+  getHorizontalDragScrollLeft,
+  getHorizontalDragStartState,
 } from '../../../pages/Map.utils'
 import { CATEGORY_ICON_COMPONENTS } from '../mapIcons'
 
@@ -15,6 +17,9 @@ function CategoryFilter({
   isEmpty = false,
   onSelect,
 }) {
+  const dragStateRef = useRef(null)
+  const didDragRef = useRef(false)
+
   const handleWheel = useCallback((event) => {
     const container = event.currentTarget
     if (container.scrollWidth <= container.clientWidth) return
@@ -33,9 +38,68 @@ function CategoryFilter({
     container.scrollLeft = nextScrollLeft
   }, [])
 
+  const handlePointerDown = useCallback((event) => {
+    const container = event.currentTarget
+    const dragState = getHorizontalDragStartState({
+      pointerType: event.pointerType,
+      button: event.button,
+      clientX: event.clientX,
+      scrollLeft: container.scrollLeft,
+      scrollWidth: container.scrollWidth,
+      clientWidth: container.clientWidth,
+    })
+    if (!dragState) return
+
+    dragStateRef.current = dragState
+    didDragRef.current = false
+    container.setPointerCapture?.(event.pointerId)
+  }, [])
+
+  const handlePointerMove = useCallback((event) => {
+    const container = event.currentTarget
+    const nextDragState = getHorizontalDragScrollLeft(dragStateRef.current, {
+      clientX: event.clientX,
+      scrollWidth: container.scrollWidth,
+      clientWidth: container.clientWidth,
+    })
+    if (!nextDragState) return
+
+    dragStateRef.current = {
+      ...dragStateRef.current,
+      isDragging: nextDragState.isDragging,
+    }
+    if (nextDragState.isDragging) {
+      didDragRef.current = true
+      event.preventDefault()
+    }
+    container.scrollLeft = nextDragState.scrollLeft
+  }, [])
+
+  const handlePointerEnd = useCallback((event) => {
+    event.currentTarget.releasePointerCapture?.(event.pointerId)
+    dragStateRef.current = null
+  }, [])
+
+  const handleCategoryClick = useCallback((event, categoryLabel) => {
+    if (didDragRef.current) {
+      event.preventDefault()
+      didDragRef.current = false
+      return
+    }
+
+    onSelect(categoryLabel)
+  }, [onSelect])
+
   return (
     <>
-      <div className={MAP_CATEGORY_FILTER_SCROLL_CLASSES} onWheel={handleWheel}>
+      <div
+        className={MAP_CATEGORY_FILTER_SCROLL_CLASSES}
+        onWheel={handleWheel}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerEnd}
+        onPointerCancel={handlePointerEnd}
+      >
         {CATEGORY_FILTERS.map((item) => {
           const CategoryIcon = CATEGORY_ICON_COMPONENTS[item.iconName] ?? MapPinned
           const isSelected = selectedCategory === item.label
@@ -44,7 +108,7 @@ function CategoryFilter({
             <button
               key={item.label}
               type="button"
-              onClick={() => onSelect(item.label)}
+              onClick={(event) => handleCategoryClick(event, item.label)}
               disabled={disabled}
               aria-disabled={disabled}
               aria-pressed={isSelected}

@@ -1,5 +1,7 @@
 ﻿import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
+import { fileURLToPath } from 'node:url'
 import {
   buildBoardRequestFromPlace,
   buildNearbyPlaceRequests,
@@ -46,6 +48,11 @@ import {
   normalizePopularPlaces,
   normalizeSearchPlaces,
 } from './Map.utils.js'
+
+const CATEGORY_FILTER_SOURCE = readFileSync(
+  fileURLToPath(new URL('../features/map/components/CategoryFilter.jsx', import.meta.url)),
+  'utf8'
+)
 
 const KAKAO_CATEGORY_CODES = [
   'CE7',
@@ -959,6 +966,15 @@ test('horizontal drag helpers ignore non-scrollable rows and non-primary mouse b
     scrollWidth: 900,
     clientWidth: 320,
   }), null)
+})
+
+test('category filter wires pointer drag scrolling for desktop mouse users', () => {
+  assert.match(CATEGORY_FILTER_SOURCE, /getHorizontalDragStartState/)
+  assert.match(CATEGORY_FILTER_SOURCE, /getHorizontalDragScrollLeft/)
+  assert.match(CATEGORY_FILTER_SOURCE, /onPointerDown=/)
+  assert.match(CATEGORY_FILTER_SOURCE, /onPointerMove=/)
+  assert.match(CATEGORY_FILTER_SOURCE, /onPointerUp=/)
+  assert.match(CATEGORY_FILTER_SOURCE, /onPointerCancel=/)
 })
 
 test('map viewport plan leaves the current view alone when no place markers exist', () => {
