@@ -98,7 +98,7 @@ function TraceDetail() {
   }, [location, navigate])
 
   const isMyPost = myUserId && post?.userId
-    ? myUserId === post.userId
+    ? String(myUserId) === String(post.userId)
     : myNickname && post?.nickname && myNickname === post.nickname
 
   const handleLike = async () => {
@@ -145,7 +145,7 @@ function TraceDetail() {
     if (!selectedReason || isReporting) return
     setIsReporting(true)
     try {
-      await createTraceReport(post.id, { reason: selectedReason })
+      await createTraceReport(post.id, { reportKind: selectedReason })
       setReportDone(true)
     } catch (error) {
       handleUnauthorizedApiError(error, { clearToken: clearAuthToken, navigate, location })
@@ -176,11 +176,11 @@ function TraceDetail() {
   const postitBg = post.style?.paperColor
     ? (POSTIT_COLOR_MAP[post.style.paperColor] ?? '#F7E58A')
     : (post.style?.backgroundColor ?? '#F7E58A')
-  const postitFont = post.style?.textObjects?.[0]?.fontFamily ?? post.style?.fontFamily ?? "'Gaegu', cursive"
+  const postitFont = (post.style?.textObjects?.[0]?.fontFamily ?? post.style?.fontFamily ?? "'Gaegu', cursive").replace('YiSeoYun', 'Gaegu')
 
   return (
     <motion.div
-      className="app-device flex flex-col bg-white"
+      className="app-device relative overflow-y-auto bg-[#F5EFE6]"
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 24 }}
@@ -199,19 +199,27 @@ function TraceDetail() {
       </header>
 
       {/* ── 포스트잇 카드 영역 ── */}
-      <div className="flex flex-col overflow-y-auto">
+      <div className="flex min-h-full flex-col overflow-x-hidden">
         {/* 카드 */}
-        <div className="pt-14 pb-3">
+        <div className="pb-3 pt-16">
           {post.capturedImage ? (
-            <div className="relative w-full" style={{ background: postitBg, borderRadius: 6 }}>
+            <div
+              className="relative mx-auto"
+              style={{
+                background: postitBg,
+                borderRadius: isPolaroid ? 6 : 3,
+                maxWidth: isPolaroid ? 360 : 380,
+                width: isPolaroid ? '84%' : '86%',
+              }}
+            >
               <img
                 src={post.capturedImage}
                 alt=""
                 style={{
                   width: '100%',
                   display: 'block',
-                  borderRadius: 6,
-                  boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+                  borderRadius: isPolaroid ? 6 : 3,
+                  boxShadow: '0 8px 24px rgba(58,36,20,0.14)',
                 }}
               />
               <p className="absolute left-4 top-4 text-[11px] text-[#8B7A6B]/70">
@@ -245,7 +253,6 @@ function TraceDetail() {
                 background: postitBg,
                 borderRadius: 0,
                 position: 'relative',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
                 padding: '12% 10% 10%',
               }}
             >
@@ -268,7 +275,7 @@ function TraceDetail() {
         </div>
 
         {/* 좋아요 */}
-        <div className="flex items-center gap-2 px-5 pb-4 pt-3">
+        <div className="flex items-center gap-2 px-7 pb-4 pt-3">
           <button
             type="button"
             onClick={handleLike}
@@ -286,10 +293,10 @@ function TraceDetail() {
         </div>
 
         {/* 구분선 */}
-        <div className="h-px bg-[#E8E0D8] mx-5" />
+        <div className="mx-7 h-px bg-[#E2D8CC]" />
 
         {/* 작성자 */}
-        <div className="flex items-center gap-3 px-5 py-4">
+        <div className="flex items-center gap-3 px-7 py-4">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#D4C4B0] text-[15px] font-bold text-[#5C4030]">
             {post.nickname?.[0] ?? '?'}
           </div>
@@ -297,7 +304,7 @@ function TraceDetail() {
             <p className="text-[15px] font-bold text-[#2A1A0E] truncate">{post.nickname ?? '익명의 여행자'}</p>
             <p className="text-[12px] text-[#9B8B7B]">남긴 흔적 {myStats?.traceCount ?? post.cell?.traceCount ?? '-'}개</p>
           </div>
-          {!isMyPost && post.userId && (
+          {myUserId && !isMyPost && post.userId && (
             <FollowButton targetUserId={post.userId} currentUserId={myUserId} />
           )}
           <button

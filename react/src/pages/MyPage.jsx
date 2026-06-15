@@ -10,6 +10,7 @@ import {
   Save,
   Trash2,
   User,
+  UserPlus,
   X,
 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -398,6 +399,14 @@ function MyPage() {
                 </button>
               </div>
             )}
+            <button
+              type="button"
+              onClick={() => navigate('/friends')}
+              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full border border-[#dfd0bf] bg-[#fffaf4] px-4 py-3 text-[14px] font-bold text-[#5a3a26]"
+            >
+              <UserPlus size={17} />
+              친구 찾기
+            </button>
             <button
               type="button"
               onClick={() => navigate('/archive')}

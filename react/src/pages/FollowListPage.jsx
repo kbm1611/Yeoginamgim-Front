@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Loader2, UserRound } from 'lucide-react'
+import { ArrowLeft, Loader2, UserRound } from 'lucide-react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { fetchFollowers, fetchFollowings } from '../api/follows'
 import { API_BASE_URL, clearAuthToken, getAuthToken } from '../api/client'
 import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
+import { fetchMyInfo } from '../api/users'
+import FollowButton from '../components/FollowButton'
 
 function FollowListPage({ type }) {
   const { userId } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
   const [users, setUsers] = useState([])
+  const [currentUserId, setCurrentUserId] = useState(null)
   const [status, setStatus] = useState('loading')
   const [error, setError] = useState('')
   const isFollowers = type === 'followers'
@@ -33,7 +36,11 @@ function FollowListPage({ type }) {
     setError('')
 
     try {
-      const data = isFollowers ? await fetchFollowers(userId) : await fetchFollowings(userId)
+      const [myInfo, data] = await Promise.all([
+        fetchMyInfo(),
+        isFollowers ? fetchFollowers(userId) : fetchFollowings(userId),
+      ])
+      setCurrentUserId(myInfo?.userId ?? null)
       setUsers(Array.isArray(data) ? data : [])
       setStatus('ready')
     } catch (apiError) {
@@ -61,13 +68,21 @@ function FollowListPage({ type }) {
 
   return (
     <motion.div
-      className="h-full overflow-y-auto px-5 pb-5 pt-2 scrollbar-hide"
+      className="h-full overflow-y-auto px-5 pb-5 pt-3 scrollbar-hide"
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
       transition={{ duration: 0.2 }}
     >
       <header>
+        <button
+          type="button"
+          aria-label="뒤로가기"
+          onClick={() => navigate(-1)}
+          className="mb-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-[#3D2415] shadow-[0_4px_12px_rgba(78,52,32,0.08)] active:bg-[#F0E8DF]"
+        >
+          <ArrowLeft size={18} strokeWidth={2.2} />
+        </button>
         <h1 className="text-[24px] font-bold text-[#2B1810]">{pageTitle}</h1>
         <p className="mt-1 text-[13px] font-medium text-[#7A6857]">총 {users.length}명</p>
       </header>
@@ -126,6 +141,9 @@ function FollowListPage({ type }) {
                     {formatFollowedAt(user.followedAt)}
                   </p>
                 </div>
+                {currentUserId && user.userId && String(currentUserId) !== String(user.userId) && (
+                  <FollowButton targetUserId={user.userId} currentUserId={currentUserId} />
+                )}
               </li>
             )
           })}

@@ -5,13 +5,12 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import postitTexture from '../assets/editor/33dab845-d565-4111-b90b-9d2382288463.png'
 import bgImage from '../assets/배경.png'
-import postitYellowAsset from '../assets/images/postits/postit-yellow.png'
 
 
 // ─── 상수 ────────────────────────────────────────────────────────────────────
 
 const POSTIT_COLORS = [
-  { id: 'yellow', color: '#F7E58A', asset: postitYellowAsset },
+  { id: 'yellow', color: '#F7E58A', asset: null },
   { id: 'pink',   color: '#F6ABBE', asset: null },
   { id: 'sky',    color: '#A8D8F0', asset: null },
   { id: 'green',  color: '#B8E0A0', asset: null },
@@ -20,7 +19,12 @@ const POSTIT_COLORS = [
 ]
 
 const FONTS = [
+<<<<<<< HEAD
   { id: 'pretendard', label: '기본', family: "'Pretendard', sans-serif" },
+=======
+  { id: 'pretendard', label: '기본',   family: "'Pretendard', sans-serif" },
+  { id: 'gaegu',      label: '손글씨', family: "'Gaegu', cursive" },
+>>>>>>> 75f18f05f1671a196b49d43867c53ffad6e4524e
 ]
 
 const TEXT_COLORS = ['#1A1A1A', '#FFFFFF', '#C0392B', '#2D9CDB', '#27AE60', '#F39C12', '#9B59B6', '#F6ABBE']
@@ -768,10 +772,14 @@ export default function PostItEditor() {
 
   // ── export ──
   const exportImage = async () => {
-    const W = 2048, H = 2048
+    const W = 2560, H = 2560
     await document.fonts.ready
     await Promise.allSettled([
       document.fonts.load('600 48px "Pretendard"'),
+<<<<<<< HEAD
+=======
+      document.fonts.load('400 48px "Gaegu"'),
+>>>>>>> 75f18f05f1671a196b49d43867c53ffad6e4524e
     ])
     const canvas = document.createElement('canvas')
     canvas.width = W; canvas.height = H
@@ -793,20 +801,15 @@ export default function PostItEditor() {
       ctx.closePath()
       ctx.clip()
 
-      const colorEntry = POSTIT_COLORS.find(c => c.color === postitColor)
-      if (colorEntry?.asset) {
-        const assetImg = await loadImage(colorEntry.asset)
-        ctx.drawImage(assetImg, 0, 0, W, H)
-      } else {
-        ctx.fillStyle = postitColor
-        ctx.fillRect(0, 0, W, H)
-        const tex = await loadImage(postitTexture)
-        ctx.save()
-        ctx.globalCompositeOperation = 'multiply'
-        ctx.globalAlpha = 0.15
-        ctx.drawImage(tex, 0, 0, W, H)
-        ctx.restore()
-      }
+      ctx.fillStyle = postitColor
+      ctx.fillRect(0, 0, W, H)
+
+      const tex = await loadImage(postitTexture)
+      ctx.save()
+      ctx.globalCompositeOperation = 'multiply'
+      ctx.globalAlpha = 0.15
+      ctx.drawImage(tex, 0, 0, W, H)
+      ctx.restore()
 
       // 획 — SVG는 viewBox 100단위에서 size*0.5, canvas는 1200단위니까 size*0.5*12 = size*6
       strokes.forEach(s => {
@@ -891,11 +894,14 @@ export default function PostItEditor() {
         ctx.restore()
       }
     }
+    const mimeType = 'image/jpeg'
+    const quality = cardType === 'postit' ? 0.95 : 0.92
+
     return new Promise((resolve, reject) => {
       canvas.toBlob(blob => {
         if (!blob) { reject(new Error('canvas export failed')); return }
         resolve(URL.createObjectURL(blob))
-      }, 'image/jpeg', 0.92)
+      }, mimeType, quality)
     })
   }
 
