@@ -184,15 +184,14 @@ function NotificationPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-[14px] font-bold leading-relaxed text-[#2B1810]">
-                      {notification.message}
+                      {getNotificationTitle(notification)}
                     </p>
                     <p className="mt-1 text-[12px] font-medium text-[#8a7767]">
                       {formatNotificationMeta(notification)}
                     </p>
-                    {notification.traceId && (
+                    {notification.tracePreview && (
                       <p className="mt-2 text-[12px] font-semibold text-[#5f412b]">
-                        관련 흔적 #{notification.traceId}
-                        {notification.boardId ? ` · 보드 #${notification.boardId}` : ''}
+                        {notification.tracePreview}
                       </p>
                     )}
                   </div>
@@ -206,14 +205,22 @@ function NotificationPage() {
   )
 }
 
+function getNotificationTitle(notification) {
+  return notification.displayMessage || notification.message || '새 알림이 도착했습니다.'
+}
+
 function formatNotificationMeta(notification) {
-  const sender = notification.senderNickname || '사용자'
+  const context = getNotificationContext(notification)
   const createdAt = notification.createdAt ? new Date(notification.createdAt) : null
   const createdText = createdAt && !Number.isNaN(createdAt.getTime())
     ? createdAt.toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' })
     : ''
 
-  return [sender, createdText].filter(Boolean).join(' · ')
+  return [context, createdText].filter(Boolean).join(' · ')
+}
+
+function getNotificationContext(notification) {
+  return notification.placeName || notification.boardTitle || notification.senderNickname || '사용자'
 }
 
 export default NotificationPage
