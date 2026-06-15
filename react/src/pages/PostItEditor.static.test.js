@@ -23,3 +23,15 @@ test('PolaroidPreview renders text objects created by the text tool', () => {
   assert.match(polaroidPreviewSource, /\btextObjects\b/)
   assert.match(polaroidPreviewSource, /<TextObject\b/)
 })
+
+test('PostItEditor preserves board route state when returning with a placement draft', () => {
+  const completeSource = getSourceBetween('const complete = async () => {', '  return (')
+  const navigateIndex = completeSource.indexOf('navigate(`/board/${boardId}`')
+  const placementDraftIndex = completeSource.indexOf('placementDraft')
+  const boardNameIndex = completeSource.indexOf('boardName: location.state?.boardName')
+  const boardTypeIndex = completeSource.indexOf('boardType: location.state?.boardType')
+
+  assert.notEqual(navigateIndex, -1)
+  assert.ok(boardNameIndex > navigateIndex && boardNameIndex < placementDraftIndex)
+  assert.ok(boardTypeIndex > navigateIndex && boardTypeIndex < placementDraftIndex)
+})
