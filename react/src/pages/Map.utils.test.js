@@ -53,6 +53,10 @@ const CATEGORY_FILTER_SOURCE = readFileSync(
   fileURLToPath(new URL('../features/map/components/CategoryFilter.jsx', import.meta.url)),
   'utf8'
 )
+const POPULAR_PLACES_PANEL_SOURCE = readFileSync(
+  fileURLToPath(new URL('../features/map/components/PopularPlacesPanel.jsx', import.meta.url)),
+  'utf8'
+)
 const MAP_SOURCE = readFileSync(
   fileURLToPath(new URL('./Map.jsx', import.meta.url)),
   'utf8'
@@ -979,6 +983,15 @@ test('category filter wires pointer drag scrolling for desktop mouse users', () 
   assert.match(CATEGORY_FILTER_SOURCE, /onPointerMove=/)
   assert.match(CATEGORY_FILTER_SOURCE, /onPointerUp=/)
   assert.match(CATEGORY_FILTER_SOURCE, /onPointerCancel=/)
+})
+
+test('popular places panel wires pointer drag scrolling for desktop mouse users', () => {
+  assert.match(POPULAR_PLACES_PANEL_SOURCE, /getHorizontalDragStartState/)
+  assert.match(POPULAR_PLACES_PANEL_SOURCE, /getHorizontalDragScrollLeft/)
+  assert.match(POPULAR_PLACES_PANEL_SOURCE, /onPointerDown=/)
+  assert.match(POPULAR_PLACES_PANEL_SOURCE, /onPointerMove=/)
+  assert.match(POPULAR_PLACES_PANEL_SOURCE, /onPointerUp=/)
+  assert.match(POPULAR_PLACES_PANEL_SOURCE, /onPointerCancel=/)
 })
 
 test('category filter does not capture pointer before a drag starts', () => {

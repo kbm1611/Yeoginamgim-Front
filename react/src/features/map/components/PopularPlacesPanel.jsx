@@ -1,3 +1,4 @@
+import { useCallback, useRef } from 'react'
 import { ChevronDown, ChevronUp, Loader2, MapPin, MapPinned, RefreshCw } from 'lucide-react'
 import {
   MAP_BOTTOM_SHEET_BOTTOM_OFFSET_PX,
@@ -5,6 +6,8 @@ import {
   MAP_BOTTOM_SHEET_TRANSITION_CLASSES,
   MAP_PLACE_CARD_SCROLL_CLASSES,
   MAP_PLACE_LIST_SCROLL_CLASSES,
+  getHorizontalDragScrollLeft,
+  getHorizontalDragStartState,
   getBottomSheetContentClasses,
   getBottomSheetToggleLabel,
   getBottomSheetTransform,
@@ -28,6 +31,87 @@ function PopularPlacesPanel({
   onRetryPlaces,
   onSelectPlace,
 }) {
+  const dragStateRef = useRef(null)
+  const didDragRef = useRef(false)
+
+  const handleWheel = useCallback((event) => {
+    const container = event.currentTarget
+    if (container.scrollWidth <= container.clientWidth) return
+
+    const delta =
+      Math.abs(event.deltaX) > Math.abs(event.deltaY)
+        ? event.deltaX
+        : event.deltaY
+    if (delta === 0) return
+
+    const maxScrollLeft = container.scrollWidth - container.clientWidth
+    const nextScrollLeft = Math.max(0, Math.min(container.scrollLeft + delta, maxScrollLeft))
+    if (nextScrollLeft === container.scrollLeft) return
+
+    event.preventDefault()
+    container.scrollLeft = nextScrollLeft
+  }, [])
+
+  const handlePointerDown = useCallback((event) => {
+    const container = event.currentTarget
+    const dragState = getHorizontalDragStartState({
+      pointerType: event.pointerType,
+      button: event.button,
+      clientX: event.clientX,
+      scrollLeft: container.scrollLeft,
+      scrollWidth: container.scrollWidth,
+      clientWidth: container.clientWidth,
+    })
+    if (!dragState) return
+
+    dragStateRef.current = {
+      ...dragState,
+      pointerId: event.pointerId,
+    }
+    didDragRef.current = false
+  }, [])
+
+  const handlePointerMove = useCallback((event) => {
+    const container = event.currentTarget
+    const nextDragState = getHorizontalDragScrollLeft(dragStateRef.current, {
+      clientX: event.clientX,
+      scrollWidth: container.scrollWidth,
+      clientWidth: container.clientWidth,
+    })
+    if (!nextDragState) return
+
+    if (nextDragState.isDragging) {
+      if (!dragStateRef.current.isDragging) {
+        container.setPointerCapture?.(dragStateRef.current.pointerId)
+      }
+      didDragRef.current = true
+      event.preventDefault()
+    }
+    dragStateRef.current = {
+      ...dragStateRef.current,
+      isDragging: nextDragState.isDragging,
+    }
+    container.scrollLeft = nextDragState.scrollLeft
+  }, [])
+
+  const handlePointerEnd = useCallback((event) => {
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId)
+    }
+    dragStateRef.current = null
+  }, [])
+
+  const handlePlaceSelect = useCallback((event, place) => {
+    if (didDragRef.current) {
+      event.preventDefault()
+      event.stopPropagation()
+      didDragRef.current = false
+      return
+    }
+
+    onSelectPlace(place)
+  }, [onSelectPlace])
+
   return (
     <section
       className={`absolute left-2 right-2 z-20 overflow-hidden rounded-t-[24px] bg-white px-5 pb-4 shadow-[0_-10px_24px_rgba(0,0,0,0.08)] ${MAP_BOTTOM_SHEET_TRANSITION_CLASSES}`}
@@ -55,7 +139,7 @@ function PopularPlacesPanel({
         )}
       </button>
 
-      <div className={getBottomSheetContentClasses(isOpen)} aria-hidden={!isOpen} inert={!isOpen ? '' : undefined}>
+      <div className={getBottomSheetContentClasses(isOpen)} aria-hidden={!isOpen} inert={!isOpen}>
         <div className="mb-2 flex items-center justify-between">
           <div className="min-w-0">
             <p className="truncate text-[13px] font-medium text-[#7A6558]">
@@ -75,7 +159,14 @@ function PopularPlacesPanel({
 
         {boardError ? <p className="mb-2 text-[12px] font-medium text-[#A74831]">{boardError}</p> : null}
 
-        <div className={MAP_PLACE_LIST_SCROLL_CLASSES}>
+        <div
+          className={MAP_PLACE_LIST_SCROLL_CLASSES}
+          onWheel={handleWheel}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerEnd}
+          onPointerCancel={handlePointerEnd}
+        >
           {status === 'idle' ? (
             <PlacesPanelState
               message={locationStatus === 'error'
@@ -106,7 +197,7 @@ function PopularPlacesPanel({
                 place={place}
                 isSelected={place.kakaoPlaceId === selectedPlaceId}
                 isOpening={place.kakaoPlaceId === openingPlaceId}
-                onSelect={() => onSelectPlace(place)}
+                onSelect={(event) => handlePlaceSelect(event, place)}
               />
             ))
             : null}
