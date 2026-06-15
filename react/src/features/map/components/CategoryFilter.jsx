@@ -50,9 +50,11 @@ function CategoryFilter({
     })
     if (!dragState) return
 
-    dragStateRef.current = dragState
+    dragStateRef.current = {
+      ...dragState,
+      pointerId: event.pointerId,
+    }
     didDragRef.current = false
-    container.setPointerCapture?.(event.pointerId)
   }, [])
 
   const handlePointerMove = useCallback((event) => {
@@ -64,19 +66,24 @@ function CategoryFilter({
     })
     if (!nextDragState) return
 
+    if (nextDragState.isDragging) {
+      if (!dragStateRef.current.isDragging) {
+        container.setPointerCapture?.(dragStateRef.current.pointerId)
+      }
+      didDragRef.current = true
+      event.preventDefault()
+    }
     dragStateRef.current = {
       ...dragStateRef.current,
       isDragging: nextDragState.isDragging,
-    }
-    if (nextDragState.isDragging) {
-      didDragRef.current = true
-      event.preventDefault()
     }
     container.scrollLeft = nextDragState.scrollLeft
   }, [])
 
   const handlePointerEnd = useCallback((event) => {
-    event.currentTarget.releasePointerCapture?.(event.pointerId)
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId)
+    }
     dragStateRef.current = null
   }, [])
 

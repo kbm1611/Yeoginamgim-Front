@@ -62,6 +62,7 @@ function MapPage() {
     onUnauthorized: handleUnauthorizedApiError,
   })
   const isPoiSearchActive = search.searchStatus !== 'idle'
+  const isPoiSearchLoading = search.searchStatus === 'loading'
 
   const {
     categoryPlaces,
@@ -257,7 +258,10 @@ function MapPage() {
   }
 
   const handleCategorySelect = (categoryLabel) => {
-    if (isPoiSearchActive || search.activeSearchQuery) return
+    if (isPoiSearchLoading) return
+    if (isPoiSearchActive || search.activeSearchQuery || search.searchInput) {
+      search.clearPoiSearch()
+    }
 
     const nextState = getCategoryToggleState(selectedCategory, categoryLabel)
     setSelectedCategory(nextState.selectedCategory)
@@ -350,7 +354,7 @@ function MapPage() {
 
         <CategoryFilter
           selectedCategory={selectedCategory}
-          disabled={isPoiSearchActive}
+          disabled={isPoiSearchLoading}
           status={categoryPlacesStatus}
           error={categoryPlacesError}
           isEmpty={categoryPlaces.length === 0}

@@ -53,6 +53,10 @@ const CATEGORY_FILTER_SOURCE = readFileSync(
   fileURLToPath(new URL('../features/map/components/CategoryFilter.jsx', import.meta.url)),
   'utf8'
 )
+const MAP_SOURCE = readFileSync(
+  fileURLToPath(new URL('./Map.jsx', import.meta.url)),
+  'utf8'
+)
 
 const KAKAO_CATEGORY_CODES = [
   'CE7',
@@ -975,6 +979,23 @@ test('category filter wires pointer drag scrolling for desktop mouse users', () 
   assert.match(CATEGORY_FILTER_SOURCE, /onPointerMove=/)
   assert.match(CATEGORY_FILTER_SOURCE, /onPointerUp=/)
   assert.match(CATEGORY_FILTER_SOURCE, /onPointerCancel=/)
+})
+
+test('category filter does not capture pointer before a drag starts', () => {
+  const pointerDownStart = CATEGORY_FILTER_SOURCE.indexOf('const handlePointerDown')
+  const pointerMoveStart = CATEGORY_FILTER_SOURCE.indexOf('const handlePointerMove')
+
+  assert.notEqual(pointerDownStart, -1)
+  assert.notEqual(pointerMoveStart, -1)
+  assert.doesNotMatch(
+    CATEGORY_FILTER_SOURCE.slice(pointerDownStart, pointerMoveStart),
+    /setPointerCapture/
+  )
+})
+
+test('category filter remains clickable after a POI search has completed', () => {
+  assert.doesNotMatch(MAP_SOURCE, /disabled=\{isPoiSearchActive\}/)
+  assert.doesNotMatch(MAP_SOURCE, /if\s*\(\s*isPoiSearchActive\s*\|\|\s*search\.activeSearchQuery\s*\)\s*return/)
 })
 
 test('map viewport plan leaves the current view alone when no place markers exist', () => {
