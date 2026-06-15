@@ -396,7 +396,20 @@ export function normalizePlaces(places, origin, limit = NEARBY_LIMIT) {
 }
 
 export function normalizePopularPlaces(places, origin, limit = NEARBY_LIMIT) {
-  return normalizePlaces(places, origin, limit)
+  const seenPlaceIds = new Set()
+  const flattenedPlaces = Array.isArray(places)
+    ? places.flatMap(flattenPlaceGroup)
+    : []
+
+  return flattenedPlaces
+    .map(({ place, requestCategory }) => normalizePlace(place, origin, requestCategory))
+    .filter((place) => {
+      if (!place?.kakaoPlaceId || seenPlaceIds.has(place.kakaoPlaceId)) return false
+      seenPlaceIds.add(place.kakaoPlaceId)
+      return true
+    })
+    .sort(comparePopularPlaces)
+    .slice(0, limit)
 }
 
 export function normalizeSearchPlaces(places, origin, query, limit = NEARBY_LIMIT) {
@@ -784,6 +797,13 @@ function comparePlaces(left, right) {
   if (traceCompare !== 0) return traceCompare
 
   return left.placeName.localeCompare(right.placeName)
+}
+
+function comparePopularPlaces(left, right) {
+  const traceCompare = Number(right.traceCount ?? 0) - Number(left.traceCount ?? 0)
+  if (traceCompare !== 0) return traceCompare
+
+  return comparePlaces(left, right)
 }
 
 function compareSearchResults(left, right) {

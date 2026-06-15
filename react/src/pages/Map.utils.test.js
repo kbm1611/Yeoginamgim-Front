@@ -431,7 +431,7 @@ test('normalizePlaces uses distance before board state when trace counts tie', (
   )
 })
 
-test('normalizePopularPlaces keeps distance as the primary bottom sheet sort', () => {
+test('normalizePopularPlaces sorts the bottom sheet by highest trace count first', () => {
   const places = normalizePopularPlaces(
     [
       {
@@ -461,7 +461,7 @@ test('normalizePopularPlaces keeps distance as the primary bottom sheet sort', (
 
   assert.deepEqual(
     places.map((place) => place.kakaoPlaceId),
-    ['near-low', 'near-high', 'far-high']
+    ['near-high', 'far-high', 'near-low']
   )
 })
 
