@@ -4,7 +4,7 @@ import { ChevronLeft, Copy, MessageCircle, UserRound } from 'lucide-react'
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { getCustomBoardInviteInfo, getCustomBoardMembers, joinCustomBoard } from '../api/customBoards'
 import { clearAuthToken, getAuthToken } from '../api/client'
-import { buildJoinedBoardRouteState } from './InviteBoardPage.utils'
+import { buildJoinedBoardRouteState, getInviteOwnerDisplayName } from './InviteBoardPage.utils'
 
 function getJoinErrorMessage(error) {
   if (error?.status === 404) return '잘못되었거나 만료된 초대 링크예요.'
@@ -25,6 +25,7 @@ function InviteBoardPage() {
   const [members, setMembers] = useState([])
   const isJoinMode = Boolean(inviteCode)
   const [inviteInfo, setInviteInfo] = useState(null)
+  const ownerDisplayName = getInviteOwnerDisplayName(inviteInfo)
 
   useEffect(() => {
     if (!inviteCode) return
@@ -234,7 +235,7 @@ function InviteBoardPage() {
                     <UserRound size={20} strokeWidth={1.8} />
                   </span>
                   <div>
-                    <p className="text-[14px] font-bold text-[#2B1810]">나</p>
+                    <p className="text-[14px] font-bold text-[#2B1810]">{ownerDisplayName}</p>
                     <p className="text-[12px] font-medium text-[#9A8068]">보드를 만든 사람</p>
                   </div>
                 </div>

@@ -38,3 +38,12 @@ export function buildJoinedBoardRouteState(joinedBoard, inviteInfo, fallbackName
     boardType: 'CUSTOM',
   }
 }
+
+export function getInviteOwnerDisplayName(inviteInfo, fallback = '보드장') {
+  return (
+    inviteInfo?.ownerNickname ??
+    inviteInfo?.boardOwnerNickname ??
+    inviteInfo?.inviterNickname ??
+    fallback
+  )
+}
