@@ -19,12 +19,8 @@ import { createCustomBoardTrace, createInviteLink, getCustomBoard, getCustomBoar
 import { createTrace, fetchBoardTraces, uploadTraceImage } from '../api/traces'
 import BoardCanvas, { BOARD_HEIGHT, BOARD_WIDTH, findEmptySpotNear } from '../components/board/BoardCanvas'
 import BottomNavigation from '../components/BottomNavigation'
+import { BOARD_TYPE, resolveBoardType } from './BoardDetail.routing'
 import { traceToPost } from './tracePost.utils'
-
-const BOARD_TYPE = {
-  PLACE: 'PLACE',
-  CUSTOM: 'CUSTOM',
-}
 
 const EMPTY_BOARD_PLACE = {
   boardType: BOARD_TYPE.PLACE,
@@ -39,19 +35,6 @@ const EMPTY_BOARD_CUSTOM = {
   name: '',
   address: '',
   participants: [],
-}
-
-function resolveBoardType(id, locationState, boardDetail) {
-  const detailType = boardDetail?.boardType ?? boardDetail?.type
-  if (detailType === BOARD_TYPE.PLACE || detailType === BOARD_TYPE.CUSTOM) return detailType
-  if (locationState?.boardType === BOARD_TYPE.PLACE || locationState?.boardType === BOARD_TYPE.CUSTOM) {
-    return locationState.boardType
-  }
-
-  const routeId = String(id ?? '').toLowerCase()
-  if (routeId.includes('custom') || routeId.includes('memory')) return BOARD_TYPE.CUSTOM
-
-  return BOARD_TYPE.PLACE
 }
 
 function resolveBackendUrl(url) {
@@ -506,6 +489,24 @@ function BoardDetail() {
           navigate,
           redirect: true,
         })) return
+
+        if (board.boardType === BOARD_TYPE.PLACE && error?.status === 404 && location.state?.boardType !== BOARD_TYPE.PLACE) {
+          try {
+            const customDetail = await getCustomBoard(boardId)
+            if (!ignore) {
+              setBoardDetail(customDetail)
+              setBoardDetailErrorMessage('')
+            }
+            return
+          } catch (customError) {
+            if (handleUnauthorizedApiError(customError, {
+              clearToken: clearAuthToken,
+              location,
+              navigate,
+              redirect: true,
+            })) return
+          }
+        }
 
         setBoardDetail(null)
         setBoardDetailErrorMessage(getApiErrorMessage(error, {

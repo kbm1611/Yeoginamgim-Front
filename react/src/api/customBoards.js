@@ -28,6 +28,10 @@ export function joinCustomBoard(inviteCode) {
   return apiClient.post(`/api/custom-boards/join/${pathSegment(inviteCode)}`)
 }
 
+export function getCustomBoardInviteInfo(inviteCode) {
+  return apiClient.get(`/api/custom-boards/join/${pathSegment(inviteCode)}`)
+}
+
 export function getCustomBoardMembers(boardId) {
   return apiClient.get(`/api/custom-boards/${pathSegment(boardId)}/members`)
 }
