@@ -16,7 +16,7 @@ import { fetchBoardDetail } from '../api/boards'
 import { API_BASE_URL, clearAuthToken } from '../api/client'
 import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
 import { createTrace, fetchBoardTraces, uploadTraceImage } from '../api/traces'
-import { createCustomBoardTrace, createInviteLink, getCustomBoardTraces } from '../api/customBoards'
+import { createCustomBoardTrace, createInviteLink, getCustomBoard, getCustomBoardTraces } from '../api/customBoards'
 import BoardCanvas, { BOARD_HEIGHT, BOARD_WIDTH, findEmptySpotNear } from '../components/board/BoardCanvas'
 import BottomNavigation from '../components/BottomNavigation'
 import { traceToPost } from './tracePost.utils'
@@ -70,6 +70,7 @@ function resolveBackendUrl(url) {
 function getBoardName(boardDetail, locationState, fallback) {
   return (
     boardDetail?.boardName ??
+    boardDetail?.boardTitle ??
     boardDetail?.name ??
     boardDetail?.place?.placeName ??
     boardDetail?.placeName ??
@@ -92,7 +93,7 @@ function buildBoard(id, locationState, boardDetail) {
     mapUrl: place.kakaoMapUrl ?? boardDetail?.kakaoMapUrl ?? fallback.mapUrl,
     name: getBoardName(boardDetail, locationState, fallback),
     participants,
-    photoUrl: resolveBackendUrl(place.imageUrl ?? boardDetail?.imageUrl ?? ''),
+    photoUrl: resolveBackendUrl(place.imageUrl ?? boardDetail?.imageUrl ?? boardDetail?.boardImageUrl ?? ''),
   }
 }
 
@@ -488,7 +489,9 @@ function BoardDetail() {
       setBoardDetail(null)
 
       try {
-        const detail = await fetchBoardDetail(boardId)
+        const detail = board.boardType === BOARD_TYPE.CUSTOM
+          ? await getCustomBoard(boardId)
+          : await fetchBoardDetail(boardId)
         if (!ignore) {
           setBoardDetail(detail)
           setBoardDetailErrorMessage('')
@@ -520,7 +523,7 @@ function BoardDetail() {
     return () => {
       ignore = true
     }
-  }, [boardId, location, navigate])
+  }, [board.boardType, boardId, location, navigate])
 
   useEffect(() => {
     let ignore = false
