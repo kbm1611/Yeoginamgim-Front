@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { ChevronLeft, Copy, MessageCircle, UserRound } from 'lucide-react'
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { getCustomBoardMembers, joinCustomBoard } from '../api/customBoards'
-import { getAuthToken } from '../api/client'
+import { clearAuthToken, getAuthToken } from '../api/client'
 
 function getJoinedBoardId(joinedBoard) {
   return (
@@ -139,6 +139,11 @@ function InviteBoardPage() {
         },
       })
     } catch (error) {
+      if (error?.status === 401) {
+        clearAuthToken()
+        navigate('/login', { replace: true, state: { from: location } })
+        return
+      }
       setJoinMessage(getJoinErrorMessage(error))
     } finally {
       setIsJoining(false)
