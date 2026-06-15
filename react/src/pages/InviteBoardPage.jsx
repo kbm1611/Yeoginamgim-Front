@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { ChevronLeft, Copy, MessageCircle, UserRound } from 'lucide-react'
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { getCustomBoardMembers, joinCustomBoard } from '../api/customBoards'
+import { getAuthToken } from '../api/client'
 
 function getJoinedBoardId(joinedBoard) {
   return (
@@ -112,6 +113,11 @@ function InviteBoardPage() {
 
   const handleJoin = async () => {
     if (!inviteCode || isJoining) return
+
+    if (!getAuthToken()) {
+      navigate('/login', { replace: true, state: { from: location } })
+      return
+    }
 
     setIsJoining(true)
     setJoinMessage('')
