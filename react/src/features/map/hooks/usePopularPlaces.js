@@ -62,11 +62,11 @@ export function usePopularPlaces({
       setPlaces([])
       setStatus('error')
       setError(getApiErrorMessage(apiError, {
-        fallback: '주변 인기 공간을 불러오지 못했어요.',
+        fallback: '실시간 주변 인기 공간을 불러오지 못했어요.',
         statusMessages: {
           403: '인기 공간을 조회할 권한이 없습니다.',
           404: '주변에 보여줄 인기 공간을 찾지 못했어요.',
-          500: '주변 인기 공간을 불러오지 못했어요. 잠시 뒤 다시 시도해 주세요.',
+          500: '실시간 주변 인기 공간을 불러오지 못했어요. 잠시 뒤 다시 시도해 주세요.',
         },
       }))
     }

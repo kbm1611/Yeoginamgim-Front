@@ -889,8 +889,8 @@ test('bottom sheet helpers keep the sheet height fixed and toggle by transform',
 })
 
 test('bottom sheet toggle label reflects the next action', () => {
-  assert.equal(getBottomSheetToggleLabel(false), '\uC8FC\uBCC0 \uC778\uAE30 \uACF5\uAC04 \uC5F4\uAE30')
-  assert.equal(getBottomSheetToggleLabel(true), '\uC8FC\uBCC0 \uC778\uAE30 \uACF5\uAC04 \uB2EB\uAE30')
+  assert.equal(getBottomSheetToggleLabel(false), '\uC2E4\uC2DC\uAC04 \uC8FC\uBCC0 \uC778\uAE30 \uACF5\uAC04 \uC5F4\uAE30')
+  assert.equal(getBottomSheetToggleLabel(true), '\uC2E4\uC2DC\uAC04 \uC8FC\uBCC0 \uC778\uAE30 \uACF5\uAC04 \uB2EB\uAE30')
 })
 
 test('place list scroll classes enable smooth horizontal snapping', () => {
