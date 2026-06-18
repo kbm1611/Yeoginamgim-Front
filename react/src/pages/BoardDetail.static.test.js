@@ -27,6 +27,11 @@ test('BoardDetail does not endlessly retry the same failed placement draft', () 
   assert.match(boardDetailSource, /autoPlaceAttemptedDraftIdRef\.current === placementDraft\.id/)
 })
 
+test('BoardDetail loads custom board details through the custom-board API', () => {
+  assert.match(boardDetailSource, /getCustomBoard/)
+  assert.match(boardDetailSource, /board\.boardType === BOARD_TYPE\.CUSTOM[\s\S]*getCustomBoard\(boardId\)/)
+})
+
 test('BoardDetail has no unresolved merge markers or visible mojibake strings', () => {
   const mergeMarkerPattern = new RegExp(`${'<'.repeat(7)}|${'='.repeat(7)}|${'>'.repeat(7)}`)
   assert.doesNotMatch(boardDetailSource, mergeMarkerPattern)

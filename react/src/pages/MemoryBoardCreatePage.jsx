@@ -2,10 +2,11 @@ import { useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Camera, ChevronLeft, ImagePlus } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { createCustomBoard } from '../api/customBoards'
+import { createCustomBoard, getCustomBoard } from '../api/customBoards'
 import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
 import { clearAuthToken } from '../api/client'
 import { uploadTraceImage } from '../api/traces'
+import { createVerifiedCustomBoard } from './MemoryBoardCreatePage.utils'
 
 function MemoryBoardCreatePage() {
   const navigate = useNavigate()
@@ -43,26 +44,28 @@ function MemoryBoardCreatePage() {
         boardImageUrl = uploaded.imageUrl ?? uploaded.url ?? null
       }
 
-      const createdBoard = await createCustomBoard({
-        boardTitle: trimmedName,
-        boardDescription: description.trim(),
-        boardImageUrl,
-      })
-      const boardId = createdBoard?.boardId ?? createdBoard?.customBoardId ?? createdBoard?.id
+      const trimmedDescription = description.trim()
+      const routeState = await createVerifiedCustomBoard(
+        { createCustomBoard, getCustomBoard },
+        {
+          boardTitle: trimmedName,
+          boardDescription: trimmedDescription,
+          boardImageUrl,
+        },
+        {
+          fallbackName: trimmedName,
+          coverImage,
+          description: trimmedDescription,
+        }
+      )
 
-      if (!boardId) {
+      if (!routeState?.boardId) {
         throw new Error('생성된 보드 ID를 확인할 수 없습니다.')
       }
 
       navigate('/record/success', {
         replace: true,
-        state: {
-          boardId,
-          boardName: createdBoard?.boardTitle ?? createdBoard?.boardName ?? createdBoard?.name ?? trimmedName,
-          boardType: 'CUSTOM',
-          coverImage,
-          description: description.trim(),
-        },
+        state: routeState,
       })
     } catch (error) {
       if (handleUnauthorizedApiError(error, {

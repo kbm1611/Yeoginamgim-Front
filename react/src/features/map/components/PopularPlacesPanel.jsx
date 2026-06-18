@@ -46,7 +46,7 @@ function PopularPlacesPanel({
       >
         <span className="flex min-w-0 items-center gap-3">
           <span className="h-1 w-12 shrink-0 rounded-full bg-[#DDD3C6]" />
-          <span className="truncate text-[18px] font-bold text-[#2B1810]">주변 인기 공간</span>
+          <span className="truncate text-[18px] font-bold text-[#2B1810]">실시간 주변 인기 공간</span>
         </span>
         {isOpen ? (
           <ChevronDown size={18} strokeWidth={1.8} className="shrink-0 text-[#5A4030]" />
@@ -79,8 +79,8 @@ function PopularPlacesPanel({
           {status === 'idle' ? (
             <PlacesPanelState
               message={locationStatus === 'error'
-                ? '현재 위치를 확인해야 주변 인기 공간을 볼 수 있어요.'
-                : '현재 위치를 확인하면 주변 인기 공간을 보여드려요.'}
+                ? '현재 위치를 확인해야 실시간 주변 인기 공간을 볼 수 있어요.'
+                : '현재 위치를 확인하면 실시간 주변 인기 공간을 보여드려요.'}
               actionLabel={locationStatus === 'error' ? '위치 다시 확인' : undefined}
               onAction={locationStatus === 'error' ? onRetryLocation : undefined}
             />

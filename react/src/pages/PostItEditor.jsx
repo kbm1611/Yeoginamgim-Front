@@ -913,6 +913,8 @@ export default function PostItEditor() {
       const capturedImage = await exportImage()
       navigate(`/board/${boardId}`, {
         state: {
+          boardName: location.state?.boardName,
+          boardType: location.state?.boardType,
           placementDraft: {
             id: `${cardType}-${Date.now()}`,
             type: cardType,

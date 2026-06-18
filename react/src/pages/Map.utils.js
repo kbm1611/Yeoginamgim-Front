@@ -547,7 +547,7 @@ export function getBottomSheetTransform(isOpen) {
 }
 
 export function getBottomSheetToggleLabel(isOpen) {
-  return isOpen ? '주변 인기 공간 닫기' : '주변 인기 공간 열기'
+  return isOpen ? '실시간 주변 인기 공간 닫기' : '실시간 주변 인기 공간 열기'
 }
 
 export function getBottomSheetContentClasses(isOpen) {

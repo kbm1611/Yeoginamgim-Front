@@ -2,30 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { ChevronLeft, Copy, MessageCircle, UserRound } from 'lucide-react'
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { getCustomBoardMembers, joinCustomBoard } from '../api/customBoards'
-
-function getJoinedBoardId(joinedBoard) {
-  return (
-    joinedBoard?.boardId ??
-    joinedBoard?.customBoardId ??
-    joinedBoard?.id ??
-    joinedBoard?.board?.boardId ??
-    joinedBoard?.board?.customBoardId ??
-    joinedBoard?.board?.id
-  )
-}
-
-function getJoinedBoardName(joinedBoard, fallback) {
-  return (
-    joinedBoard?.boardTitle ??
-    joinedBoard?.boardName ??
-    joinedBoard?.name ??
-    joinedBoard?.board?.boardTitle ??
-    joinedBoard?.board?.boardName ??
-    joinedBoard?.board?.name ??
-    fallback
-  )
-}
+import { getCustomBoardInviteInfo, getCustomBoardMembers, joinCustomBoard } from '../api/customBoards'
+import { clearAuthToken, getAuthToken } from '../api/client'
+import { buildJoinedBoardRouteState, getInviteOwnerDisplayName } from './InviteBoardPage.utils'
 
 function getJoinErrorMessage(error) {
   if (error?.status === 404) return '잘못되었거나 만료된 초대 링크예요.'
@@ -45,6 +24,26 @@ function InviteBoardPage() {
   const [isJoining, setIsJoining] = useState(false)
   const [members, setMembers] = useState([])
   const isJoinMode = Boolean(inviteCode)
+  const [inviteInfo, setInviteInfo] = useState(null)
+  const ownerDisplayName = getInviteOwnerDisplayName(inviteInfo)
+
+  useEffect(() => {
+    if (!inviteCode) return
+
+    let ignore = false
+
+    getCustomBoardInviteInfo(inviteCode)
+      .then((data) => {
+        if (!ignore) setInviteInfo(data)
+      })
+      .catch(() => {
+        if (!ignore) setInviteInfo(null)
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [inviteCode])
 
   useEffect(() => {
     if (!id || isJoinMode) return
@@ -113,26 +112,50 @@ function InviteBoardPage() {
   const handleJoin = async () => {
     if (!inviteCode || isJoining) return
 
+    if (!getAuthToken()) {
+      navigate('/login', { replace: true, state: { from: location } })
+      return
+    }
+
     setIsJoining(true)
     setJoinMessage('')
 
+    const buildRouteState = async (joinedBoard = null) => {
+      const latestInviteInfo = inviteInfo ?? await getCustomBoardInviteInfo(inviteCode).catch(() => null)
+      if (!inviteInfo && latestInviteInfo) {
+        setInviteInfo(latestInviteInfo)
+      }
+      return buildJoinedBoardRouteState(joinedBoard, latestInviteInfo, boardName)
+    }
+
     try {
       const joinedBoard = await joinCustomBoard(inviteCode)
-      const joinedBoardId = getJoinedBoardId(joinedBoard)
+      const routeState = await buildRouteState(joinedBoard)
 
-      if (!joinedBoardId) {
+      if (!routeState?.boardId) {
         throw new Error('참여한 보드 정보를 확인하지 못했어요.')
       }
 
-      navigate(`/board/${joinedBoardId}`, {
+      navigate(`/board/${routeState.boardId}`, {
         replace: true,
-        state: {
-          boardId: joinedBoardId,
-          boardName: getJoinedBoardName(joinedBoard, boardName),
-          boardType: 'CUSTOM',
-        },
+        state: routeState,
       })
     } catch (error) {
+      if (error?.status === 401) {
+        clearAuthToken()
+        navigate('/login', { replace: true, state: { from: location } })
+        return
+      }
+      if (error?.status === 409) {
+        const routeState = await buildRouteState()
+        if (routeState?.boardId) {
+          navigate(`/board/${routeState.boardId}`, {
+            replace: true,
+            state: routeState,
+          })
+          return
+        }
+      }
       setJoinMessage(getJoinErrorMessage(error))
     } finally {
       setIsJoining(false)
@@ -212,7 +235,7 @@ function InviteBoardPage() {
                     <UserRound size={20} strokeWidth={1.8} />
                   </span>
                   <div>
-                    <p className="text-[14px] font-bold text-[#2B1810]">나</p>
+                    <p className="text-[14px] font-bold text-[#2B1810]">{ownerDisplayName}</p>
                     <p className="text-[12px] font-medium text-[#9A8068]">보드를 만든 사람</p>
                   </div>
                 </div>

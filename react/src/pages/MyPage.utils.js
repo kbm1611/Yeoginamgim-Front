@@ -5,13 +5,15 @@ export async function loadMyPageData({
   fetchMyInfo,
   fetchMyTraces,
   fetchArchiveBoards,
+  fetchMyCustomBoards,
 }) {
   const user = await fetchMyInfo()
-  const [tracesResult, archiveBoardsResult] = await Promise.allSettled([
+  const [tracesResult, archiveBoardsResult, customBoardsResult] = await Promise.allSettled([
     fetchMyTraces(),
     fetchArchiveBoards(),
+    fetchMyCustomBoards?.() ?? Promise.resolve(null),
   ])
-  const unauthorizedStatsError = [tracesResult, archiveBoardsResult]
+  const unauthorizedStatsError = [tracesResult, archiveBoardsResult, customBoardsResult]
     .find((result) => result.status === 'rejected' && result.reason?.status === 401)
     ?.reason
 
@@ -23,6 +25,7 @@ export async function loadMyPageData({
     user,
     myTracesResponse: getFulfilledValue(tracesResult),
     archiveBoardsResponse: getFulfilledValue(archiveBoardsResult),
+    customBoardsResponse: getFulfilledValue(customBoardsResult),
     statsPartialFailure: tracesResult.status === 'rejected' || archiveBoardsResult.status === 'rejected',
   })
 }

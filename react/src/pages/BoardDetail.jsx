@@ -15,49 +15,26 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { fetchBoardDetail } from '../api/boards'
 import { API_BASE_URL, clearAuthToken } from '../api/client'
 import { ACTIVITY_RESTRICTION_MATCHERS, ACTIVITY_RESTRICTION_MESSAGE, getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
+import { createCustomBoardTrace, createInviteLink, getCustomBoard, getCustomBoardMembers, getCustomBoardTraces } from '../api/customBoards'
 import { createTrace, fetchBoardTraces, uploadTraceImage } from '../api/traces'
-import { createCustomBoardTrace, createInviteLink, getCustomBoardTraces } from '../api/customBoards'
 import BoardCanvas, { BOARD_HEIGHT, BOARD_WIDTH, findEmptySpotNear } from '../components/board/BoardCanvas'
 import BottomNavigation from '../components/BottomNavigation'
+import { BOARD_TYPE, resolveBoardType } from './BoardDetail.routing'
 import { traceToPost } from './tracePost.utils'
 
-const BOARD_TYPE = {
-  PLACE: 'PLACE',
-  CUSTOM: 'CUSTOM',
+const EMPTY_BOARD_PLACE = {
+  boardType: BOARD_TYPE.PLACE,
+  name: '',
+  address: '',
+  mapUrl: '',
+  participants: [],
 }
 
-const DUMMY_BOARDS = {
-  place: {
-    boardType: BOARD_TYPE.PLACE,
-    name: '대림창고',
-    address: '서울 성동구 성수이로 78',
-    mapUrl: 'https://map.kakao.com',
-    photoLabel: '장소 사진 보기',
-    participants: [],
-  },
-  custom: {
-    boardType: BOARD_TYPE.CUSTOM,
-    name: '제주도 여행',
-    address: '',
-    participants: [
-      { id: 'me', name: '나', role: '보드장' },
-      { id: 'min', name: '민지', role: '참여자' },
-      { id: 'jun', name: '준호', role: '참여자' },
-    ],
-  },
-}
-
-function resolveBoardType(id, locationState, boardDetail) {
-  const detailType = boardDetail?.boardType ?? boardDetail?.type
-  if (detailType === BOARD_TYPE.PLACE || detailType === BOARD_TYPE.CUSTOM) return detailType
-  if (locationState?.boardType === BOARD_TYPE.PLACE || locationState?.boardType === BOARD_TYPE.CUSTOM) {
-    return locationState.boardType
-  }
-
-  const routeId = String(id ?? '').toLowerCase()
-  if (routeId.includes('custom') || routeId.includes('memory')) return BOARD_TYPE.CUSTOM
-
-  return BOARD_TYPE.PLACE
+const EMPTY_BOARD_CUSTOM = {
+  boardType: BOARD_TYPE.CUSTOM,
+  name: '',
+  address: '',
+  participants: [],
 }
 
 function resolveBackendUrl(url) {
@@ -70,6 +47,7 @@ function resolveBackendUrl(url) {
 function getBoardName(boardDetail, locationState, fallback) {
   return (
     boardDetail?.boardName ??
+    boardDetail?.boardTitle ??
     boardDetail?.name ??
     boardDetail?.place?.placeName ??
     boardDetail?.placeName ??
@@ -80,19 +58,19 @@ function getBoardName(boardDetail, locationState, fallback) {
 
 function buildBoard(id, locationState, boardDetail) {
   const boardType = resolveBoardType(id, locationState, boardDetail)
-  const fallback = boardType === BOARD_TYPE.CUSTOM ? DUMMY_BOARDS.custom : DUMMY_BOARDS.place
+  const fallback = boardType === BOARD_TYPE.CUSTOM ? EMPTY_BOARD_CUSTOM : EMPTY_BOARD_PLACE
   const place = boardDetail?.place ?? {}
-  const participants = boardDetail?.participants ?? boardDetail?.members ?? fallback.participants
+  const participants = boardDetail?.participants ?? boardDetail?.members ?? []
 
   return {
     ...fallback,
     id,
-    address: place.address ?? boardDetail?.address ?? fallback.address,
+    address: place.address ?? boardDetail?.address ?? '',
     boardType,
-    mapUrl: place.kakaoMapUrl ?? boardDetail?.kakaoMapUrl ?? fallback.mapUrl,
+    mapUrl: place.kakaoMapUrl ?? boardDetail?.kakaoMapUrl ?? '',
     name: getBoardName(boardDetail, locationState, fallback),
     participants,
-    photoUrl: resolveBackendUrl(place.imageUrl ?? boardDetail?.imageUrl ?? ''),
+    photoUrl: resolveBackendUrl(place.imageUrl ?? boardDetail?.imageUrl ?? boardDetail?.boardImageUrl ?? ''),
   }
 }
 
@@ -344,7 +322,7 @@ function PlaceInfoSheet({ board, onClose }) {
   )
 }
 
-function InviteSheet({ board, inviteLink, isInviteLinkLoading, onCopy, copyMessage, onClose }) {
+function InviteSheet({ members, inviteLink, isInviteLinkLoading, onCopy, copyMessage, onClose }) {
   return (
     <BottomSheet title="초대" onClose={onClose}>
       <div className="space-y-5">
@@ -379,17 +357,24 @@ function InviteSheet({ board, inviteLink, isInviteLinkLoading, onCopy, copyMessa
         <section>
           <h3 className="mb-3 text-[15px] font-bold text-[#2B1810]">참여자 목록</h3>
           <div className="space-y-2">
-            {board.participants.map((participant) => (
-              <div key={participant.id} className="flex items-center justify-between rounded-[14px] bg-white px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#EFE1D1] text-[#6A4D37]">
-                    <UserRound size={18} strokeWidth={1.8} />
-                  </span>
-                  <span className="text-[14px] font-bold text-[#2B1810]">{participant.name}</span>
+            {members.length === 0 ? (
+              <p className="text-[13px] font-medium text-[#9A8068]">참여자 정보를 불러오는 중...</p>
+            ) : members.map((member, i) => {
+              const name = member.nickname ?? member.name ?? member.username ?? '멤버'
+              const role = member.role === 'OWNER' ? '보드장' : (member.role ?? '참여자')
+              const key = member.memberId ?? member.userId ?? member.id ?? i
+              return (
+                <div key={key} className="flex items-center justify-between rounded-[14px] bg-white px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#EFE1D1] text-[#6A4D37]">
+                      <UserRound size={18} strokeWidth={1.8} />
+                    </span>
+                    <span className="text-[14px] font-bold text-[#2B1810]">{name}</span>
+                  </div>
+                  <span className="text-[12px] font-bold text-[#8A715D]">{role}</span>
                 </div>
-                <span className="text-[12px] font-bold text-[#8A715D]">{participant.role}</span>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </section>
       </div>
@@ -474,6 +459,7 @@ function BoardDetail() {
   const board = useMemo(() => buildBoard(boardId, location.state, boardDetail ?? (location.state?.boardName ? { boardName: location.state.boardName } : null)), [boardDetail, boardId, location.state])
   const [inviteLink, setInviteLink] = useState('')
   const [isInviteLinkLoading, setIsInviteLinkLoading] = useState(false)
+  const [members, setMembers] = useState([])
 
   useEffect(() => {
     if (location.state?.placementDraft) {
@@ -488,7 +474,9 @@ function BoardDetail() {
       setBoardDetail(null)
 
       try {
-        const detail = await fetchBoardDetail(boardId)
+        const detail = board.boardType === BOARD_TYPE.CUSTOM
+          ? await getCustomBoard(boardId)
+          : await fetchBoardDetail(boardId)
         if (!ignore) {
           setBoardDetail(detail)
           setBoardDetailErrorMessage('')
@@ -501,6 +489,24 @@ function BoardDetail() {
           navigate,
           redirect: true,
         })) return
+
+        if (board.boardType === BOARD_TYPE.PLACE && error?.status === 404 && location.state?.boardType !== BOARD_TYPE.PLACE) {
+          try {
+            const customDetail = await getCustomBoard(boardId)
+            if (!ignore) {
+              setBoardDetail(customDetail)
+              setBoardDetailErrorMessage('')
+            }
+            return
+          } catch (customError) {
+            if (handleUnauthorizedApiError(customError, {
+              clearToken: clearAuthToken,
+              location,
+              navigate,
+              redirect: true,
+            })) return
+          }
+        }
 
         setBoardDetail(null)
         setBoardDetailErrorMessage(getApiErrorMessage(error, {
@@ -520,7 +526,7 @@ function BoardDetail() {
     return () => {
       ignore = true
     }
-  }, [boardId, location, navigate])
+  }, [board.boardType, boardId, location, navigate])
 
   useEffect(() => {
     let ignore = false
@@ -734,15 +740,25 @@ function BoardDetail() {
     setCopyMessage('')
     setIsInviteLinkLoading(true)
     try {
-      const res = await createInviteLink(boardId)
-      const code = res?.inviteCode ?? res?.code ?? res?.invite_code
-      if (code) {
-        setInviteLink(`${window.location.origin}/board/join/${code}`)
+      const [inviteRes, membersRes] = await Promise.allSettled([
+        createInviteLink(boardId),
+        getCustomBoardMembers(boardId),
+      ])
+      if (inviteRes.status === 'fulfilled') {
+        const res = inviteRes.value
+        const code = res?.inviteCode ?? res?.code ?? res?.invite_code
+        setInviteLink(code
+          ? `${window.location.origin}/board/join/${code}`
+          : `${window.location.origin}/board/${boardId}`
+        )
       } else {
         setInviteLink(`${window.location.origin}/board/${boardId}`)
       }
-    } catch {
-      setInviteLink(`${window.location.origin}/board/${boardId}`)
+      if (membersRes.status === 'fulfilled') {
+        const data = membersRes.value
+        const list = data?.members ?? data?.content ?? (Array.isArray(data) ? data : [])
+        setMembers(list)
+      }
     } finally {
       setIsInviteLinkLoading(false)
     }
@@ -829,11 +845,11 @@ function BoardDetail() {
   return (
     <main className="app-device relative flex flex-col overflow-hidden bg-[#F5EFE6]">
       {board.boardType === BOARD_TYPE.PLACE ? (
-        <PlaceBoardChrome board={board} onBack={() => navigate(-1)} onRefresh={refreshTraces} onOpenPlaceInfo={() => setActiveSheet('place')}>
+        <PlaceBoardChrome board={board} onBack={() => navigate('/map')} onRefresh={refreshTraces} onOpenPlaceInfo={() => setActiveSheet('place')}>
           {chrome}
         </PlaceBoardChrome>
       ) : (
-        <CustomBoardChrome board={board} onBack={() => navigate(-1)} onRefresh={refreshTraces} onOpenInvite={handleOpenInvite}>
+        <CustomBoardChrome board={board} onBack={() => navigate('/my')} onRefresh={refreshTraces} onOpenInvite={handleOpenInvite}>
           {chrome}
         </CustomBoardChrome>
       )}
@@ -883,7 +899,7 @@ function BoardDetail() {
       {activeSheet === 'place' ? <PlaceInfoSheet board={board} onClose={() => setActiveSheet(null)} /> : null}
       {activeSheet === 'invite' ? (
         <InviteSheet
-          board={board}
+          members={members}
           inviteLink={inviteLink}
           isInviteLinkLoading={isInviteLinkLoading}
           onCopy={handleCopyInvite}

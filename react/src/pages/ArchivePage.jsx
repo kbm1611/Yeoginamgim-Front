@@ -283,7 +283,11 @@ function ArchivePage() {
           {activeTab === 'traces' && (
             <TraceGroupList
               groups={traceGroups}
-              onOpenBoard={(boardId) => navigate(`/board/${boardId}`)}
+              onOpenBoard={(group) => navigate(`/board/${group.boardId}`, {
+                state: group.isCustom
+                  ? { boardId: group.boardId, boardName: group.boardName, boardType: 'CUSTOM' }
+                  : undefined,
+              })}
               onOpenTrace={(trace) => navigate(`/board/${trace.boardId}/trace/${trace.id}`)}
               onMoveMap={() => navigate('/map')}
             />
@@ -300,7 +304,9 @@ function ArchivePage() {
           {activeTab === 'myboards' && (
             <CustomBoardList
               boards={pageState.customBoards}
-              onOpenBoard={(boardId) => navigate(`/board/${boardId}`)}
+              onOpenBoard={(board) => navigate(`/board/${board.boardId}`, {
+                state: { boardId: board.boardId, boardName: board.boardName, boardType: 'CUSTOM' },
+              })}
               onCreateBoard={() => navigate('/record/new')}
             />
           )}
@@ -338,7 +344,7 @@ function TraceGroupList({ groups, onOpenBoard, onOpenTrace, onMoveMap }) {
           {/* 보드 헤더 */}
           <button
             type="button"
-            onClick={() => onOpenBoard(group.boardId)}
+              onClick={() => onOpenBoard(group)}
             className="flex w-full items-center justify-between px-1 mb-2"
           >
             <div className="flex items-center gap-2 min-w-0">
@@ -532,7 +538,7 @@ function CustomBoardList({ boards, onOpenBoard, onCreateBoard }) {
         <button
           key={board.boardId}
           type="button"
-          onClick={() => onOpenBoard(board.boardId)}
+          onClick={() => onOpenBoard(board)}
           className="w-full overflow-hidden rounded-xl border border-[#eee3d6] bg-white/85 text-left shadow-[0_5px_12px_rgba(78,52,32,0.05)]"
         >
           {/* 커버 이미지 */}
