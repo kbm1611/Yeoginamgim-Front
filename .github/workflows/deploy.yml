@@ -95,7 +95,7 @@ jobs:                       # [필수] 작업(Job) 집합 정의
 
         working-directory: ./react              # [필수] 빌드 결과물이 생성되는 React 프로젝트 폴더에서 실행
 
-        run: aws s3 sync ./dist s3://elasticbeanstalk-ap-northeast-2-988477084982 --delete
+        run: aws s3 sync ./dist s3://elasticbeanstalk-ap-northeast-2-988477084982 --delete --exclude "data/*"
 
         shell: bash                             # [필수] bash 쉘 사용
 
