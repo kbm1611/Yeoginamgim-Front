@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react'
 import { Heart, Flag, Pencil, Trash2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { addTraceLike, removeTraceLike, deleteTrace } from '../../api/traces'
+import { createTraceReport } from '../../api/reports'
 import { fetchMyInfo } from '../../api/users'
 import { useNavigate, useParams } from 'react-router-dom'
 import FollowButton from '../FollowButton'
+import { ACTIVITY_RESTRICTION_MATCHERS, ACTIVITY_RESTRICTION_MESSAGE, getApiErrorMessage } from '../../api/errors'
 
 function TapeStrip() {
   return (
@@ -34,6 +36,14 @@ function formatTimeAgo(dateStr) {
   return new Date(dateStr).toLocaleDateString('ko-KR')
 }
 
+const REPORT_REASONS = [
+  { id: 'SPAM', label: '스팸/광고' },
+  { id: 'INAPPROPRIATE', label: '부적절한 콘텐츠' },
+  { id: 'HATE', label: '혐오/차별 발언' },
+  { id: 'PRIVACY', label: '개인정보 침해' },
+  { id: 'ETC', label: '기타' },
+]
+
 export default function TraceBottomSheet({ post, onClose, onDeleted }) {
   const navigate = useNavigate()
   const { id: boardId } = useParams()
@@ -42,6 +52,11 @@ export default function TraceBottomSheet({ post, onClose, onDeleted }) {
   const [isMyPost, setIsMyPost] = useState(false)
   const [myUserId, setMyUserId] = useState(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [actionError, setActionError] = useState('')
+  const [showReportConfirm, setShowReportConfirm] = useState(false)
+  const [selectedReportReason, setSelectedReportReason] = useState(REPORT_REASONS[0].id)
+  const [isReporting, setIsReporting] = useState(false)
+  const [reportDone, setReportDone] = useState(false)
 
   useEffect(() => {
     fetchMyInfo()
@@ -59,23 +74,63 @@ export default function TraceBottomSheet({ post, onClose, onDeleted }) {
 
   const handleLike = async () => {
     const next = !liked
+    setActionError('')
     setLiked(next)
     setLikes(p => p + (next ? 1 : -1))
     try {
       next ? await addTraceLike(post.id) : await removeTraceLike(post.id)
-    } catch {
+    } catch (error) {
       setLiked(!next)
       setLikes(p => p + (next ? -1 : 1))
+      setActionError(getApiErrorMessage(error, {
+        fallback: '좋아요를 처리하지 못했습니다.',
+        messageMatchers: ACTIVITY_RESTRICTION_MATCHERS,
+        statusMessages: { 403: ACTIVITY_RESTRICTION_MESSAGE },
+      }))
     }
   }
 
   const handleDelete = async () => {
+    setActionError('')
     try {
       await deleteTrace(post.id)
       onDeleted?.(post.id)
       onClose()
-    } catch (e) {
-      void e
+    } catch (error) {
+      setActionError(getApiErrorMessage(error, {
+        fallback: '삭제하지 못했습니다.',
+        messageMatchers: ACTIVITY_RESTRICTION_MATCHERS,
+        statusMessages: { 403: ACTIVITY_RESTRICTION_MESSAGE },
+      }))
+    }
+  }
+
+  const closeReportConfirm = () => {
+    if (isReporting) return
+    setShowReportConfirm(false)
+    setSelectedReportReason(REPORT_REASONS[0].id)
+    setReportDone(false)
+  }
+
+  const handleReport = async () => {
+    if (isReporting) return
+    setIsReporting(true)
+    setActionError('')
+    try {
+      await createTraceReport(post.id, { reportKind: selectedReportReason })
+      setReportDone(true)
+    } catch (error) {
+      setActionError(getApiErrorMessage(error, {
+        fallback: '신고를 접수하지 못했습니다.',
+        messageMatchers: ACTIVITY_RESTRICTION_MATCHERS,
+        statusMessages: {
+          403: ACTIVITY_RESTRICTION_MESSAGE,
+          409: '이미 신고했거나 숨김 처리된 흔적입니다.',
+        },
+      }))
+      setShowReportConfirm(false)
+    } finally {
+      setIsReporting(false)
     }
   }
 
@@ -209,6 +264,11 @@ export default function TraceBottomSheet({ post, onClose, onDeleted }) {
 
           {/* 신고 / 삭제 */}
           <div className="px-5 py-2 pb-8">
+            {actionError && (
+              <p className="mb-2 rounded-xl bg-[#FFF0EE] px-4 py-3 text-center text-[13px] font-semibold text-[#C0392B]">
+                {actionError}
+              </p>
+            )}
             {isMyPost ? (
               <button
                 type="button"
@@ -221,6 +281,7 @@ export default function TraceBottomSheet({ post, onClose, onDeleted }) {
             ) : (
               <button
                 type="button"
+                onClick={() => { setActionError(''); setShowReportConfirm(true) }}
                 className="flex w-full items-center gap-2 py-3 text-[14px] font-semibold text-[#C0392B]/70"
               >
                 <Flag size={16} strokeWidth={1.8} />
@@ -257,6 +318,72 @@ export default function TraceBottomSheet({ post, onClose, onDeleted }) {
                     className="flex-1 rounded-full bg-[#C0392B] py-3 text-[14px] font-semibold text-white"
                   >삭제</button>
                 </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* 신고 확인 */}
+        <AnimatePresence>
+          {showReportConfirm && (
+            <motion.div
+              className="absolute inset-0 z-10 flex items-center justify-center bg-black/20"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={closeReportConfirm}
+            >
+              <motion.div
+                className="mx-6 w-full rounded-2xl bg-white p-6 shadow-xl"
+                initial={{ scale: 0.92 }} animate={{ scale: 1 }} exit={{ scale: 0.92 }}
+                onClick={e => e.stopPropagation()}
+              >
+                {reportDone ? (
+                  <>
+                    <p className="text-center text-[16px] font-bold text-[#2A1A0E]">신고가 접수됐어요</p>
+                    <p className="mt-1 text-center text-[13px] text-[#8B7A6B]">검토 후 필요한 조치를 진행할게요.</p>
+                    <button
+                      type="button"
+                      onClick={closeReportConfirm}
+                      className="mt-5 w-full rounded-full bg-[#3B2A1E] py-3 text-[14px] font-semibold text-white"
+                    >
+                      확인
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-center text-[16px] font-bold text-[#2A1A0E]">신고 사유를 선택해주세요</p>
+                    <div className="mt-4 space-y-1">
+                      {REPORT_REASONS.map(reason => (
+                        <button
+                          key={reason.id}
+                          type="button"
+                          onClick={() => setSelectedReportReason(reason.id)}
+                          className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left active:bg-[#FAF5EF]"
+                        >
+                          <span className="text-[14px] font-semibold text-[#2A1A0E]">{reason.label}</span>
+                          <span className={`h-5 w-5 rounded-full border-2 ${selectedReportReason === reason.id ? 'border-[#C0392B] bg-[#C0392B]' : 'border-[#D8CEC2]'}`} />
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-5 flex gap-3">
+                      <button
+                        type="button"
+                        onClick={closeReportConfirm}
+                        disabled={isReporting}
+                        className="flex-1 rounded-full border border-[#D8CEC2] py-3 text-[14px] font-semibold text-[#6B5344] disabled:opacity-60"
+                      >
+                        취소
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleReport}
+                        disabled={isReporting}
+                        className="flex-1 rounded-full bg-[#C0392B] py-3 text-[14px] font-semibold text-white disabled:opacity-60"
+                      >
+                        {isReporting ? '신고 중...' : '신고'}
+                      </button>
+                    </div>
+                  </>
+                )}
               </motion.div>
             </motion.div>
           )}

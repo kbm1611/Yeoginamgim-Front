@@ -10,6 +10,11 @@ import {
 import { clearAuthToken, getAuthToken } from '../api/client'
 import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
 
+const REPORT_HIDDEN_NOTIFICATION_TYPES = new Set([
+  'TRACE_HIDDEN_BY_REPORT_FOR_AUTHOR',
+  'TRACE_HIDDEN_BY_REPORT_FOR_REPORTER',
+])
+
 function NotificationPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -220,6 +225,10 @@ function formatNotificationMeta(notification) {
 }
 
 function getNotificationContext(notification) {
+  if (REPORT_HIDDEN_NOTIFICATION_TYPES.has(notification.type ?? notification.notificationType)) {
+    return '신고 처리'
+  }
+
   return notification.placeName || notification.boardTitle || notification.senderNickname || '사용자'
 }
 

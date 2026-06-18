@@ -10,6 +10,11 @@ export const API_ERROR_MESSAGES = {
 
 export const NETWORK_ERROR_MESSAGE = '네트워크 연결을 확인해 주세요.'
 export const UNKNOWN_API_ERROR_MESSAGE = '요청을 처리하지 못했습니다. 잠시 뒤 다시 시도해 주세요.'
+export const ACTIVITY_RESTRICTION_MESSAGE =
+  '활동이 제한되어 일반 보드 활동을 할 수 없습니다. 로그인과 조회, 커스텀 보드 활동은 계속 이용할 수 있습니다.'
+export const ACTIVITY_RESTRICTION_MATCHERS = [
+  [/활동이 제한된 사용자입니다/, ACTIVITY_RESTRICTION_MESSAGE],
+]
 
 export function getApiErrorStatus(error) {
   return Number.isInteger(error?.status) ? error.status : null

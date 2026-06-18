@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Heart, MoreHorizontal, Pencil, X, Trash2, Flag } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { clearAuthToken } from '../api/client'
-import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
+import { ACTIVITY_RESTRICTION_MATCHERS, ACTIVITY_RESTRICTION_MESSAGE, getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
 import { addTraceLike, deleteTrace, fetchTrace, removeTraceLike } from '../api/traces'
 import { fetchMyInfo } from '../api/users'
 import { createTraceReport } from '../api/reports'
@@ -47,6 +47,7 @@ function TraceDetail() {
   const [selectedReason, setSelectedReason] = useState(null)
   const [isReporting, setIsReporting] = useState(false)
   const [reportDone, setReportDone] = useState(false)
+  const [reportError, setReportError] = useState('')
 
   useEffect(() => {
     if (location.state?.post || !traceId) return
@@ -114,7 +115,11 @@ function TraceDetail() {
       if (handleUnauthorizedApiError(error, { clearToken: clearAuthToken, navigate, location, redirect: true })) return
       setLiked(!next)
       setLikes(prev => prev + (next ? -1 : 1))
-      setActionError(getApiErrorMessage(error, { fallback: '좋아요를 처리하지 못했습니다.' }))
+      setActionError(getApiErrorMessage(error, {
+        fallback: '좋아요를 처리하지 못했습니다.',
+        messageMatchers: ACTIVITY_RESTRICTION_MATCHERS,
+        statusMessages: { 403: ACTIVITY_RESTRICTION_MESSAGE },
+      }))
     } finally {
       setIsLikePending(false)
     }
@@ -135,7 +140,11 @@ function TraceDetail() {
       navigate(-1, { state: { deletedPostId: post.id } })
     } catch (error) {
       if (handleUnauthorizedApiError(error, { clearToken: clearAuthToken, navigate, location, redirect: true })) return
-      setActionError(getApiErrorMessage(error, { fallback: '삭제하지 못했습니다.' }))
+      setActionError(getApiErrorMessage(error, {
+        fallback: '삭제하지 못했습니다.',
+        messageMatchers: ACTIVITY_RESTRICTION_MATCHERS,
+        statusMessages: { 403: ACTIVITY_RESTRICTION_MESSAGE },
+      }))
     } finally {
       setIsDeleting(false)
     }
@@ -144,11 +153,20 @@ function TraceDetail() {
   const handleReport = async () => {
     if (!selectedReason || isReporting) return
     setIsReporting(true)
+    setReportError('')
     try {
       await createTraceReport(post.id, { reportKind: selectedReason })
       setReportDone(true)
     } catch (error) {
-      handleUnauthorizedApiError(error, { clearToken: clearAuthToken, navigate, location })
+      if (handleUnauthorizedApiError(error, { clearToken: clearAuthToken, navigate, location, redirect: true })) return
+      setReportError(getApiErrorMessage(error, {
+        fallback: '신고를 접수하지 못했습니다.',
+        messageMatchers: ACTIVITY_RESTRICTION_MATCHERS,
+        statusMessages: {
+          403: ACTIVITY_RESTRICTION_MESSAGE,
+          409: '이미 신고했거나 숨김 처리된 흔적입니다.',
+        },
+      }))
     } finally {
       setIsReporting(false)
     }
@@ -423,7 +441,7 @@ function TraceDetail() {
           <motion.div
             className="absolute inset-0 z-50 flex items-end justify-center bg-black/40"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={() => { if (!isReporting) { setShowReportModal(false); setSelectedReason(null); setReportDone(false) } }}
+            onClick={() => { if (!isReporting) { setShowReportModal(false); setSelectedReason(null); setReportDone(false); setReportError('') } }}
           >
             <motion.div
               className="w-full rounded-t-2xl bg-white pb-8 shadow-xl"
@@ -439,7 +457,7 @@ function TraceDetail() {
                   <p className="text-center text-[13px] text-[#9B8B7B]">검토 후 조치할게요. 불편을 드려서 죄송합니다.</p>
                   <button
                     type="button"
-                    onClick={() => { setShowReportModal(false); setSelectedReason(null); setReportDone(false) }}
+                    onClick={() => { setShowReportModal(false); setSelectedReason(null); setReportDone(false); setReportError('') }}
                     className="mt-2 w-full rounded-full bg-[#3B2A1E] py-3 text-[14px] font-bold text-white"
                   >
                     확인
@@ -449,7 +467,7 @@ function TraceDetail() {
                 <>
                   <div className="flex items-center justify-between px-5 py-4">
                     <p className="text-[16px] font-bold text-[#2A1A0E]">신고 사유 선택</p>
-                    <button type="button" onClick={() => { setShowReportModal(false); setSelectedReason(null) }}>
+                    <button type="button" onClick={() => { setShowReportModal(false); setSelectedReason(null); setReportError('') }}>
                       <X size={20} color="#9B8B7B" />
                     </button>
                   </div>
@@ -467,6 +485,11 @@ function TraceDetail() {
                       </div>
                     </button>
                   ))}
+                  {reportError && (
+                    <p className="mx-5 mt-2 rounded-xl bg-[#FFF0EE] px-4 py-3 text-center text-[13px] font-semibold text-[#C0392B]">
+                      {reportError}
+                    </p>
+                  )}
                   <div className="px-5 pt-3">
                     <button
                       type="button"

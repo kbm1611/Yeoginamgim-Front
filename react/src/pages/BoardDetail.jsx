@@ -14,7 +14,7 @@ import {
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { fetchBoardDetail } from '../api/boards'
 import { API_BASE_URL, clearAuthToken } from '../api/client'
-import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
+import { ACTIVITY_RESTRICTION_MATCHERS, ACTIVITY_RESTRICTION_MESSAGE, getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
 import { createTrace, fetchBoardTraces, uploadTraceImage } from '../api/traces'
 import { createCustomBoardTrace, createInviteLink, getCustomBoardTraces } from '../api/customBoards'
 import BoardCanvas, { BOARD_HEIGHT, BOARD_WIDTH, findEmptySpotNear } from '../components/board/BoardCanvas'
@@ -707,8 +707,9 @@ function BoardDetail() {
 
       setActionMessage(getApiErrorMessage(error, {
         fallback: '흔적을 저장하지 못했습니다. 다시 시도해주세요.',
+        messageMatchers: ACTIVITY_RESTRICTION_MATCHERS,
         statusMessages: {
-          403: '흔적을 남길 권한이 없습니다.',
+          403: ACTIVITY_RESTRICTION_MESSAGE,
           404: '흔적을 남길 보드를 찾지 못했습니다.',
           409: '이미 사용 중인 위치입니다. 다른 위치에 남겨주세요.',
           500: '흔적을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.',
