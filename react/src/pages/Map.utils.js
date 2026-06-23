@@ -1,9 +1,9 @@
 ﻿export { buildBoardRequestFromPlace } from '../api/boards.utils.js'
 
 export const DEFAULT_MAP_CENTER = {
-  latitude: 37.5447,
-  longitude: 127.0559,
-  label: '성수동',
+  latitude: 37.38294049275141,
+  longitude: 126.93173526125615,
+  label: '성결대학교 주변 상권',
 }
 
 export const NEARBY_RADIUS_METERS = 1000
