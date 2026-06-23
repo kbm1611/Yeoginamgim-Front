@@ -7,7 +7,7 @@ import {
   getTraceCountText,
   mergeBoardDetailIntoPlace,
   resolveBoardNavigationId,
-} from './PlaceDetail.utils.js'
+} from '../../src/utils/pages/PlaceDetail.utils.js'
 
 test('mergeBoardDetailIntoPlace uses board place info and traceCount for place detail card', () => {
   const place = {

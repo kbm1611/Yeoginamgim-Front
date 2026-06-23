@@ -20,7 +20,7 @@ import { API_BASE_URL, clearAuthToken, getAuthToken } from '../api/client'
 import NotificationButton from '../components/NotificationButton'
 import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
 import { deleteMyAccount, fetchMyInfo, updateMyInfo } from '../api/users'
-import { getVisibleProfileImageUrl, loadMyPageData } from './MyPage.utils'
+import { getVisibleProfileImageUrl, loadMyPageData } from '../utils/pages/MyPage.utils'
 
 const WITHDRAWAL_CONFIRMATION = '회원탈퇴'
 

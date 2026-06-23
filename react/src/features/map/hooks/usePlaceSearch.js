@@ -5,7 +5,7 @@ import {
   buildPoiSearchRequests,
   NEARBY_LIMIT,
   normalizeSearchPlaces,
-} from '../../../pages/Map.utils'
+} from '../../../utils/pages/Map.utils'
 
 export function usePlaceSearch({
   currentPosition,

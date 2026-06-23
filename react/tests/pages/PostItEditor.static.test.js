@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 
 const currentDir = dirname(fileURLToPath(import.meta.url))
-const postItEditorSource = readFileSync(join(currentDir, 'PostItEditor.jsx'), 'utf8')
+const postItEditorSource = readFileSync(join(currentDir, '../../src/pages/PostItEditor.jsx'), 'utf8')
 
 function getSourceBetween(startMarker, endMarker) {
   const start = postItEditorSource.indexOf(startMarker)

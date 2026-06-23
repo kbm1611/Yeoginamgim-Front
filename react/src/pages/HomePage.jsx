@@ -5,7 +5,7 @@ import NotificationButton from '../components/NotificationButton'
 import TopPlacesSection from '../components/TopPlacesSection'
 import RecentTracesSection from '../components/RecentTracesSection'
 import { resolveCurrentDistrict } from '../api/locationDistrict'
-import { ALL_DISTRICTS_LABEL, DEFAULT_HOME_PERIOD, normalizeHomeDistrict } from './HomePage.utils'
+import { ALL_DISTRICTS_LABEL, DEFAULT_HOME_PERIOD, normalizeHomeDistrict } from '../utils/pages/HomePage.utils'
 
 function HomePage() {
   const [period, setPeriod] = useState(DEFAULT_HOME_PERIOD)

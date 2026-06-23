@@ -8,7 +8,7 @@ import {
   getCurrentLocationViewPlan,
   getCurrentPositionMarkerTitle,
   getPlaceCategoryMeta,
-} from '../../../pages/Map.utils'
+} from '../../../utils/pages/Map.utils'
 
 export function useKakaoMap({
   mapElementRef,

@@ -1,5 +1,5 @@
 import { ensureKakaoMaps } from './kakaoMaps.js'
-import { isSupportedDistrict } from '../pages/HomePage.utils.js'
+import { isSupportedDistrict } from '../utils/pages/HomePage.utils.js'
 
 const DISTRICT_CACHE_KEY = 'yeoginamgim.currentDistrict'
 const DISTRICT_CACHE_TTL_MS = 30 * 60 * 1000

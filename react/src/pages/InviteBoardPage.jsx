@@ -4,7 +4,7 @@ import { ChevronLeft, Copy, MessageCircle, UserRound } from 'lucide-react'
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { getCustomBoardInviteInfo, getCustomBoardMembers, joinCustomBoard } from '../api/customBoards'
 import { clearAuthToken, getAuthToken } from '../api/client'
-import { buildJoinedBoardRouteState, getInviteOwnerDisplayName } from './InviteBoardPage.utils'
+import { buildJoinedBoardRouteState, getInviteOwnerDisplayName } from '../utils/pages/InviteBoardPage.utils'
 
 function getJoinErrorMessage(error) {
   if (error?.status === 404) return '잘못되었거나 만료된 초대 링크예요.'

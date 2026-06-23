@@ -3,7 +3,7 @@ import {
   MAP_SEARCH_RESULTS_LIST_CLASSES,
   MAP_SEARCH_RESULTS_PANEL_CLASSES,
   getPlaceCategoryMeta,
-} from '../../../pages/Map.utils'
+} from '../../../utils/pages/Map.utils'
 import { CATEGORY_ICON_COMPONENTS } from '../mapIcons'
 
 function SearchPanel({

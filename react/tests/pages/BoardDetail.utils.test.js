@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { normalizeTraceCell } from './BoardDetail.utils.js'
+import { normalizeTraceCell } from '../../src/utils/pages/BoardDetail.utils.js'
 
 test('normalizeTraceCell keeps frontend grid coordinates as-is', () => {
   assert.deepEqual(normalizeTraceCell({ traceX: 1, traceY: 3 }), { col: 1, row: 3 })

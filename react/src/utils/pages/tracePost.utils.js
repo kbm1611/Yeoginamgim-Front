@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../api/client.js'
+import { API_BASE_URL } from '../../api/client.js'
 import { normalizeTraceCell } from './BoardDetail.utils.js'
 
 const POSTIT_COLOR_BY_HEX = {

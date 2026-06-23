@@ -19,8 +19,8 @@ import { createCustomBoardTrace, createInviteLink, getCustomBoard, getCustomBoar
 import { createTrace, fetchBoardTraces, uploadTraceImage } from '../api/traces'
 import BoardCanvas, { BOARD_HEIGHT, BOARD_WIDTH, findEmptySpotNear } from '../components/board/BoardCanvas'
 import BottomNavigation from '../components/BottomNavigation'
-import { BOARD_TYPE, resolveBoardType } from './BoardDetail.routing'
-import { traceToPost } from './tracePost.utils'
+import { BOARD_TYPE, resolveBoardType } from '../utils/pages/BoardDetail.routing'
+import { traceToPost } from '../utils/pages/tracePost.utils'
 
 const EMPTY_BOARD_PLACE = {
   boardType: BOARD_TYPE.PLACE,

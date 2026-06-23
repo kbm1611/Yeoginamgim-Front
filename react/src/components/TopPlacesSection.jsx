@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { fetchOrCreateBoardForPlace } from '../api/boards'
 import { getApiErrorMessage } from '../api/errors'
 import { fetchPopularPlaces } from '../api/places'
-import { ALL_DISTRICTS_LABEL, buildHomePlaceParams } from '../pages/HomePage.utils'
+import { ALL_DISTRICTS_LABEL, buildHomePlaceParams } from '../utils/pages/HomePage.utils'
 
 const fallbackImages = [
   'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=900&q=80',

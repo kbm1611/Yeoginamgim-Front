@@ -5,8 +5,8 @@ import { dirname, join } from 'node:path'
 import test from 'node:test'
 
 const currentDir = dirname(fileURLToPath(import.meta.url))
-const boardDetailSource = readFileSync(join(currentDir, 'BoardDetail.jsx'), 'utf8')
-const placeDetailSource = readFileSync(join(currentDir, 'PlaceDetail.jsx'), 'utf8')
+const boardDetailSource = readFileSync(join(currentDir, '../../src/pages/BoardDetail.jsx'), 'utf8')
+const placeDetailSource = readFileSync(join(currentDir, '../../src/pages/PlaceDetail.jsx'), 'utf8')
 
 test('BoardDetail header does not render a trace count', () => {
   assert.doesNotMatch(boardDetailSource, /흔적\s*\{traceCount\}개/)

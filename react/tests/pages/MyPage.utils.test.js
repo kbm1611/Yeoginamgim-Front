@@ -5,7 +5,7 @@ import {
   getVisibleProfileImageUrl,
   loadMyPageData,
   normalizeMyPageData,
-} from './MyPage.utils.js'
+} from '../../src/utils/pages/MyPage.utils.js'
 
 test('normalizeMyPageData builds profile and stats from API responses', () => {
   const result = normalizeMyPageData({

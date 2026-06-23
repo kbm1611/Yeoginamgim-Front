@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { DEFAULT_MAP_CENTER } from '../../../pages/Map.utils'
+import { DEFAULT_MAP_CENTER } from '../../../utils/pages/Map.utils'
 
 const GEOLOCATION_OPTIONS = {
   enableHighAccuracy: false,

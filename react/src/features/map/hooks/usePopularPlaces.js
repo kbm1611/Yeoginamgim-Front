@@ -5,7 +5,7 @@ import {
   buildPopularPlaceRequest,
   NEARBY_LIMIT,
   normalizePopularPlaces,
-} from '../../../pages/Map.utils'
+} from '../../../utils/pages/Map.utils'
 import { LOCATION_REQUIRED_MESSAGE } from './useCurrentLocation'
 
 export function usePopularPlaces({

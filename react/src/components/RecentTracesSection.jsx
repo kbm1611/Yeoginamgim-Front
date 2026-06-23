@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { getApiErrorMessage } from '../api/errors'
 import { fetchRecentTraces } from '../api/traces'
 import defaultTraceThumbnail from '../assets/images/recent-trace-default-polaroid.png'
-import { ALL_DISTRICTS_LABEL, buildHomeTraceParams } from '../pages/HomePage.utils'
+import { ALL_DISTRICTS_LABEL, buildHomeTraceParams } from '../utils/pages/HomePage.utils'
 
 function RecentTracesSection({ period, district }) {
   const navigate = useNavigate()

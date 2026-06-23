@@ -15,7 +15,7 @@ import {
   REGION_GROUPS,
   SEOUL_DISTRICTS,
   SUPPORTED_DISTRICTS,
-} from './HomePage.utils.js'
+} from '../../src/utils/pages/HomePage.utils.js'
 
 test('home period options default to today and expose four Korean filters', () => {
   assert.equal(DEFAULT_HOME_PERIOD, 'today')

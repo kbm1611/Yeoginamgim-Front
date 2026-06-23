@@ -6,7 +6,7 @@ import {
   REGION_GROUPS,
   filterRegionDistricts,
   findRegionIdByDistrict,
-} from '../pages/HomePage.utils'
+} from '../utils/pages/HomePage.utils'
 
 function HomeFilters({
   period,

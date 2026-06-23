@@ -5,7 +5,7 @@ import {
   buildNearbyPlaceRequests,
   NEARBY_LIMIT,
   normalizePlaces,
-} from '../../../pages/Map.utils'
+} from '../../../utils/pages/Map.utils'
 import { LOCATION_REQUIRED_MESSAGE } from './useCurrentLocation'
 
 export function useNearbyPlaces({

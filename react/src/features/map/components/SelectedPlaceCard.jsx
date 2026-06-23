@@ -3,7 +3,7 @@ import {
   MAP_SELECTED_PLACE_PANEL_HEIGHT,
   getPlaceCategoryMeta,
   getPlaceInfoRows,
-} from '../../../pages/Map.utils'
+} from '../../../utils/pages/Map.utils'
 import { CATEGORY_ICON_COMPONENTS } from '../mapIcons'
 
 function SelectedPlaceCard({

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { BOARD_TYPE, resolveBoardType } from './BoardDetail.routing.js'
+import { BOARD_TYPE, resolveBoardType } from '../../src/utils/pages/BoardDetail.routing.js'
 
 test('resolveBoardType treats customBoardId responses as custom boards without location state', () => {
   assert.equal(resolveBoardType('42', null, { customBoardId: 42 }), BOARD_TYPE.CUSTOM)

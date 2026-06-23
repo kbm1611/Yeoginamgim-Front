@@ -1,5 +1,5 @@
 import { Loader2, LocateFixed, Navigation } from 'lucide-react'
-import { MAP_FLOATING_CONTROLS_TRANSITION_CLASSES } from '../../../pages/Map.utils'
+import { MAP_FLOATING_CONTROLS_TRANSITION_CLASSES } from '../../../utils/pages/Map.utils'
 
 function FloatingMapControls({
   bottom,

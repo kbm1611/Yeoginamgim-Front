@@ -8,7 +8,7 @@ import { addTraceLike, deleteTrace, fetchTrace, removeTraceLike } from '../api/t
 import { fetchMyInfo } from '../api/users'
 import { createTraceReport } from '../api/reports'
 import FollowButton from '../components/FollowButton'
-import { traceToPost } from './tracePost.utils'
+import { traceToPost } from '../utils/pages/tracePost.utils'
 
 const REPORT_REASONS = [
   { id: 'SPAM', label: '스팸/광고' },

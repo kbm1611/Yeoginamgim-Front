@@ -53,7 +53,7 @@ test('follow API and list page scaffold match backend follow endpoints', () => {
   const friendSearchPage = read('src/pages/FriendSearchPage.jsx')
   const traceDetail = read('src/pages/TraceDetail.jsx')
   const traceBottomSheet = read('src/components/board/TraceBottomSheet.jsx')
-  const tracePostUtils = read('src/pages/tracePost.utils.js')
+  const tracePostUtils = read('src/utils/pages/tracePost.utils.js')
   const myPage = read('src/pages/MyPage.jsx')
   const app = read('src/App.jsx')
 

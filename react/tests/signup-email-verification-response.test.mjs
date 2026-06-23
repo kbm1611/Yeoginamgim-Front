@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
-const helpers = await import(pathToFileURL(join(root, 'src/pages/SignupPage.emailVerification.js')).href)
+const helpers = await import(pathToFileURL(join(root, 'src/utils/pages/SignupPage.emailVerification.js')).href)
 
 test('signup email format requires a domain suffix', () => {
   assert.equal(helpers.isValidSignupEmail('user@example.com'), true)

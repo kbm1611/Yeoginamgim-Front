@@ -47,14 +47,14 @@ import {
   normalizePlaces,
   normalizePopularPlaces,
   normalizeSearchPlaces,
-} from './Map.utils.js'
+} from '../../src/utils/pages/Map.utils.js'
 
 const CATEGORY_FILTER_SOURCE = readFileSync(
-  fileURLToPath(new URL('../features/map/components/CategoryFilter.jsx', import.meta.url)),
+  fileURLToPath(new URL('../../src/features/map/components/CategoryFilter.jsx', import.meta.url)),
   'utf8'
 )
 const MAP_SOURCE = readFileSync(
-  fileURLToPath(new URL('./Map.jsx', import.meta.url)),
+  fileURLToPath(new URL('../../src/pages/Map.jsx', import.meta.url)),
   'utf8'
 )
 

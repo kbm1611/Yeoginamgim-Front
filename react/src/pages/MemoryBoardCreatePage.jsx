@@ -6,7 +6,7 @@ import { createCustomBoard, getCustomBoard } from '../api/customBoards'
 import { getApiErrorMessage, handleUnauthorizedApiError } from '../api/errors'
 import { clearAuthToken } from '../api/client'
 import { uploadTraceImage } from '../api/traces'
-import { createVerifiedCustomBoard } from './MemoryBoardCreatePage.utils'
+import { createVerifiedCustomBoard } from '../utils/pages/MemoryBoardCreatePage.utils'
 
 function MemoryBoardCreatePage() {
   const navigate = useNavigate()

@@ -1,4 +1,4 @@
-﻿export { buildBoardRequestFromPlace } from '../api/boards.utils.js'
+﻿export { buildBoardRequestFromPlace } from '../../api/boards.utils.js'
 
 export const DEFAULT_MAP_CENTER = {
   latitude: 37.38294049275141,

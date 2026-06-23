@@ -4,7 +4,7 @@ import {
   buildJoinedBoardRouteState,
   getInviteOwnerDisplayName,
   getJoinedBoardId,
-} from './InviteBoardPage.utils.js'
+} from '../../src/utils/pages/InviteBoardPage.utils.js'
 
 test('getJoinedBoardId reads custom board ids from invite info fallback', () => {
   assert.equal(

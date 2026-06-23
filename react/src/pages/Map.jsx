@@ -27,7 +27,7 @@ import {
   getMarkerPlaces,
   getPlaceSelectionTransitionState,
   getSearchResultsPanelState,
-} from './Map.utils'
+} from '../utils/pages/Map.utils'
 
 function MapPage() {
   const navigate = useNavigate()

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { createVerifiedCustomBoard, getCreatedBoardId } from './MemoryBoardCreatePage.utils.js'
+import { createVerifiedCustomBoard, getCreatedBoardId } from '../../src/utils/pages/MemoryBoardCreatePage.utils.js'
 
 test('getCreatedBoardId reads custom board id from create response', () => {
   assert.equal(getCreatedBoardId({ customBoardId: 42 }), 42)

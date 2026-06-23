@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { sendEmailVerification, verifyEmailVerification } from '../api/auth'
 import { getApiErrorMessage } from '../api/errors'
 import { signupUser } from '../api/users'
-import { isEmailVerificationSendSucceeded, isValidSignupEmail } from './SignupPage.emailVerification'
+import { isEmailVerificationSendSucceeded, isValidSignupEmail } from '../utils/pages/SignupPage.emailVerification'
 import '../css/signup.css'
 
 const initialForm = {
